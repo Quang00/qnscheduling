@@ -15,11 +15,11 @@ def probability_e2e(
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
-    p_link = 1 - (1 - p_gen) ** (memory_size + 1)
-    p_all_links = p_link ** (n_swap + 1)
+    p_succ_one_link = 1 - (1 - p_gen) ** (memory_size + 1)
+    p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
 
-    return p_all_links * p_bsms
+    return p_succ_all_links * p_bsms
 
 
 def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
@@ -58,7 +58,7 @@ def duration_pga(
         memory_duration (int, optional): Memory duration in number of time units.
 
     Returns:
-        float: Duration of a PGA.
+        float: Duration of a PGA in microseconds.
     """
     p_e2e = probability_e2e(n_swap, p_gen, p_swap, memory_duration)
 
