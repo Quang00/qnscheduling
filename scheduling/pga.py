@@ -10,7 +10,7 @@ def probability_e2e(
         n_swap (int): Number of swaps performed.
         p_gen (float, optional): Probability of generating an EPR pair in a single trial.
         p_swap (float, optional): Probability of swapping an EPR pair in a single trial.
-        memory_size (int, optional): Memory duration in number of time slot units.
+        memory_duration (int, optional): Memory duration in number of time slot units.
 
     Returns:
         float: End-to-end probability of generating EPR pairs.
