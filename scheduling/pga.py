@@ -2,7 +2,7 @@ from scipy.stats import binom
 
 
 def probability_e2e(
-    n_swap: int, p_gen: float = 0.001, p_swap: float = 0.95, memory_size: int = 0
+    n_swap: int, p_gen: float = 0.001, p_swap: float = 0.95, memory_duration: int = 0
 ) -> float:
     """Calculate the end-to-end probability of generating EPR pairs in a given path.
 
@@ -10,12 +10,12 @@ def probability_e2e(
         n_swap (int): Number of swaps performed.
         p_gen (float, optional): Probability of generating an EPR pair in a single trial.
         p_swap (float, optional): Probability of swapping an EPR pair in a single trial.
-        memory_size (int, optional): Memory size in number of time units.
+        memory_size (int, optional): Memory duration in number of time units.
 
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
-    p_succ_one_link = 1 - (1 - p_gen) ** (memory_size + 1)
+    p_succ_one_link = 1 - (1 - p_gen) ** (memory_duration + 1)
     p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
 
