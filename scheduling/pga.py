@@ -37,42 +37,41 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
     return binom.sf(k - 1, n, p_e2e) >= p_packet
 
 
-def length_pga(
+def duration_pga(
     p_packet: float,
     time_slot: float,
     k: int,
     n_swap: int,
     p_swap: float = 0.5,
     p_gen: float = 0.001,
-    memory_size: int = 0,
+    memory_duration: int = 0,
 ) -> float:
-    """Calculate the length of a PGA (Packet Generation Attempt).
+    """Calculate the duration of a PGA (Packet Generation Attempt).
 
     Args:
         p_packet (float): Probability of a packet being generated.
-        time_slot (float): Length of a time slot in microseconds.
+        time_slot (float): Duration of a time slot in microseconds.
         k (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
         p_swap (float, optional): Probability of swapping an EPR pair in a single trial.
         p_gen (float, optional): Probability of generating an EPR pair in a single trial.
-        memory_size (int, optional): Memory size in number of time units.
+        memory_duration (int, optional): Memory duration in number of time units.
 
     Returns:
-        float: Length of a PGA.
+        float: Duration of a PGA.
     """
-    p_e2e = probability_e2e(n_swap, p_gen, p_swap, memory_size)
+    p_e2e = probability_e2e(n_swap, p_gen, p_swap, memory_duration)
 
+    # exponential search
     low = k
     high = low
     while not exceeds_p_packet(high, k, p_e2e, p_packet):
         high *= 2
 
-    # binary search
     while low < high:
         mid = (low + high) // 2
         if exceeds_p_packet(mid, k, p_e2e, p_packet):
             high = mid
         else:
             low = mid + 1
-    print(f"Binary search completed: low={low}, high={high}, p_e2e={p_e2e}")
     return low * time_slot
