@@ -32,9 +32,7 @@ def plot_pga_durations_vs_n_swapping(
             duration_pga(p_packet, k, n_swap, memory, p_swap=p_swap)
             for n_swap in n_swaps
         ]
-        print(f"Durations for {label}: {durations_us}")
         durations_s = [d * 1e-6 for d in durations_us]
-        print(f"Durations in seconds for {label}: {durations_s}")
         sns.lineplot(x=n_swaps, y=durations_s, marker="o", label=label)
 
     ax = plt.gca()
