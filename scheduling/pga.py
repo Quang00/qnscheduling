@@ -39,7 +39,7 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
 
 def duration_pga(
     p_packet: float,
-    time_slot: float,
+    time_slot_duration: float,
     k: int,
     n_swap: int,
     p_swap: float = 0.95,
@@ -74,4 +74,4 @@ def duration_pga(
             high = mid
         else:
             low = mid + 1
-    return low * time_slot
+    return low * time_slot_duration
