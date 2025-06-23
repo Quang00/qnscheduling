@@ -20,14 +20,12 @@ def simple_edf_schedule(
     groups = []
     seen = set()
 
-    if parallel_apps:
-        for app in parallel_apps:
-            valid = [t for t in app if t in app_w_pga_durations]
-            if not valid:
-                continue
-            groups.append(valid)
-            seen.update(valid)
-    print(groups)
+    for app in parallel_apps:
+        valid = [t for t in app if t in app_w_pga_durations]
+        if not valid:
+            continue
+        groups.append(valid)
+        seen.update(valid)
 
     for t in app_w_pga_durations:
         if t not in seen:
