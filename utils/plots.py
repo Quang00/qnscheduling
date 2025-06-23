@@ -72,7 +72,7 @@ def plot_pga_durations_vs_n_swapping(
             )
 
         ax = plt.gca()
-        ax.set_xlabel("Number of Swappings")
+        ax.set_xlabel("Number of Entanglement Swappings")
         ax.set_ylabel("Duration (s)")
         ax.set_yscale("log")
         ax.yaxis.set_major_formatter(LogFormatterMathtext())
