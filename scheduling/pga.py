@@ -2,15 +2,22 @@ from scipy.stats import binom
 
 
 def probability_e2e(
-    n_swap: int, memory_lifetime: float, p_gen: float = 0.001, p_swap: float = 0.95
+    n_swap: int,
+    memory_lifetime: float,
+    p_gen: float = 0.001,
+    p_swap: float = 0.95
 ) -> float:
-    """Calculate the end-to-end probability of generating EPR pairs in a given path.
+    """Calculate the end-to-end probability of generating EPR pairs in a given
+    path.
 
     Args:
         n_swap (int): Number of swaps performed.
-        memory_lifetime (float, optional): Memory lifetime in number of time slot units.
-        p_gen (float, optional): Probability of generating an EPR pair in a single trial.
-        p_swap (float, optional): Probability of swapping an EPR pair in a single trial.
+        memory_lifetime (float, optional): Memory lifetime in number of time
+        slot units.
+        p_gen (float, optional): Probability of generating an EPR pair in a
+        single trial.
+        p_swap (float, optional): Probability of swapping an EPR pair in a
+        single trial.
 
     Returns:
         float: End-to-end probability of generating EPR pairs.
@@ -23,16 +30,19 @@ def probability_e2e(
 
 
 def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
-    """Check if the probability of generating at least k EPR pairs in n trials is greater than or equal to p_packet.
+    """Check if the probability of generating at least k EPR pairs in n trials
+    is greater than or equal to p_packet.
 
     Args:
         n (int): Number of trials.
         k (int): Number of successes (number of EPR pairs generated).
-        p_e2e (float): Probability of generating an EPR pair end-to-end in a single trial.
+        p_e2e (float): Probability of generating an EPR pair end-to-end in a
+        single trial.
         p_packet (float): Probability of a packet being generated.
 
     Returns:
-        bool: True if the probability of generating at least k EPR pairs in n trials is greater than or equal to p_packet.
+        bool: True if the probability of generating at least k EPR pairs in n
+        trials is greater than or equal to p_packet.
     """
     return binom.sf(k - 1, float(n), p_e2e) >= p_packet
 
@@ -52,10 +62,14 @@ def duration_pga(
         p_packet (float): Probability of a packet being generated.
         k (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
-        memory_lifetime (float, optional): Memory lifetime in number of time slot units.
-        p_swap (float, optional): Probability of swapping an EPR pair in a single trial.
-        p_gen (float, optional): Probability of generating an EPR pair in a single trial.
-        time_slot_duration (float, optional): Duration of a time slot in microseconds.
+        memory_lifetime (float, optional): Memory lifetime in number of time
+        slot units.
+        p_swap (float, optional): Probability of swapping an EPR pair in a
+        single trial.
+        p_gen (float, optional): Probability of generating an EPR pair in a
+        single trial.
+        time_slot_duration (float, optional): Duration of a time slot in
+        microseconds.
 
     Returns:
         float: Duration of a PGA in microseconds.
