@@ -4,8 +4,9 @@ from scheduling.pga import duration_pga
 from scheduling.scheduling import simple_edf_schedule
 from utils.helper import parallelizable_tasks, shortest_paths
 
-if __name__ == "__main__":
-    # Quantum netork (Toy example)
+
+def main():
+    # Quantum network (Toy example)
     edges = [
         ("Alice", "Bob"),
         ("Alice", "Charlie"),
@@ -47,3 +48,7 @@ if __name__ == "__main__":
     # Simple EDF schedule for the applications based on their PGA durations
     schedule = simple_edf_schedule(duration_apps, parallel_apps)
     print("EDF Schedule:", schedule)
+
+
+if __name__ == "__main__":
+    main()
