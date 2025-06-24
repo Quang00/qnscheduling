@@ -10,13 +10,14 @@ def plot_pga_durations_vs_n_swapping(
     k: int = 2,
     configs: list = None,
 ) -> None:
-    """Plot the duration of a PGA (Packet Generation Attempt) vs. the number of entanglement swappings,
-    in one combined figure and in separate figures for each memory lifetime.
+    """Plot the duration of a PGA (Packet Generation Attempt) vs. the number of
+    entanglement swappings, in one combined figure and in separate figures for
+    each memory lifetime.
 
     Args:
         p_packet (float, optional):  Probability of a packet being generated.
         k (int, optional): Number of successes (number of EPR pairs generated).
-        configs (list, optional): List of tuples containing (label, p_swap, memory).
+        configs (list, optional): List of tuples (label, p_swap, memory).
     """
     if configs is None:
         configs = [
@@ -31,7 +32,10 @@ def plot_pga_durations_vs_n_swapping(
 
     for cfg in configs:
         label, p_swap, memory = cfg
-        dur_us = [duration_pga(p_packet, k, n, memory, p_swap=p_swap) for n in n_swaps]
+        dur_us = [
+            duration_pga(p_packet, k, n, memory, p_swap=p_swap)
+            for n in n_swaps
+        ]
         dur_s = [d * 1e-6 for d in dur_us]
         durations[cfg] = dur_s
 
@@ -42,7 +46,11 @@ def plot_pga_durations_vs_n_swapping(
     for cfg in configs:
         label, p_swap, memory = cfg
         sns.lineplot(
-            x=n_swaps, y=durations[cfg], marker="o", label=label, color=color_map[cfg]
+            x=n_swaps,
+            y=durations[cfg],
+            marker="o",
+            label=label,
+            color=color_map[cfg]
         )
 
     ax = plt.gca()
@@ -79,5 +87,6 @@ def plot_pga_durations_vs_n_swapping(
 
         plt.title(f"PGA Duration vs Number of Swappings (τ_mem = {memory})")
         plt.tight_layout()
-        plt.savefig(f"docs/pga_durations_vs_n_swapping_mem_{memory}.png", format="png")
+        plt.savefig(f"docs/pga_durations_vs_n_swapping_mem_{memory}.png",
+                    format="png")
         plt.close()

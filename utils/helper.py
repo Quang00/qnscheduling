@@ -37,7 +37,9 @@ def shortest_paths(
     }
 
 
-def parallelizable_tasks(paths_for_each_apps: dict[str, List[str]]) -> List[set]:
+def parallelizable_tasks(
+        paths_for_each_apps: dict[str, List[str]]
+) -> List[set]:
     """Find parallelizable applications based on shared resources (nodes) of a
     quantum network.
 
