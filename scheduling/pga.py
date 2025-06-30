@@ -54,7 +54,7 @@ def duration_pga(
     memory_lifetime: float = 0,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
-    time_slot_duration: float = 100,
+    time_slot_duration: float = 1e-4,
 ) -> float:
     """Calculate the duration of a PGA (Packet Generation Attempt).
 
