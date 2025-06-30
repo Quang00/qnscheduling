@@ -69,10 +69,10 @@ def duration_pga(
         p_gen (float, optional): Probability of generating an EPR pair in a
         single trial.
         time_slot_duration (float, optional): Duration of a time slot in
-        microseconds.
+        seconds.
 
     Returns:
-        float: Duration of a PGA in microseconds.
+        float: Duration of a PGA in seconds.
     """
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
 
