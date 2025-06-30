@@ -1,13 +1,13 @@
 def simple_edf_schedule(
-    app_w_pga_durations: dict[str, float], parallel_apps: dict[str, set[str]]
+    durations: dict[str, float], parallel_apps: dict[str, set[str]]
 ) -> list[tuple[str, float, float]]:
     """Simple Earliest Deadline First (EDF) schedule for applications based on
-    their PGA durations
+    their PGA durations.
 
     Args:
-        app_w_pga_durations (dict[str, float]): A dictionary where keys are
+        durations (dict[str, float]): A dictionary where keys are
         application names and values are their respective PGA durations in
-        mircoseconds.
+        seconds.
         parallel_apps (dict[str, set[str]]): A dictionary where keys are
         application names and values are sets of application names that can
         run in parallel.
@@ -17,28 +17,31 @@ def simple_edf_schedule(
         contains the application name, start time, and end time of the
         scheduled application.
     """
-    groups = []
-    seen = set()
-
-    for app in parallel_apps:
-        valid = [t for t in app if t in app_w_pga_durations]
-        if not valid:
-            continue
-        groups.append(valid)
-        seen.update(valid)
-
-    for t in app_w_pga_durations:
-        if t not in seen:
-            groups.append([t])
-
-    deadlines = [min(app_w_pga_durations[t] for t in grp) for grp in groups]
-    order = sorted(range(len(groups)), key=lambda i: deadlines[i])
-
     schedule = []
-    time = 0
-    for i in order:
-        app = groups[i]
-        for t in app:
-            schedule.append((t, time, time + app_w_pga_durations[t]))
-        time += max(app_w_pga_durations[t] for t in app)
+    curr = 0.0
+
+    # Sort by earliest durations which are the deadlines
+    jobs = sorted(durations, key=durations.get)
+
+    for job in jobs:
+        duration = durations[job]
+        conflict_finishes = []
+        parallelizable = parallel_apps.get(job, set())
+
+        # Check for conflicts with already scheduled jobs
+        for scheduled_job, _, end in schedule:
+            if scheduled_job not in parallelizable and end > curr:
+                conflict_finishes.append(end)
+
+        # Wait for the latest conflicting job to finish
+        if conflict_finishes:
+            curr = max(conflict_finishes)
+
+        start = curr
+        end = start + duration
+        schedule.append((job, start, end))
+
+        if not parallelizable:
+            curr = end
+
     return schedule
