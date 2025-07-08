@@ -10,21 +10,27 @@ def plot_pga_vs_memory(
     p_packet: float = 1,
     k: int = 4,
     p_swap: float = 0.95,
-    memories: list = list(range(200, 1001, 100)),
-    n_swaps: list = [0, 2, 4, 6, 8, 10],
+    memories: list = None,
+    n_swaps: list = None,
     path_folder: str = "docs/pga_duration_vs_memory",
 ) -> None:
-    """Plot the duration of a PGA (Packet Generation Attempt) vs. memory lifetime
-    for different numbers of entanglement swappings.
+    """Plot the duration of a PGA (Packet Generation Attempt) vs. memory
+    lifetime for different numbers of entanglement swappings.
 
     Args:
         p_packet (float, optional): Probability of a packet being generated.
         k (int, optional): Number of successes (number of EPR pairs generated).
-        p_swap (float, optional): Probability of a successful entanglement swapping.
+        p_swap (float, optional): Probability of a successful entanglement
+        swapping.
         memories (list, optional): List of memory lifetimes in milliseconds.
         n_swaps (list, optional): List of numbers of entanglement swappings.
         path_folder (str, optional): Path to save the plot image.
     """
+    if not memories:
+        memories = list(range(200, 1001, 100))
+    if not n_swaps:
+        n_swaps = [0, 2, 4, 6, 8, 10]
+
     data = []
     for memory in memories:
         for n in n_swaps:

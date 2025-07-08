@@ -70,7 +70,7 @@ def parallelizable_tasks(
             conflicts[r].add(app)
 
     # Find maximal cliques in the complement conflict graph
-    G_complement = nx.complement(G)
-    parallelizable_applications = list(nx.find_cliques(G_complement))
+    g_complement = nx.complement(G)
+    parallelizable_applications = list(nx.find_cliques(g_complement))
 
     return parallelizable_applications
