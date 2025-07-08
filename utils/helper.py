@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import networkx as nx
+import yaml
 
 
 def shortest_paths(
@@ -74,3 +75,40 @@ def parallelizable_tasks(
     parallelizable_applications = list(nx.find_cliques(g_complement))
 
     return parallelizable_applications
+
+
+def parse_yaml_config(
+    file_path: str,
+) -> Tuple[
+    List[Tuple[str, str]],
+    Dict[frozenset, dict],
+    Dict[str, Tuple[str, ...]],
+    Dict[str, int],
+    Dict[str, int],
+]:
+    """Parse a YAML configuration file to extract quantum network
+    configuration, including links and applications.
+
+    Args:
+        file_path (str): Path to the YAML configuration file.
+
+    Returns:
+        Tuple containing:
+            - List of edges as tuples (src, dst).
+            - Dictionary mapping frozenset of nodes to link parameters.
+            - Dictionary mapping application names to tuples of peer nodes.
+            - Dictionary mapping application names to the number of instances.
+            - Dictionary mapping application names to the number of EPR pairs.
+    """
+    with open(file_path) as f:
+        network = yaml.safe_load(f)
+
+    links = network.get("links", [])
+    edges = [tuple(link["nodes"]) for link in links]
+    link_params = {frozenset(link["nodes"]): link for link in links}
+    apps = network.get("apps", {})
+    peers = {app: tuple(cfg["peers"]) for app, cfg in apps.items()}
+    instances = {app: cfg.get("N", 1) for app, cfg in apps.items()}
+    e_pairs = {app: cfg.get("E_pairs", 1) for app, cfg in apps.items()}
+
+    return edges, link_params, peers, instances, e_pairs
