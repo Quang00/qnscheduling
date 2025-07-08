@@ -24,7 +24,7 @@ def probabilistic_job(
     job_route: list[str],
     node_resources: dict[str, simpy.Resource],
     p_gen: float,
-    required_epr_pairs: int,
+    epr_pairs: int,
     slot_duration: float,
     job_completion_log: list[dict[str, float]],
 ):
@@ -39,7 +39,7 @@ def probabilistic_job(
         node_resources (dict[str, simpy.Resource]): Resources for each node in
         the path.
         p_gen (float): Probability of generating an EPR pair in a single trial.
-        required_epr_pairs (int): Number of successes (number of EPR pairs
+        epr_pairs (int): Number of successes (number of EPR pairs
         generated).
         slot_duration (float): Duration of each time slot in the simulation.
         completion_log (list[dict[str, float]]): List to log job completion
@@ -58,7 +58,7 @@ def probabilistic_job(
 
     start_time = env.now
     successes = 0
-    while successes < required_epr_pairs:
+    while successes < epr_pairs:
         yield env.timeout(slot_duration)
         val = rng.random()
         if val < p_gen:

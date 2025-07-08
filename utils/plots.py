@@ -8,7 +8,7 @@ from scheduling.pga import duration_pga
 
 def plot_pga_vs_memory(
     p_packet: float = 1,
-    k: int = 4,
+    epr_pairs: int = 4,
     p_swap: float = 0.95,
     memories: list = None,
     n_swaps: list = None,
@@ -19,7 +19,8 @@ def plot_pga_vs_memory(
 
     Args:
         p_packet (float, optional): Probability of a packet being generated.
-        k (int, optional): Number of successes (number of EPR pairs generated).
+        epr_pairs (int, optional): Number of successes (number of EPR pairs
+        generated).
         p_swap (float, optional): Probability of a successful entanglement
         swapping.
         memories (list, optional): List of memory lifetimes in milliseconds.
@@ -34,7 +35,7 @@ def plot_pga_vs_memory(
     data = []
     for memory in memories:
         for n in n_swaps:
-            dur = duration_pga(p_packet, k, n, memory, p_swap=p_swap)
+            dur = duration_pga(p_packet, epr_pairs, n, memory, p_swap=p_swap)
             data.append(
                 {
                     "Memory (ms)": memory,

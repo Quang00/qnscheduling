@@ -59,7 +59,7 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
 
 def duration_pga(
     p_packet: float,
-    k: int,
+    epr_pairs: int,
     n_swap: int,
     memory_lifetime: float = 0,
     p_swap: float = 0.95,
@@ -70,7 +70,7 @@ def duration_pga(
 
     Args:
         p_packet (float): Probability of a packet being generated.
-        k (int): Number of successes (number of EPR pairs generated).
+        epr_pairs (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
         memory_lifetime (float, optional): Memory lifetime in number of time
         slot units.
@@ -87,14 +87,14 @@ def duration_pga(
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
 
     # exponential search
-    low = k
+    low = epr_pairs
     high = low
-    while not exceeds_p_packet(high, k, p_e2e, p_packet):
+    while not exceeds_p_packet(high, epr_pairs, p_e2e, p_packet):
         high *= 2
 
     while low < high:
         mid = (low + high) // 2
-        if exceeds_p_packet(mid, k, p_e2e, p_packet):
+        if exceeds_p_packet(mid, epr_pairs, p_e2e, p_packet):
             high = mid
         else:
             low = mid + 1
