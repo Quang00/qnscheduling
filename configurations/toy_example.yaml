@@ -1,0 +1,64 @@
+links:
+  - nodes: [Alice, Bob]
+    fidelity: 0.95
+    p_packet: 0.2
+    memory_lifetime: 50
+    p_swap: 0.95
+    p_gen: 0.001
+    time_slot_duration: 0.0001
+    distance: 10
+
+  - nodes: [Alice, Charlie]
+    fidelity: 0.95
+    p_packet: 0.2
+    memory_lifetime: 50
+    p_swap: 0.95
+    p_gen: 0.001
+    time_slot_duration: 0.0001
+    distance: 10
+
+  - nodes: [Charlie, David]
+    fidelity: 0.95
+    p_packet: 0.2
+    memory_lifetime: 50
+    p_swap: 0.95
+    p_gen: 0.001
+    time_slot_duration: 0.0001
+    distance: 10
+
+  - nodes: [Bob, David]
+    fidelity: 0.95
+    p_packet: 0.2
+    memory_lifetime: 50
+    p_swap: 0.95
+    p_gen: 0.001
+    time_slot_duration: 0.0001
+
+apps:
+  A:
+    type: QKD
+    peers: [Alice, David]
+    N: 1
+    E_pairs: 1
+    F_min: 0.9
+
+  B:
+    type: DGrover
+    peers: [Alice, Bob]
+    N: 1
+    E_pairs: 2
+    F_min: 0.95
+
+  C:
+    type: QKD
+    peers: [Bob, Charlie]
+    N: 1
+    E_pairs: 1
+    F_min: 0.9
+
+  D:
+    type: DGrover
+    peers: [Charlie, David]
+    N: 1
+    E_pairs: 2
+    F_min: 0.95
