@@ -1,9 +1,10 @@
 import math
-import pandas as pd
+import os
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import networkx as nx
+import pandas as pd
 import yaml
 
 
@@ -41,8 +42,8 @@ def shortest_paths(
 
 
 def parallelizable_tasks(
-        paths_for_each_apps: dict[str, List[str]]
-) -> List[set]:
+    paths_for_each_apps: dict[str, List[str]],
+) -> dict[str, set[str]]:
     """Find parallelizable applications based on shared resources (nodes) of a
     quantum network.
 
@@ -58,8 +59,15 @@ def parallelizable_tasks(
             }
 
     Returns:
-        List[set]: A list of sets, where each set contains application names
-        that can run in parallel without conflicting resource usage.
+        dict[str, set[str]]: A dictionary where keys are application names and
+        values are sets of applications that can run in parallel with the key
+        application, based on shared resources. For example:
+            {
+                'A': set(),
+                'B': {'D'},
+                'C': set(),
+                'D': {'B'}
+            }
     """
     G = nx.Graph()
     conflicts = defaultdict(set)
@@ -72,9 +80,10 @@ def parallelizable_tasks(
                 G.add_edge(app, other_app)
             conflicts[r].add(app)
 
-    # Find maximal cliques in the complement conflict graph
     g_complement = nx.complement(G)
-    parallelizable_applications = list(nx.find_cliques(g_complement))
+    parallelizable_applications = {
+        app: set(g_complement.neighbors(app)) for app in g_complement.nodes()
+    }
 
     return parallelizable_applications
 
@@ -158,8 +167,9 @@ def save_results(
             )
         df = pd.concat([df, pd.DataFrame(supplements)], ignore_index=True)
 
-    df = df.sort_values(by=["completion_time", "job"]).reset_index(drop=True)
-    df.to_csv("job_results.csv", index=False)
+    os.makedirs("results", exist_ok=True)
+    df = df.sort_values(by=["completion_time"]).reset_index(drop=True)
+    df.to_csv("results/job_results.csv", index=False)
 
     print("\n=== Job Results ===")
     print(
