@@ -126,7 +126,11 @@ def parse_yaml_config(
 
 
 def save_results(
-    df: pd.DataFrame, job_names: List, release_times: Dict, total_jobs: int
+    df: pd.DataFrame,
+    job_names: List,
+    release_times: Dict,
+    total_jobs: int,
+    output_dir: str = "results",
 ) -> None:
     """Save the results of job scheduling and execution to a CSV file and print
     a summary of the results.
@@ -146,6 +150,7 @@ def save_results(
         relative release times, used to fill in missing jobs.
         total_jobs (int): Total number of jobs that were expected to be
         processed.
+        output_dir (str): Directory where the results CSV file will be saved.
     """
     finished_jobs = set(df["job"])
     uncompleted_jobs = [job for job in job_names if job not in finished_jobs]
@@ -167,9 +172,9 @@ def save_results(
             )
         df = pd.concat([df, pd.DataFrame(supplements)], ignore_index=True)
 
-    os.makedirs("results", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     df = df.sort_values(by=["completion_time"]).reset_index(drop=True)
-    df.to_csv("results/job_results.csv", index=False)
+    df.to_csv(f"{output_dir}/job_results.csv", index=False)
 
     print("\n=== Job Results ===")
     print(
