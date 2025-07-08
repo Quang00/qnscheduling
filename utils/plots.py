@@ -1,92 +1,68 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.ticker import LogFormatterMathtext
+import pandas as pd
 
 from scheduling.pga import duration_pga
 
 
-def plot_pga_durations_vs_n_swapping(
-    p_packet: float = 0.2,
-    k: int = 2,
-    configs: list = None,
+def plot_pga_vs_memory(
+    p_packet: float = 1,
+    k: int = 4,
+    p_swap: float = 0.95,
+    memories: list = list(range(200, 1001, 100)),
+    n_swaps: list = [0, 2, 4, 6, 8, 10],
+    path_folder: str = "docs/pga_duration_vs_memory",
 ) -> None:
-    """Plot the duration of a PGA (Packet Generation Attempt) vs. the number of
-    entanglement swappings, in one combined figure and in separate figures for
-    each memory lifetime.
+    """Plot the duration of a PGA (Packet Generation Attempt) vs. memory lifetime
+    for different numbers of entanglement swappings.
 
     Args:
-        p_packet (float, optional):  Probability of a packet being generated.
+        p_packet (float, optional): Probability of a packet being generated.
         k (int, optional): Number of successes (number of EPR pairs generated).
-        configs (list, optional): List of tuples (label, p_swap, memory).
+        p_swap (float, optional): Probability of a successful entanglement swapping.
+        memories (list, optional): List of memory lifetimes in milliseconds.
+        n_swaps (list, optional): List of numbers of entanglement swappings.
+        path_folder (str, optional): Path to save the plot image.
     """
-    if configs is None:
-        configs = [
-            (r"$p_{swap}=0.5, \tau_{mem}=0$", 0.5, 0),
-            (r"$p_{swap}=0.95, \tau_{mem}=0$", 0.95, 0),
-            (r"$p_{swap}=0.5, \tau_{mem}=500\ ms$", 0.5, 500),
-            (r"$p_{swap}=0.95, \tau_{mem}=500\ ms$", 0.95, 500),
-        ]
-
-    n_swaps = list(range(0, 11))
-    durations = {}
-
-    for cfg in configs:
-        label, p_swap, memory = cfg
-        dur_us = [
-            duration_pga(p_packet, k, n, memory, p_swap=p_swap)
-            for n in n_swaps
-        ]
-        dur_s = [d * 1e-6 for d in dur_us]
-        durations[cfg] = dur_s
-
-    palette = sns.color_palette(n_colors=len(configs))
-    color_map = {cfg: palette[i] for i, cfg in enumerate(configs)}
-    plt.figure(figsize=(6, 4), dpi=300)
-
-    for cfg in configs:
-        label, p_swap, memory = cfg
-        sns.lineplot(
-            x=n_swaps,
-            y=durations[cfg],
-            marker="o",
-            label=label,
-            color=color_map[cfg]
-        )
-
-    ax = plt.gca()
-    ax.set_xlabel("Number of Entanglement Swappings")
-    ax.set_ylabel("Duration (s)")
-    ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(LogFormatterMathtext())
-
-    plt.title("PGA Duration vs Number of Entanglement Swappings")
-    plt.tight_layout()
-    plt.savefig("docs/pga_durations_vs_n_swapping_all.png", format="png")
-    plt.close()
-
-    unique_memories = sorted({memory for (_, _, memory) in configs})
-    for memory in unique_memories:
-        plt.figure(figsize=(6, 4), dpi=300)
-        cfgs_for_mem = [cfg for cfg in configs if cfg[2] == memory]
-
-        for cfg in cfgs_for_mem:
-            label, p_swap, _ = cfg
-            sns.lineplot(
-                x=n_swaps,
-                y=durations[cfg],
-                marker="o",
-                label=label,
-                color=color_map[cfg],
+    data = []
+    for memory in memories:
+        for n in n_swaps:
+            dur = duration_pga(p_packet, k, n, memory, p_swap=p_swap)
+            data.append(
+                {
+                    "Memory (ms)": memory,
+                    "Swaps": n,
+                    "Duration (s)": dur * 1e-6,
+                }
             )
 
-        ax = plt.gca()
-        ax.set_xlabel("Number of Entanglement Swappings")
-        ax.set_ylabel("Duration (s)")
-        ax.set_yscale("log")
-        ax.yaxis.set_major_formatter(LogFormatterMathtext())
+    df = pd.DataFrame(data)
+    palette = sns.color_palette("colorblind", n_colors=len(n_swaps))
 
-        plt.title(f"PGA Duration vs Number of Swappings (τ_mem = {memory})")
-        plt.tight_layout()
-        plt.savefig(f"docs/pga_durations_vs_n_swapping_mem_{memory}.png",
-                    format="png")
-        plt.close()
+    fig, ax = plt.subplots(figsize=(6, 4.5), dpi=300)
+    for idx, n in enumerate(n_swaps):
+        subset = df[df["Swaps"] == n]
+        ax.plot(
+            subset["Memory (ms)"],
+            subset["Duration (s)"],
+            marker="o",
+            linestyle="-",
+            color=palette[idx],
+            label=f"{n} swaps",
+        )
+
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(LogFormatterMathtext())
+    ax.grid(True, which="both", linestyle="--", linewidth=0.5)
+    ax.set_xlabel(r"Memory lifetime $\tau_{\mathrm{mem}}$ (ms)")
+    ax.set_ylabel(r"PGA duration (s)")
+    ax.set_title("PGA Duration vs Memory Lifetime")
+    ax.legend(
+        title=f"# swaps ($p_{{swap}}={p_swap}$)",
+    )
+
+    fig.tight_layout()
+
+    fig.savefig(f"{path_folder}.png", dpi=300, format="png")
+    plt.close(fig)
