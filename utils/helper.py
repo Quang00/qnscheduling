@@ -1,3 +1,5 @@
+import math
+import pandas as pd
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -112,3 +114,79 @@ def parse_yaml_config(
     e_pairs = {app: cfg.get("E_pairs", 1) for app, cfg in apps.items()}
 
     return edges, link_params, peers, instances, e_pairs
+
+
+def save_results(
+    df: pd.DataFrame, job_names: List, release_times: Dict, total_jobs: int
+) -> None:
+    """Save the results of job scheduling and execution to a CSV file and print
+    a summary of the results.
+
+    Args:
+        df (DataFrame): DataFrame containing job results with columns:
+            - job: Job identifier
+            - arrival_time: Time when the job arrived
+            - start_time: Time when the job started execution
+            - burst_time: Total time required for the job to complete
+            - completion_time: Time when the job completed execution
+            - turnaround_time: Total time from arrival to completion
+            - waiting_time: Total time the job waited before execution
+        job_names (List): List of all job names that should be present in the
+        results.
+        release_times (Dict): Dictionary mapping application names to their
+        relative release times, used to fill in missing jobs.
+        total_jobs (int): Total number of jobs that were expected to be
+        processed.
+    """
+    finished_jobs = set(df["job"])
+    uncompleted_jobs = [job for job in job_names if job not in finished_jobs]
+
+    if uncompleted_jobs:
+        supplements = []
+        for uncompleted_job in uncompleted_jobs:
+            app = uncompleted_job.split("_")[0]
+            supplements.append(
+                {
+                    "job": uncompleted_job,
+                    "arrival_time": release_times.get(app, float("nan")),
+                    "start_time": math.nan,
+                    "burst_time": math.nan,
+                    "completion_time": math.nan,
+                    "turnaround_time": math.nan,
+                    "waiting_time": math.nan,
+                }
+            )
+        df = pd.concat([df, pd.DataFrame(supplements)], ignore_index=True)
+
+    df = df.sort_values(by=["completion_time", "job"]).reset_index(drop=True)
+    df.to_csv("job_results.csv", index=False)
+
+    print("\n=== Job Results ===")
+    print(
+        df.to_string(
+            index=False,
+            columns=[
+                "job",
+                "arrival_time",
+                "start_time",
+                "burst_time",
+                "completion_time",
+                "turnaround_time",
+                "waiting_time",
+            ],
+        )
+    )
+
+    makespan = df["completion_time"].max() - df["arrival_time"].min()
+    completed_count = df["completion_time"].count()
+    throughput = completed_count / makespan if makespan > 0 else float("inf")
+    waits = df["waiting_time"].dropna()
+
+    print("\n=== Summary ===")
+    print(f"makespan         : {makespan:.4f}")
+    print(f"throughput       : {throughput:.4f} jobs/s")
+    print(f"avg_waiting_time : {waits.mean():.4f}")
+    print(f"max_waiting_time : {waits.max():.4f}")
+    print(f"total_instances  : {total_jobs}")
+    print(f"completed_jobs   : {completed_count}")
+    print(f"unfinished_jobs  : {len(uncompleted_jobs)}")
