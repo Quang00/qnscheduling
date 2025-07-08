@@ -1,3 +1,13 @@
+"""
+Packet Generation Attempt
+-------------------------
+This module provides functions to calculate the end-to-end probability of
+generating EPR pairs in a quantum network, check if the probability of
+generating a certain number of EPR pairs exceeds a given threshold, and
+compute the duration of a Packet Generation Attempt (PGA) based on these
+probabilities.
+"""
+
 from scipy.stats import binom
 
 
