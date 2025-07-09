@@ -7,6 +7,8 @@ import networkx as nx
 import pandas as pd
 import yaml
 
+from scheduling.pga import duration_pga
+
 
 def shortest_paths(
     edges: List[Tuple[str, str]], app_requests: Dict[str, Tuple[str, str]]
@@ -86,6 +88,85 @@ def parallelizable_tasks(
     }
 
     return parallelizable_applications
+
+
+def compute_durations(
+    paths: dict[str, list[str]], link_params: dict, e_pairs: dict[str, int]
+) -> dict[str, float]:
+    """Compute the duration of each application based on the paths and
+    link parameters.
+
+    Args:
+        paths (dict[str, list[str]]): Paths for each application in the
+        network.
+        link_params (dict): Parameters for each link in the network, including
+        packet generation probability, memory lifetime, swap probability,
+        and time slot duration.
+        e_pairs (dict[str, int]): Entanglement generation pairs for each
+        application, indicating how many EPR pairs are to be generated.
+
+    Returns:
+        dict[str, float]: A dictionary mapping each application to its total
+        duration, which includes the time taken for probabilistic generation
+        of EPR pairs and the latency based on the distance of the path.
+    """
+    durations = {}
+    for app, route in paths.items():
+        first_link = frozenset((route[0], route[1]))
+        link_parameters = link_params[first_link]
+
+        pga_time = duration_pga(
+            p_packet=link_parameters["p_packet"],
+            epr_pairs=e_pairs[app],
+            n_swap=math.ceil(len(route) / 2),
+            memory_lifetime=link_parameters["memory_lifetime"],
+            p_swap=link_parameters["p_swap"],
+            p_gen=link_parameters["p_gen"],
+            time_slot_duration=link_parameters["time_slot_duration"],
+        )
+
+        distance = 0.0
+        for i in range(len(route) - 1):
+            link = frozenset((route[i], route[i + 1]))
+            if link in link_params:
+                distance += link_params[link].get("distance", 0.0)
+            else:
+                distance += 0.0
+        latency = distance / 200_000
+
+        durations[app] = pga_time + latency
+    return durations
+
+
+def app_params_sim(
+    paths: dict[str, list[str]], link_params: dict, e_pairs: dict[str, int]
+) -> dict[str, dict[str, float]]:
+    """Prepare application parameters for simulation.
+
+    Args:
+        paths (dict[str, list[str]]): Paths for each application in the
+        network.
+        link_params (dict): Parameters for each link in the network, including
+        packet generation probability, memory lifetime, swap probability,
+        and time slot duration.
+        e_pairs (dict[str, int]): Entanglement generation pairs for each
+        application, indicating how many EPR pairs are to be generated.
+
+    Returns:
+        dict[str, dict[str, float]]: A dictionary mapping each application to
+        its parameters for simulation, including the probability of generating
+        an EPR pair, the number of EPR pairs to generate, and the time slot
+        duration.
+    """
+    sim_params = {}
+    for app, route in paths.items():
+        lk = link_params[frozenset((route[0], route[1]))]
+        sim_params[app] = {
+            "p_gen": lk["p_gen"],
+            "k": e_pairs[app],
+            "slot_duration": lk["time_slot_duration"],
+        }
+    return sim_params
 
 
 def parse_yaml_config(
