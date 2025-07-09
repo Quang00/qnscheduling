@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 import simpy
 
-RANDOM_SEED = 42
-
 
 def probabilistic_job(
     env: simpy.Environment,
@@ -27,6 +25,7 @@ def probabilistic_job(
     epr_pairs: int,
     slot_duration: float,
     job_completion_log: list[dict[str, float]],
+    rng: np.random.Generator,
 ):
     """Probabilistic job simulation.
 
@@ -44,9 +43,9 @@ def probabilistic_job(
         slot_duration (float): Duration of each time slot in the simulation.
         completion_log (list[dict[str, float]]): List to log job completion
         statistic.
+        rng (np.random.Generator): Random number generator for probabilistic
+        outcomes.
     """
-    rng = np.random.default_rng(RANDOM_SEED)
-
     yield env.timeout(max(0, arrival_time - env.now))
     yield env.timeout(max(0, job_start_time - env.now))
 
@@ -92,6 +91,7 @@ def simulate(
     job_periods: dict[str, float],
     job_instance_freq: dict[str, int],
     job_network_paths: dict[str, list[str]],
+    seed: int = 42,
 ):
     """Simulate the job scheduling and execution.
 
@@ -109,6 +109,7 @@ def simulate(
         indicating how many times the job should be executed.
         job_network_paths (dict[str, list[str]]): List of nodes for each job's
         path in the network.
+        seed (int): Random seed for reproducibility.
     """
     env = simpy.Environment()
     all_nodes = {n for p in job_network_paths.values() for n in p}
@@ -117,6 +118,7 @@ def simulate(
     records, job_names = [], []
     total_jobs = sum(job_instance_freq.get(name, 1) for name, _, _ in schedule)
 
+    rng = np.random.default_rng(seed)
     for name, start, _ in schedule:
         reps = job_instance_freq.get(name, 1)
         for i in range(reps):
@@ -136,6 +138,7 @@ def simulate(
                     job_parameters[name]["k"],
                     job_parameters[name]["slot_duration"],
                     records,
+                    rng,
                 )
             )
 
