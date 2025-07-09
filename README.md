@@ -21,5 +21,5 @@ pip install -r requirements.txt
 ## Quick Start
 
 ```bash
-python -m scheduling.main
+python -m scheduling.main run --config configurations/toy_example.yaml
 ```

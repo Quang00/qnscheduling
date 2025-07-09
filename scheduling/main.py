@@ -1,53 +1,131 @@
-import math
+"""
+QNScheduling
+------------
+This script simulates the scheduling of probabilistic jobs (entanglement
+generation attempts) in a quantum network. It calculates the duration of
+applications based on the parameters of the links and the paths taken by the
+applications. The script uses EDF, FCFS, or priority scheduling algorithms and
+then simulates the execution of these applications in the network. It handles
+parallelizable tasks and generates a simulation of the quantum network,
+tracking performance metrics.
+"""
 
-from scheduling.pga import duration_pga
-from scheduling.scheduling import simple_edf_schedule
-from utils.helper import parallelizable_tasks, shortest_paths
+import argparse
+import os
+
+import yaml
+
+from scheduling.scheduling import (
+    simple_edf_schedule,
+    simple_fcfs_schedule,
+    simple_priority_schedule,
+)
+from scheduling.simulation import simulate
+from utils.helper import (
+    app_params_sim,
+    compute_durations,
+    parallelizable_tasks,
+    parse_yaml_config,
+    save_results,
+    shortest_paths,
+)
+
+
+def select_scheduler(scheduler_type: str) -> callable:
+    """Selects a scheduling algorithm based on the provided type.
+
+    Args:
+        scheduler_type (str): The type of scheduler to use. Options are "edf",
+        "fcfs", or "priority".
+
+    Returns:
+        callabe: A function that implements the selected scheduling algorithm.
+    """
+    schedulers = {
+        "edf": simple_edf_schedule,
+        "fcfs": simple_fcfs_schedule,
+        "priority": simple_priority_schedule,
+    }
+    return schedulers[scheduler_type]
+
+
+def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
+    """Run the simulation based on the provided configuration file and
+    scheduler.
+
+    Args:
+        cfg_file (_type_): Configuration file path in YAML format.
+        scheduler_name (str): Name of the scheduling algorithm to use.
+            Options are "edf", "fcfs", or "priority".
+        seed (int): Random seed for reproducibility of the simulation.
+        output_dir (str): Directory where the results will be saved.
+    """
+    # Load configuration and compute paths
+    edges, link_params, peers, instances, e_pairs = parse_yaml_config(cfg_file)
+    cfg = yaml.safe_load(open(cfg_file))
+    paths = shortest_paths(edges, peers)
+    parallel_map = parallelizable_tasks(paths)
+
+    # Compute durations for each application
+    durations = compute_durations(paths, link_params, e_pairs)
+
+    # Choose scheduler and build schedule
+    scheduler = select_scheduler(scheduler_name)
+    if scheduler_name == "priority":
+        priorities = {
+            app: cfg["apps"].get(app, {}).get("priority", 0)
+            for app in durations
+        }
+        schedule = scheduler(durations, parallel_map, priorities)
+    else:
+        schedule = scheduler(durations, parallel_map)
+
+    # Run simulation (probabilistic) with optional seed
+    os.makedirs(output_dir, exist_ok=True)
+    results = simulate(
+        schedule,
+        app_params_sim(paths, link_params, e_pairs),
+        {app: 0.0 for app in durations},
+        durations.copy(),
+        instances,
+        paths,
+        seed=seed,
+    )
+
+    # Save results
+    save_results(*results, output_dir=output_dir)
+    print(f"Results saved to directory {output_dir}")
 
 
 def main():
-    # Quantum network (Toy example)
-    edges = [
-        ("Alice", "Bob"),
-        ("Alice", "Charlie"),
-        ("Charlie", "David"),
-        ("Bob", "David"),
-    ]
+    parser = argparse.ArgumentParser(
+        description="Simulate scheduling of quantum network applications"
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Application requests
-    app_requests = {
-        "A": ("Alice", "David"),
-        "B": ("Alice", "Bob"),
-        "C": ("Charlie", "Bob"),
-        "D": ("Charlie", "David"),
-    }
+    run = subparsers.add_parser("run", help="Run the scheduling simulation")
+    run.add_argument("--config", required=True, help="Path to YAML config")
+    run.add_argument(
+        "--scheduler",
+        choices=["edf", "fcfs", "priority"],
+        default="edf",
+        help="Scheduling algorithm",
+    )
+    run.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for simulation (optional)",
+    )
+    run.add_argument(
+        "--output",
+        default="results",
+        help="Directory to save results into",
+    )
 
-    # Find shortest paths for each application in the quantum network
-    paths = shortest_paths(edges, app_requests)
-    print("Shortest paths:", paths)
-
-    # Find parallelizable applications based on shared resources
-    parallel_apps = parallelizable_tasks(paths)
-    print("Parallelizable applications:", parallel_apps)
-
-    # Calculate PGA durations for each application
-    duration_apps = {}
-    for app in paths:
-        pga_duration = duration_pga(
-            p_packet=0.2,
-            k=2,
-            n_swap=math.ceil(len(paths[app]) / 2),
-            memory_lifetime=50,
-            p_swap=0.95,
-            p_gen=0.001,
-            time_slot_duration=100,
-        )
-        duration_apps[app] = pga_duration
-    print("PGA durations for applications:", duration_apps)
-
-    # Simple EDF schedule for the applications based on their PGA durations
-    schedule = simple_edf_schedule(duration_apps, parallel_apps)
-    print("EDF Schedule:", schedule)
+    args = parser.parse_args()
+    if args.command == "run":
+        run_simulation(args.config, args.scheduler, args.seed, args.output)
 
 
 if __name__ == "__main__":
