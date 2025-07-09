@@ -41,6 +41,7 @@ apps:
     N: 1
     E_pairs: 1
     F_min: 0.9
+    priority: 1
 
   B:
     type: DGrover
@@ -48,6 +49,7 @@ apps:
     N: 1
     E_pairs: 2
     F_min: 0.95
+    priority: 2
 
   C:
     type: QKD
@@ -55,6 +57,7 @@ apps:
     N: 1
     E_pairs: 1
     F_min: 0.9
+    priority: 1
 
   D:
     type: DGrover
@@ -62,3 +65,4 @@ apps:
     N: 1
     E_pairs: 2
     F_min: 0.95
+    priority: 2
