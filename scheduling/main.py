@@ -13,8 +13,6 @@ tracking performance metrics.
 import argparse
 import os
 
-import yaml
-
 from scheduling.scheduling import (
     simple_edf_schedule,
     simple_fcfs_schedule,
@@ -60,9 +58,12 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
-    # Load configuration and compute paths
-    edges, link_params, peers, instances, e_pairs = parse_yaml_config(cfg_file)
-    cfg = yaml.safe_load(open(cfg_file))
+    # Parse configuration file
+    edges, link_params, peers, instances, e_pairs, priorities = (
+        parse_yaml_config(cfg_file)
+    )
+
+    # Compute shortest paths and parallelizable tasks
     paths = shortest_paths(edges, peers)
     parallel_map = parallelizable_tasks(paths)
 
@@ -72,10 +73,6 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
     # Choose scheduler and build schedule
     scheduler = select_scheduler(scheduler_name)
     if scheduler_name == "priority":
-        priorities = {
-            app: cfg["apps"].get(app, {}).get("priority", 0)
-            for app in durations
-        }
         schedule = scheduler(durations, parallel_map, priorities)
     else:
         schedule = scheduler(durations, parallel_map)
