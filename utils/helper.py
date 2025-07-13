@@ -216,7 +216,6 @@ def save_results(
     df: pd.DataFrame,
     job_names: List,
     release_times: Dict,
-    total_jobs: int,
     output_dir: str = "results",
 ) -> None:
     """Save the results of job scheduling and execution to a CSV file and print
@@ -235,8 +234,6 @@ def save_results(
         results.
         release_times (Dict): Dictionary mapping application names to their
         relative release times, used to fill in missing jobs.
-        total_jobs (int): Total number of jobs that were expected to be
-        processed.
         output_dir (str): Directory where the results CSV file will be saved.
     """
     finished_jobs = set(df["job"])
@@ -289,6 +286,5 @@ def save_results(
     print(f"throughput       : {throughput:.4f} jobs/s")
     print(f"avg_waiting_time : {waits.mean():.4f}")
     print(f"max_waiting_time : {waits.max():.4f}")
-    print(f"total_instances  : {total_jobs}")
     print(f"completed_jobs   : {completed_count}")
     print(f"unfinished_jobs  : {len(uncompleted_jobs)}")

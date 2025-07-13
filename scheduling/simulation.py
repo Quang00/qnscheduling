@@ -9,6 +9,8 @@ summary of the simulation results, including makespan, throughput, and average
 waiting time.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import simpy
@@ -87,9 +89,8 @@ def probabilistic_job(
 def simulate(
     schedule: list[tuple[str, float, float]],
     job_parameters: dict[str, dict[str, float]],
-    job_release_times: dict[str, float],
+    job_rel_times: dict[str, float],
     job_periods: dict[str, float],
-    job_instance_freq: dict[str, int],
     job_network_paths: dict[str, list[str]],
     seed: int = 42,
 ):
@@ -101,12 +102,10 @@ def simulate(
         job_parameters (dict[str, dict[str, float]]): Parameters for each job,
         including the probability of generating an EPR pair, number of
         successes, and slot duration.
-        job_release_times (dict[str, float]): Relative release times for each
+        job_rel_times (dict[str, float]): Relative release times for each
         job.
         job_periods (dict[str, float]): Periods for each job, indicating the
         time interval between successive releases of the job.
-        job_instance_freq (dict[str, int]): Repetitions for each job,
-        indicating how many times the job should be executed.
         job_network_paths (dict[str, list[str]]): List of nodes for each job's
         path in the network.
         seed (int): Random seed for reproducibility.
@@ -116,32 +115,42 @@ def simulate(
     node_resources = {n: simpy.Resource(env, capacity=1) for n in all_nodes}
 
     records, job_names = [], []
-    total_jobs = sum(job_instance_freq.get(name, 1) for name, _, _ in schedule)
-
+    instance_release_times = {}
     rng = np.random.default_rng(seed)
-    for name, start, _ in schedule:
-        reps = job_instance_freq.get(name, 1)
-        for i in range(reps):
-            rel_i = job_release_times.get(name, 0.0) + i * job_periods[name]
-            start_i = start + i * job_periods[name]
-            inst = f"{name}_{i}"
-            job_names.append(inst)
-            env.process(
-                probabilistic_job(
-                    env,
-                    inst,
-                    rel_i,
-                    start_i,
-                    job_network_paths[name],
-                    node_resources,
-                    job_parameters[name]["p_gen"],
-                    job_parameters[name]["k"],
-                    job_parameters[name]["slot_duration"],
-                    records,
-                    rng,
-                )
+
+    for inst_name, scheduled_start, _ in schedule:
+        job_id = re.match(r"^(.+?)(\d+)$", inst_name)
+        if job_id:
+            base_job, idx = job_id.group(1), int(job_id.group(2))
+        else:
+            base_job, idx = inst_name, 0
+
+        # compute the actual release time
+        rel_time = job_rel_times.get(base_job, 0.0) + idx * job_periods.get(
+            base_job, 0.0
+        )
+        instance_release_times[inst_name] = rel_time
+
+        start_time = scheduled_start
+
+        job_names.append(inst_name)
+        env.process(
+            probabilistic_job(
+                env,
+                inst_name,
+                rel_time,
+                start_time,
+                job_network_paths[base_job],
+                node_resources,
+                job_parameters[base_job]["p_gen"],
+                job_parameters[base_job]["k"],
+                job_parameters[base_job]["slot_duration"],
+                records,
+                rng,
             )
+        )
 
     env.run()
     results = pd.DataFrame(records)
-    return results, job_names, job_release_times, total_jobs
+
+    return results, job_names, instance_release_times

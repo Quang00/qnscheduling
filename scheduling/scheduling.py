@@ -18,6 +18,7 @@ def _simple_schedule(
     jobs: List[str],
     durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
+    instances: Dict[str, int],
 ) -> List[Tuple[str, float, float]]:
     """Simple scheduling algorithm that schedules jobs based on their durations
     and parallelization capabilities.
@@ -28,35 +29,44 @@ def _simple_schedule(
         durations.
         parallel_apps (Dict[str, Set[str]]): Mapping from job names to sets of
         jobs they can run in parallel with.
+        instances (Dict[str, int]): Mapping from job names to the number of
+        instances available for each job.
 
     Returns:
         List[Tuple[str, float, float]]: A list of tuples, each containing
         the job name, start time, and end time of the scheduled jobs.
     """
     schedule = []
-    current_time = 0.0
+    max_instances = max(instances.get(job, 1) for job in jobs)
 
-    for job in jobs:
-        duration = durations[job]
-        parallelizable = parallel_apps.get(job, set())
+    for instance in range(max_instances):
+        if instance == 0:
+            current_time = 0.0
+        else:
+            current_time = max(
+                finish_time
+                for name, _, finish_time in schedule
+                if name.endswith(f"{instance-1}")
+            )
+        for job in jobs:
+            if instances.get(job, 0) <= instance:
+                continue
 
-        # Check for conflicts with already scheduled jobs
-        conflicts = [
-            end
-            for scheduled_job, _, end in schedule
-            if scheduled_job not in parallelizable and end > current_time
-        ]
+            job_name = f"{job}{instance}"
+            duration = durations[job]
+            parallelizable = parallel_apps.get(job, set())
 
-        # Wait for the latest conflict to finish
-        if conflicts:
-            current_time = max(conflicts)
+            # Check for conflicts with already scheduled jobs
+            conflicts = [
+                finish_time
+                for name, _, finish_time in schedule
+                if name.rstrip("0123456789") not in parallelizable
+                and finish_time > current_time
+            ]
 
-        start = current_time
-        end = start + duration
-        schedule.append((job, start, end))
-
-        if not parallelizable:
-            current_time = end
+            start = max(current_time, max(conflicts, default=current_time))
+            end = start + duration
+            schedule.append((job_name, start, end))
 
     return schedule
 
@@ -64,6 +74,7 @@ def _simple_schedule(
 def simple_edf_schedule(
     durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
+    instances: Dict[str, int],
 ) -> List[Tuple[str, float, float]]:
     """Earliest Deadline First (EDF): schedule jobs based on their durations.
 
@@ -72,18 +83,21 @@ def simple_edf_schedule(
         durations.
         parallel_apps (Dict[str, Set[str]]): Mapping from job names to sets of
         jobs they can run in parallel with.
+        instances (Dict[str, int]): Mapping from job names to the number of
+        instances available for each job.
 
     Returns:
         List[Tuple[str, float, float]]: A list of tuples, each containing
         the job name, start time, and end time of the scheduled jobs.
     """
     jobs = sorted(durations, key=durations.get)
-    return _simple_schedule(jobs, durations, parallel_apps)
+    return _simple_schedule(jobs, durations, parallel_apps, instances)
 
 
 def simple_fcfs_schedule(
     durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
+    instances: Dict[str, int],
 ) -> List[Tuple[str, float, float]]:
     """First-Come First-Served (FCFS): schedule jobs in the order they are
     provided.
@@ -93,18 +107,21 @@ def simple_fcfs_schedule(
         durations.
         parallel_apps (Dict[str, Set[str]]): Mapping from job names to sets of
         jobs they can run in parallel with.
+        instances (Dict[str, int]): Mapping from job names to the number of
+        instances available for each job.
 
     Returns:
         List[Tuple[str, float, float]]: A list of tuples, each containing
         the job name, start time, and end time of the scheduled jobs.
     """
     jobs = list(durations.keys())
-    return _simple_schedule(jobs, durations, parallel_apps)
+    return _simple_schedule(jobs, durations, parallel_apps, instances)
 
 
 def simple_priority_schedule(
     durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
+    instances: Dict[str, int],
     priorities: Dict[str, int],
 ) -> List[Tuple[str, float, float]]:
     """Priority scheduling: schedule jobs based on their priority levels.
@@ -114,6 +131,8 @@ def simple_priority_schedule(
         durations.
         parallel_apps (Dict[str, Set[str]]): Mapping from job names to sets of
         jobs they can run in parallel with.
+        instances (Dict[str, int]): Mapping from job names to the number of
+        instances available for each job.
         priorities (Dict[str, int]): Mapping from job names to their priority
         levels.
 
@@ -127,4 +146,4 @@ def simple_priority_schedule(
         key=lambda job: priorities.get(job, 0),
         reverse=True,
     )
-    return _simple_schedule(jobs, durations, parallel_apps)
+    return _simple_schedule(jobs, durations, parallel_apps, instances)

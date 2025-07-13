@@ -73,19 +73,18 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
     # Choose scheduler and build schedule
     scheduler = select_scheduler(scheduler_name)
     if scheduler_name == "priority":
-        schedule = scheduler(durations, parallel_map, priorities)
+        schedule = scheduler(durations, parallel_map, instances, priorities)
     else:
-        schedule = scheduler(durations, parallel_map)
+        schedule = scheduler(durations, parallel_map, instances)
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
     results = simulate(
-        schedule,
-        app_params_sim(paths, link_params, e_pairs),
-        {app: 0.0 for app in durations},
-        durations.copy(),
-        instances,
-        paths,
+        schedule=schedule,
+        job_parameters=app_params_sim(paths, link_params, e_pairs),
+        job_rel_times={app: 0.0 for app in durations},
+        job_periods=durations.copy(),
+        job_network_paths=paths,
         seed=seed,
     )
 
