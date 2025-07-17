@@ -163,7 +163,7 @@ def app_params_sim(
         lk = link_params[frozenset((route[0], route[1]))]
         sim_params[app] = {
             "p_gen": lk["p_gen"],
-            "k": e_pairs[app],
+            "e_pairs": e_pairs[app],
             "slot_duration": lk["time_slot_duration"],
         }
     return sim_params
@@ -230,35 +230,17 @@ def save_results(
             - completion_time: Time when the job completed execution
             - turnaround_time: Total time from arrival to completion
             - waiting_time: Total time the job waited before execution
+            - status: Status of the job (e.g., "completed", "failed")
         job_names (List): List of all job names that should be present in the
         results.
         release_times (Dict): Dictionary mapping application names to their
         relative release times, used to fill in missing jobs.
         output_dir (str): Directory where the results CSV file will be saved.
     """
-    finished_jobs = set(df["job"])
-    uncompleted_jobs = [job for job in job_names if job not in finished_jobs]
-
-    if uncompleted_jobs:
-        supplements = []
-        for uncompleted_job in uncompleted_jobs:
-            app = uncompleted_job.split("_")[0]
-            supplements.append(
-                {
-                    "job": uncompleted_job,
-                    "arrival_time": release_times.get(app, float("nan")),
-                    "start_time": math.nan,
-                    "burst_time": math.nan,
-                    "completion_time": math.nan,
-                    "turnaround_time": math.nan,
-                    "waiting_time": math.nan,
-                }
-            )
-        df = pd.concat([df, pd.DataFrame(supplements)], ignore_index=True)
-
     os.makedirs(output_dir, exist_ok=True)
-    df = df.sort_values(by=["completion_time"]).reset_index(drop=True)
-    df.to_csv(f"{output_dir}/job_results.csv", index=False)
+    df = df.sort_values(by="completion_time").reset_index(drop=True)
+    csv_path = os.path.join(output_dir, "job_results.csv")
+    df.to_csv(csv_path, index=False)
 
     print("\n=== Job Results ===")
     print(
@@ -272,19 +254,25 @@ def save_results(
                 "completion_time",
                 "turnaround_time",
                 "waiting_time",
+                "status",
             ],
         )
     )
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
-    completed_count = df["completion_time"].count()
-    throughput = completed_count / makespan if makespan > 0 else float("inf")
-    waits = df["waiting_time"].dropna()
+    total = len(job_names)
+    completed = (df["status"] == "completed").sum()
+    failed = (df["status"] == "failed").sum()
+    throughput = completed / makespan if makespan > 0 else float("inf")
+    waits = df.loc[df["status"] == "completed", "waiting_time"]
+    avg_wait = waits.mean() if not waits.empty else float("nan")
+    max_wait = waits.max() if not waits.empty else float("nan")
 
     print("\n=== Summary ===")
-    print(f"makespan         : {makespan:.4f}")
-    print(f"throughput       : {throughput:.4f} jobs/s")
-    print(f"avg_waiting_time : {waits.mean():.4f}")
-    print(f"max_waiting_time : {waits.max():.4f}")
-    print(f"completed_jobs   : {completed_count}")
-    print(f"unfinished_jobs  : {len(uncompleted_jobs)}")
+    print(f"Total jobs       : {total}")
+    print(f"  - completed    : {completed}")
+    print(f"  - failed       : {failed}")
+    print(f"Makespan         : {makespan:.4f}")
+    print(f"Throughput       : {throughput:.4f} jobs/s")
+    print(f"Avg waiting time : {avg_wait:.4f}")
+    print(f"Max waiting time : {max_wait:.4f}")

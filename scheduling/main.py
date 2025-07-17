@@ -85,6 +85,7 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         job_rel_times={app: 0.0 for app in durations},
         job_periods=durations.copy(),
         job_network_paths=paths,
+        durations=durations,
         seed=seed,
     )
 
