@@ -59,7 +59,7 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         output_dir (str): Directory where the results will be saved.
     """
     # Parse configuration file
-    edges, link_params, peers, instances, e_pairs, priorities = (
+    edges, link_params, peers, instances, e_pairs, priorities, policies = (
         parse_yaml_config(cfg_file)
     )
 
@@ -86,6 +86,7 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         job_periods=durations.copy(),
         job_network_paths=paths,
         durations=durations,
+        policies=policies,
         seed=seed,
     )
 

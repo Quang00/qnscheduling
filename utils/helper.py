@@ -178,6 +178,7 @@ def parse_yaml_config(
     Dict[str, int],
     Dict[str, int],
     Dict[str, int],
+    Dict[str, str],
 ]:
     """Parse a YAML configuration file to extract quantum network
     configuration, including links and applications.
@@ -193,6 +194,8 @@ def parse_yaml_config(
             - Dictionary mapping application names to the number of instances.
             - Dictionary mapping application names to the number of EPR pairs.
             - Dictionary mapping application names to their priorities.
+            - Dictionary mapping application names to their scheduling
+            policies.
     """
     with open(file_path) as f:
         network = yaml.safe_load(f)
@@ -208,8 +211,10 @@ def parse_yaml_config(
     instances = {app: cfg.get("N", 1) for app, cfg in apps.items()}
     e_pairs = {app: cfg.get("E_pairs", 1) for app, cfg in apps.items()}
     priorities = {app: cfg.get("priority", 0) for app, cfg in apps.items()}
+    policies = {app: cfg.get("policy", "best_effort")
+                for app, cfg in apps.items()}
 
-    return edges, link_params, peers, instances, e_pairs, priorities
+    return edges, link_params, peers, instances, e_pairs, priorities, policies
 
 
 def save_results(

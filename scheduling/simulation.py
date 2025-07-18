@@ -34,6 +34,7 @@ class Job:
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
         durations: Dict[str, float],
+        policy: str = "best_effort",
     ) -> None:
         """Job class to represent a probabilistic job in the simulation.
 
@@ -54,6 +55,9 @@ class Job:
             log (List[Dict[str, Any]]): Log to record job performance metrics.
             durations (Dict[str, float]): Dictionary of job durations
             indexed by job name.
+            policy (str): Scheduling policy for the job, either "best_effort"
+            or "deadline". If "deadline", the job will attempt to complete
+            within the maximum burst time defined in durations.
         """
         self.env = env
         self.name = name
@@ -67,6 +71,7 @@ class Job:
         self.rng = rng
         self.log = log
         self.durations = durations
+        self.policy = policy
         env.process(self.run())
 
     def run(self):
@@ -85,22 +90,29 @@ class Job:
         base = BASE_JOB_RE.match(self.name).group(1)
         max_burst = self.durations.get(base, float("inf"))
 
-        while successes < self.epr_pairs:
-            elapsed = self.env.now - t0
-            if elapsed >= max_burst:
-                status = "failed"
-                break
+        if self.policy == "deadline":
+            while successes < self.epr_pairs:
+                elapsed = self.env.now - t0
+                if elapsed >= max_burst:
+                    status = "failed"
+                    break
 
-            wait_time = min(self.slot_duration, max_burst - elapsed)
-            yield self.env.timeout(wait_time)
+                wait_time = min(self.slot_duration, max_burst - elapsed)
+                yield self.env.timeout(wait_time)
 
-            if wait_time < self.slot_duration:
-                status = "failed"
-                break
+                if wait_time < self.slot_duration:
+                    status = "failed"
+                    break
 
-            if self.rng.random() < self.p_gen:
-                successes += 1
-        else:
+                if self.rng.random() < self.p_gen:
+                    successes += 1
+            else:
+                status = "completed"
+        elif self.policy == "best_effort":
+            while successes < self.epr_pairs:
+                yield self.env.timeout(self.slot_duration)
+                if self.rng.random() < self.p_gen:
+                    successes += 1
             status = "completed"
 
         completion = self.env.now
@@ -133,6 +145,7 @@ def simulate(
     job_periods: Dict[str, float],
     job_network_paths: Dict[str, List[str]],
     durations: Dict[str, float],
+    policies: Dict[str, str],
     seed: int = 42,
 ) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
     """Simulate the job scheduling and execution.
@@ -151,6 +164,8 @@ def simulate(
         path in the network.
         durations (Dict[str, float]): Durations for each job.
         These are used to determine the maximum burst time for each job.
+        policies (Dict[str, str]): Scheduling policy for each job.
+        This can be "best_effort" or "deadline".
         seed (int): Random seed for reproducibility.
 
     Returns:
@@ -173,9 +188,7 @@ def simulate(
         idx_str = inst_name[len(base):]
         idx = int(idx_str) if idx_str.isdigit() else 0
 
-        rel = job_rel_times.get(base, 0.0) + idx * job_periods.get(
-            base, 0.0
-        )
+        rel = job_rel_times.get(base, 0.0) + idx * job_periods.get(base, 0.0)
         release_times[inst_name] = rel
         job_names.append(inst_name)
 
@@ -192,6 +205,7 @@ def simulate(
             rng=rng,
             log=log,
             durations=durations,
+            policy=policies.get(base, "best_effort"),
         )
 
     env.run()

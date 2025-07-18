@@ -36,33 +36,33 @@ links:
 
 apps:
   A:
-    type: QKD
     peers: [Alice, David]
     N: 1
     E_pairs: 1
     F_min: 0.9
     priority: 1
+    policy: best_effort
 
   B:
-    type: DGrover
     peers: [Alice, Bob]
     N: 1
     E_pairs: 2
     F_min: 0.95
     priority: 2
+    policy: deadline
 
   C:
-    type: QKD
     peers: [Bob, Charlie]
     N: 1
     E_pairs: 1
     F_min: 0.9
     priority: 1
+    policy: best_effort
 
   D:
-    type: DGrover
     peers: [Charlie, David]
     N: 1
     E_pairs: 2
     F_min: 0.95
     priority: 2
+    policy: deadline
