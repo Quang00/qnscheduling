@@ -1,7 +1,10 @@
+import os
+
 import matplotlib.pyplot as plt
+import networkx as nx
+import pandas as pd
 import seaborn as sns
 from matplotlib.ticker import LogFormatterMathtext
-import pandas as pd
 
 from scheduling.pga import duration_pga
 
@@ -73,3 +76,26 @@ def plot_pga_vs_memory(
 
     fig.savefig(f"{path_folder}.png", dpi=300, format="png")
     plt.close(fig)
+
+
+def plot_graph_from_gml(gml_file: str) -> None:
+    """Plot a graph from a GML file.
+
+    Args:
+        gml_file (str): Path to the GML file.
+    """
+    G = nx.read_gml(gml_file)
+    pos = {n: (data["lon"], data["lat"]) for n, data in G.nodes(data=True)}
+
+    base = os.path.basename(gml_file)
+    name, _ = os.path.splitext(base)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.set_aspect("equal")
+
+    nx.draw(G, pos, ax=ax, with_labels=True, node_size=80, font_size=5)
+
+    ax.set_title(name)
+    ax.axis("off")
+
+    plt.show()
