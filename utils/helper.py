@@ -91,7 +91,7 @@ def parallelizable_tasks(
 
 
 def compute_durations(
-    paths: dict[str, list[str]], link_params: dict, e_pairs: dict[str, int]
+    paths: dict[str, list[str]], link_params: dict, epr_pairs: dict[str, int]
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -102,7 +102,7 @@ def compute_durations(
         link_params (dict): Parameters for each link in the network, including
         packet generation probability, memory lifetime, swap probability,
         and time slot duration.
-        e_pairs (dict[str, int]): Entanglement generation pairs for each
+        epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
 
     Returns:
@@ -117,7 +117,7 @@ def compute_durations(
 
         pga_time = duration_pga(
             p_packet=link_parameters["p_packet"],
-            epr_pairs=e_pairs[app],
+            epr_pairs=epr_pairs[app],
             n_swap=math.ceil(len(route) / 2),
             memory_lifetime=link_parameters["memory_lifetime"],
             p_swap=link_parameters["p_swap"],
@@ -139,7 +139,7 @@ def compute_durations(
 
 
 def app_params_sim(
-    paths: dict[str, list[str]], link_params: dict, e_pairs: dict[str, int]
+    paths: dict[str, list[str]], link_params: dict, epr_pairs: dict[str, int]
 ) -> dict[str, dict[str, float]]:
     """Prepare application parameters for simulation.
 
@@ -149,7 +149,7 @@ def app_params_sim(
         link_params (dict): Parameters for each link in the network, including
         packet generation probability, memory lifetime, swap probability,
         and time slot duration.
-        e_pairs (dict[str, int]): Entanglement generation pairs for each
+        epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
 
     Returns:
@@ -163,7 +163,7 @@ def app_params_sim(
         lk = link_params[frozenset((route[0], route[1]))]
         sim_params[app] = {
             "p_gen": lk["p_gen"],
-            "e_pairs": e_pairs[app],
+            "epr_pairs": epr_pairs[app],
             "slot_duration": lk["time_slot_duration"],
         }
     return sim_params
