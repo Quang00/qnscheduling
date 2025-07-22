@@ -281,3 +281,23 @@ def save_results(
     print(f"Throughput       : {throughput:.4f} jobs/s")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
+
+
+def extract_gml_data(gml_file: str):
+    """Extracts nodes, edges, and distances from a GML file.
+
+    Args:
+        gml_file: Path to the GML file.
+
+    Returns:
+        nodes: List of nodes.
+        edges: List of edges (source, target).
+        distances: Dict mapping (source, target): distance.
+    """
+    G = nx.read_gml(gml_file)
+
+    nodes = list(G.nodes())
+    edges = list(G.edges())
+    distances = {(u, v): data.get("dist") for u, v, data in G.edges(data=True)}
+
+    return nodes, edges, distances
