@@ -19,6 +19,7 @@ def _simple_schedule(
     durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
     instances: Dict[str, int],
+    scheduler: str = "",
 ) -> List[Tuple[str, float, float]]:
     """Simple scheduling algorithm that schedules jobs based on their durations
     and parallelization capabilities.
@@ -31,6 +32,7 @@ def _simple_schedule(
         jobs they can run in parallel with.
         instances (Dict[str, int]): Mapping from job names to the number of
         instances available for each job.
+        scheduler (str): The type of scheduling algorithm to use.
 
     Returns:
         List[Tuple[str, float, float]]: A list of tuples, each containing
@@ -65,7 +67,11 @@ def _simple_schedule(
             ]
 
             start = max(current_time, max(conflicts, default=current_time))
-            end = start + duration
+            if scheduler == "edf":
+                offset = 0.1 * duration
+                end = start + duration + offset
+            else:
+                end = start + duration
             schedule.append((job_name, start, end))
 
     return schedule
@@ -91,7 +97,7 @@ def simple_edf_schedule(
         the job name, start time, and end time of the scheduled jobs.
     """
     jobs = sorted(durations, key=durations.get)
-    return _simple_schedule(jobs, durations, parallel_apps, instances)
+    return _simple_schedule(jobs, durations, parallel_apps, instances, "edf")
 
 
 def simple_fcfs_schedule(
