@@ -25,9 +25,9 @@ from utils.helper import (
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
-    yaml_config,
     save_results,
     shortest_paths,
+    yaml_config,
 )
 
 
@@ -92,7 +92,7 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
-    results = simulate(
+    df, job_names, release_times = simulate(
         schedule=schedule,
         job_parameters=app_params_sim(paths, epr_pairs),
         job_rel_times={app: 0.0 for app in durations},
@@ -104,7 +104,17 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
     )
 
     # Save results
-    save_results(*results, output_dir=output_dir)
+    save_results(
+        df,
+        job_names,
+        release_times,
+        apps,
+        instances,
+        epr_pairs,
+        priorities,
+        policies,
+        output_dir=output_dir,
+    )
     print(f"Results saved to directory {output_dir}")
 
 

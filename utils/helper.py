@@ -1,5 +1,6 @@
 import math
 import os
+import re
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -202,8 +203,13 @@ def yaml_config(
 
 def save_results(
     df: pd.DataFrame,
-    job_names: List,
-    release_times: Dict,
+    job_names: List[str],
+    release_times: Dict[str, float],
+    apps: Dict[str, Tuple[str, str]],
+    instances: Dict[str, int],
+    epr_pairs: Dict[str, int],
+    priorities: Dict[str, int],
+    policies: Dict[str, str],
     output_dir: str = "results",
 ) -> None:
     """Save the results of job scheduling and execution to a CSV file and print
@@ -223,29 +229,61 @@ def save_results(
         results.
         release_times (Dict): Dictionary mapping application names to their
         relative release times, used to fill in missing jobs.
+        apps (Dict): Dictionary mapping application names to their source and
+        destination nodes.
+        instances (Dict): Dictionary mapping application names to the number of
+        instances.
+        epr_pairs (Dict): Dictionary mapping application names to the number of
+        EPR pairs.
+        priorities (Dict): Dictionary mapping application names to their
+        priorities.
+        policies (Dict): Dictionary mapping application names to their
+        scheduling policies.
         output_dir (str): Directory where the results CSV file will be saved.
     """
     os.makedirs(output_dir, exist_ok=True)
+
+    missing = set(job_names) - set(df["job"])
+    if missing:
+        filler_rows = []
+        for job in missing:
+            app = re.sub(r"\d+$", "", job)
+            filler_rows.append(
+                {
+                    "job": job,
+                    "arrival_time": release_times.get(app, np.nan),
+                    "start_time": np.nan,
+                    "burst_time": np.nan,
+                    "completion_time": np.nan,
+                    "turnaround_time": np.nan,
+                    "waiting_time": np.nan,
+                    "status": "missing",
+                }
+            )
+        df = pd.concat([df, pd.DataFrame(filler_rows)], ignore_index=True)
+
+    df["app"] = df["job"].astype(str).str.replace(r"\d+$", "", regex=True)
+    params = pd.DataFrame(
+        {
+            "app": list(apps.keys()),
+            "src_node": [apps[a][0] for a in apps],
+            "dst_node": [apps[a][1] for a in apps],
+            "instances": [instances[a] for a in apps],
+            "epr_pairs": [epr_pairs[a] for a in apps],
+            "priority": [priorities[a] for a in apps],
+            "policy": [policies[a] for a in apps],
+        }
+    )
+
+    df = df.merge(params, on="app", how="left")
+    df = df.drop(columns="app")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
+
     csv_path = os.path.join(output_dir, "job_results.csv")
     df.to_csv(csv_path, index=False)
 
     print("\n=== Job Results ===")
-    print(
-        df.to_string(
-            index=False,
-            columns=[
-                "job",
-                "arrival_time",
-                "start_time",
-                "burst_time",
-                "completion_time",
-                "turnaround_time",
-                "waiting_time",
-                "status",
-            ],
-        )
-    )
+    print(df.to_string(index=False))
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
     total = len(job_names)
