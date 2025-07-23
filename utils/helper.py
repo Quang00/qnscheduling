@@ -4,8 +4,10 @@ from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import networkx as nx
+import numpy as np
 import pandas as pd
 import yaml
+from openpyxl.utils import get_column_letter
 
 from scheduling.pga import duration_pga
 
@@ -91,7 +93,7 @@ def parallelizable_tasks(
 
 
 def compute_durations(
-    paths: dict[str, list[str]], link_params: dict, epr_pairs: dict[str, int]
+    paths: dict[str, list[str]], epr_pairs: dict[str, int]
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -99,9 +101,6 @@ def compute_durations(
     Args:
         paths (dict[str, list[str]]): Paths for each application in the
         network.
-        link_params (dict): Parameters for each link in the network, including
-        packet generation probability, memory lifetime, swap probability,
-        and time slot duration.
         epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
 
@@ -112,43 +111,27 @@ def compute_durations(
     """
     durations = {}
     for app, route in paths.items():
-        first_link = frozenset((route[0], route[1]))
-        link_parameters = link_params[first_link]
-
         pga_time = duration_pga(
-            p_packet=link_parameters["p_packet"],
+            p_packet=0.2,
             epr_pairs=epr_pairs[app],
             n_swap=math.ceil(len(route) / 2),
-            memory_lifetime=link_parameters["memory_lifetime"],
-            p_swap=link_parameters["p_swap"],
-            p_gen=link_parameters["p_gen"],
-            time_slot_duration=link_parameters["time_slot_duration"],
+            memory_lifetime=50,
+            p_swap=0.95,
+            p_gen=0.001,
+            time_slot_duration=0.0001,
         )
-
-        distance = 0.0
-        for i in range(len(route) - 1):
-            link = frozenset((route[i], route[i + 1]))
-            if link in link_params:
-                distance += link_params[link].get("distance", 0.0)
-            else:
-                distance += 0.0
-        latency = distance / 200_000
-
-        durations[app] = pga_time + latency
+        durations[app] = pga_time
     return durations
 
 
 def app_params_sim(
-    paths: dict[str, list[str]], link_params: dict, epr_pairs: dict[str, int]
+    paths: dict[str, list[str]], epr_pairs: dict[str, int]
 ) -> dict[str, dict[str, float]]:
     """Prepare application parameters for simulation.
 
     Args:
         paths (dict[str, list[str]]): Paths for each application in the
         network.
-        link_params (dict): Parameters for each link in the network, including
-        packet generation probability, memory lifetime, swap probability,
-        and time slot duration.
         epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
 
@@ -159,17 +142,16 @@ def app_params_sim(
         duration.
     """
     sim_params = {}
-    for app, route in paths.items():
-        lk = link_params[frozenset((route[0], route[1]))]
-        sim_params[app] = {
-            "p_gen": lk["p_gen"],
-            "epr_pairs": epr_pairs[app],
-            "slot_duration": lk["time_slot_duration"],
+    for key in paths.keys():
+        sim_params[key] = {
+            "p_gen": 0.001,
+            "epr_pairs": epr_pairs[key],
+            "slot_duration": 0.0001,
         }
     return sim_params
 
 
-def parse_yaml_config(
+def yaml_config(
     file_path: str,
 ) -> Tuple[
     List[Tuple[str, str]],
@@ -203,7 +185,6 @@ def parse_yaml_config(
     # --- Links ---
     links = network.get("links", [])
     edges = [tuple(link["nodes"]) for link in links]
-    link_params = {frozenset(link["nodes"]): link for link in links}
 
     # --- Applications ---
     apps = network.get("apps", {})
@@ -211,10 +192,12 @@ def parse_yaml_config(
     instances = {app: cfg.get("N", 1) for app, cfg in apps.items()}
     e_pairs = {app: cfg.get("E_pairs", 1) for app, cfg in apps.items()}
     priorities = {app: cfg.get("priority", 0) for app, cfg in apps.items()}
-    policies = {app: cfg.get("policy", "best_effort")
-                for app, cfg in apps.items()}
+    policies = {
+        app: cfg.get("policy", "best_effort")
+        for app, cfg in apps.items()
+    }
 
-    return edges, link_params, peers, instances, e_pairs, priorities, policies
+    return edges, peers, instances, e_pairs, priorities, policies
 
 
 def save_results(
@@ -283,16 +266,17 @@ def save_results(
     print(f"Max waiting time : {max_wait:.4f}")
 
 
-def extract_gml_data(gml_file: str):
+def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
     """Extracts nodes, edges, and distances from a GML file.
 
     Args:
-        gml_file: Path to the GML file.
+        gml_file (str): Path to the GML file.
 
     Returns:
-        nodes: List of nodes.
-        edges: List of edges (source, target).
-        distances: Dict mapping (source, target): distance.
+        nodes (list): List of nodes.
+        edges (list): List of edges (source, target).
+        distances (dict[tuple, float]): Dict mapping edges
+        to distances.
     """
     G = nx.read_gml(gml_file)
 
@@ -301,3 +285,56 @@ def extract_gml_data(gml_file: str):
     distances = {(u, v): data.get("dist") for u, v, data in G.edges(data=True)}
 
     return nodes, edges, distances
+
+
+def generate_n_apps(
+    nodes: list,
+    n_apps: int,
+    max_instances: int,
+    max_epr_pairs: int,
+    list_policies: list[str],
+    max_priority: int = 1,
+    seed: int = 42,
+) -> Tuple[
+    Dict[str, Tuple[str, str]],
+    Dict[str, int],
+    Dict[str, int],
+    Dict[str, int],
+    Dict[str, str],
+]:
+    """Generates a specified number of applications with random parameters.
+
+    Args:
+        nodes (list): List of available nodes in the network.
+        n_apps (int): Number of applications to generate.
+        max_instances (int): Maximum number of instances for each application.
+        max_epr_pairs (int): Maximum number of EPR pairs for each application.
+        list_policies (list[str], optional): List of policies to assign to
+        each application.
+        max_priority (int, optional): Maximum priority level for each app.
+        seed (int, optional): Random seed for reproducibility.
+
+    Returns:
+        A tuple containing the generated applications and their parameters.
+    """
+    np.random.seed(seed)
+    apps = {}
+    instances = {}
+    epr_pairs = {}
+    priorities = {}
+    policies = {}
+
+    for i in range(n_apps):
+        name_app = get_column_letter(i + 1)
+        rand_app = tuple(np.random.choice(nodes, 2, replace=False).tolist())
+        rand_instance = np.random.randint(1, max_instances + 1)
+        rand_epr_pairs = np.random.randint(1, max_epr_pairs + 1)
+        rand_policy = np.random.choice(list_policies, 1, replace=False).item()
+
+        apps[name_app] = rand_app
+        instances[name_app] = rand_instance
+        epr_pairs[name_app] = rand_epr_pairs
+        priorities[name_app] = max_priority
+        policies[name_app] = rand_policy
+
+    return apps, instances, epr_pairs, priorities, policies

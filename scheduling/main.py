@@ -22,8 +22,10 @@ from scheduling.simulation import simulate
 from utils.helper import (
     app_params_sim,
     compute_durations,
+    generate_n_apps,
+    gml_data,
     parallelizable_tasks,
-    parse_yaml_config,
+    yaml_config,
     save_results,
     shortest_paths,
 )
@@ -58,17 +60,28 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
-    # Parse configuration file
-    edges, link_params, peers, instances, e_pairs, priorities, policies = (
-        parse_yaml_config(cfg_file)
-    )
+    # Generate network data and applications based on the configuration file
+    if cfg_file.endswith(".yaml"):
+        edges, apps, instances, epr_pairs, priorities, policies = yaml_config(
+            cfg_file
+        )
+    elif cfg_file.endswith(".gml"):
+        nodes, edges, distances = gml_data(cfg_file)
+        apps, instances, epr_pairs, priorities, policies = generate_n_apps(
+            nodes,
+            n_apps=10,
+            max_instances=2,
+            max_epr_pairs=2,
+            list_policies=["deadline", "best_effort"],
+            seed=seed,
+        )
 
     # Compute shortest paths and parallelizable tasks
-    paths = shortest_paths(edges, peers)
+    paths = shortest_paths(edges, apps)
     parallel_map = parallelizable_tasks(paths)
 
     # Compute durations for each application
-    durations = compute_durations(paths, link_params, e_pairs)
+    durations = compute_durations(paths, epr_pairs)
 
     # Choose scheduler and build schedule
     scheduler = select_scheduler(scheduler_name)
@@ -81,7 +94,7 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
     results = simulate(
         schedule=schedule,
-        job_parameters=app_params_sim(paths, link_params, e_pairs),
+        job_parameters=app_params_sim(paths, epr_pairs),
         job_rel_times={app: 0.0 for app in durations},
         job_periods=durations.copy(),
         job_network_paths=paths,
@@ -102,7 +115,11 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     run = subparsers.add_parser("run", help="Run the scheduling simulation")
-    run.add_argument("--config", required=True, help="Path to YAML config")
+    run.add_argument(
+        "--config",
+        required=True,
+        help="Path to YAML or GML config"
+    )
     run.add_argument(
         "--scheduler",
         choices=["edf", "fcfs", "priority"],
