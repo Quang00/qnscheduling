@@ -49,7 +49,15 @@ def select_scheduler(scheduler_type: str) -> callable:
     return schedulers[scheduler_type]
 
 
-def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
+def run_simulation(
+    cfg_file,
+    scheduler_name: str,
+    n_apps: int,
+    max_instances: int,
+    max_epr_pairs: int,
+    seed: int,
+    output_dir: str,
+):
     """Run the simulation based on the provided configuration file and
     scheduler.
 
@@ -69,9 +77,9 @@ def run_simulation(cfg_file, scheduler_name: str, seed: int, output_dir: str):
         nodes, edges, distances = gml_data(cfg_file)
         apps, instances, epr_pairs, priorities, policies = generate_n_apps(
             nodes,
-            n_apps=10,
-            max_instances=2,
-            max_epr_pairs=2,
+            n_apps=n_apps,
+            max_instances=max_instances,
+            max_epr_pairs=max_epr_pairs,
             list_policies=["deadline", "best_effort"],
             seed=seed,
         )
@@ -137,6 +145,24 @@ def main():
         help="Scheduling algorithm",
     )
     run.add_argument(
+        "--apps",
+        type=int,
+        default=10,
+        help="Number of applications to generate"
+    )
+    run.add_argument(
+        "--inst",
+        type=int,
+        default=5,
+        help="Maximum number of instances per application",
+    )
+    run.add_argument(
+        "--epr",
+        type=int,
+        default=2,
+        help="Maximum number of EPR pairs to generate per application",
+    )
+    run.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -150,7 +176,15 @@ def main():
 
     args = parser.parse_args()
     if args.command == "run":
-        run_simulation(args.config, args.scheduler, args.seed, args.output)
+        run_simulation(
+            args.config,
+            args.scheduler,
+            args.apps,
+            args.inst,
+            args.epr,
+            args.seed,
+            args.output,
+        )
 
 
 if __name__ == "__main__":
