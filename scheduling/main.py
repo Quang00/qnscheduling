@@ -65,6 +65,10 @@ def run_simulation(
         cfg_file (_type_): Configuration file path in YAML format.
         scheduler_name (str): Name of the scheduling algorithm to use.
             Options are "edf", "fcfs", or "priority".
+        n_apps (int): Number of applications to generate.
+        max_instances (int): Maximum number of instances per application.
+        max_epr_pairs (int): Maximum number of EPR pairs to generate per
+        application.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
