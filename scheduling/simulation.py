@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import simpy
 
+from utils.helper import edges_delay
+
 APP_RE = re.compile(r"^([A-Za-z]+)")
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 RETRY_JOB_RE = re.compile(r"^([A-Za-z]+\d+)_(\d+)$")
@@ -40,6 +42,7 @@ class Job:
         durations: Dict[str, float],
         policy: str,
         event_store: simpy.Store,
+        delay_map: dict[tuple, float] = None,
     ) -> None:
         """Job class to represent a probabilistic job in the simulation.
 
@@ -80,6 +83,7 @@ class Job:
         self.durations = durations
         self.policy = policy
         self.event_store = event_store
+        self.delay_map = delay_map or {}
         env.process(self.run())
 
     def run(self):
@@ -96,10 +100,19 @@ class Job:
             idx = int(m_orig.group(2)) if m_orig else 0
 
         requests = []
+        delays = []
+        prev = None
         for node in self.route:
-            req = self.resources[node].request(priority=idx)
-            yield req
-            requests.append((node, req))
+            if prev is not None:
+                delays.append(self.delay_map.get((prev, node), 0.0))
+            prev = node
+
+        reqs = [
+            self.resources[node].request(priority=idx)
+            for node in self.route
+        ]
+        yield simpy.AllOf(self.env, reqs)
+        requests = list(zip(self.route, reqs))
 
         t0 = self.env.now
         successes = 0
@@ -109,6 +122,11 @@ class Job:
         if self.policy == "deadline":
             status = "failed"
             while successes < self.epr_pairs:
+                for delay in delays:
+                    if delay > 0:
+                        # Midpoint station delay
+                        yield self.env.timeout(delay / 2)
+                        yield self.env.timeout(delay / 2)
                 elapsed = self.env.now - t0
                 if elapsed >= max_burst:
                     break
@@ -122,6 +140,11 @@ class Job:
                 status = "completed"
         elif self.policy == "best_effort":
             while successes < self.epr_pairs:
+                for delay in delays:
+                    if delay > 0:
+                        # Midpoint station delay
+                        yield self.env.timeout(delay / 2)
+                        yield self.env.timeout(delay / 2)
                 yield self.env.timeout(self.slot_duration)
                 if self.rng.random() < self.p_gen:
                     successes += 1
@@ -167,6 +190,7 @@ def dispatcher(
     max_retries: int,
     rng: np.random.Generator,
     retry_map: Dict[str, str],
+    delay_map: dict[tuple, float],
     latency: float = 0.0,
 ):
     """Handle job retries in the dispatcher.
@@ -239,6 +263,7 @@ def dispatcher(
             durations=durations,
             policy=policies[app_name],
             event_store=store,
+            delay_map=delay_map,
         )
 
 
@@ -250,6 +275,7 @@ def simulate(
     job_network_paths: Dict[str, List[str]],
     durations: Dict[str, float],
     policies: Dict[str, str],
+    distances: Dict[tuple, float],
     latency: float = 0.0,
     retry_policy: str = "limited",
     max_retries: int = 0,
@@ -307,6 +333,7 @@ def simulate(
     store = simpy.Store(env)
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
+    delay_map = edges_delay(distances)
 
     env.process(
         dispatcher(
@@ -326,6 +353,7 @@ def simulate(
             max_retries=max_retries,
             rng=rng,
             retry_map=retry_map,
+            delay_map=delay_map,
             latency=latency,
         )
     )
@@ -358,6 +386,7 @@ def simulate(
             durations=durations,
             policy=policies[base],
             event_store=store,
+            delay_map=delay_map,
         )
 
     env.run()

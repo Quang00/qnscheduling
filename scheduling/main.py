@@ -112,6 +112,7 @@ def run_simulation(
         job_network_paths=paths,
         durations=durations,
         policies=policies,
+        distances=distances,
         seed=seed,
     )
 

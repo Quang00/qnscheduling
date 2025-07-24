@@ -119,7 +119,7 @@ def compute_durations(
             memory_lifetime=50,
             p_swap=0.95,
             p_gen=0.001,
-            time_slot_duration=0.0001,
+            time_slot_duration=1e-4,
         )
         durations[app] = pga_time
     return durations
@@ -147,7 +147,7 @@ def app_params_sim(
         sim_params[key] = {
             "p_gen": 0.001,
             "epr_pairs": epr_pairs[key],
-            "slot_duration": 0.0001,
+            "slot_duration": 1e-4,
         }
     return sim_params
 
@@ -376,3 +376,50 @@ def generate_n_apps(
         policies[name_app] = rand_policy
 
     return apps, instances, epr_pairs, priorities, policies
+
+
+def total_distances(
+    distances: dict[tuple, float], paths: dict[str, list[str]]
+) -> dict[str, float]:
+    """Compute the total distance for each path in the given paths.
+
+    Args:
+        distances (dict[tuple, float]): A dictionary mapping edges (as tuples)
+        to their distances.
+        paths (dict[str, list[str]]): A dictionary mapping application names
+        to their network paths.
+
+    Returns:
+        dict[str, float]: A dictionary mapping application names to their total
+        distances.
+    """
+    total_distances = {}
+    for name, path in paths.items():
+        total = 0.0
+        for start, end in zip(path, path[1:]):
+            if (start, end) in distances:
+                total += distances[(start, end)]
+            else:
+                total += distances[(end, start)]
+        total_distances[name] = total
+    return total_distances
+
+
+def edges_delay(
+    distances: dict[tuple, float], c_fiber: float = 200_000.0
+) -> dict[tuple, float]:
+    """Compute the delay for each edge based on its distance.
+
+    Args:
+        distances (dict[tuple, float]): A dictionary mapping edges (as tuples)
+        to their distances.
+        c_fiber (float, optional): Speed of light in fiber (in km/s).
+
+    Returns:
+        dict[tuple, float]: A dictionary mapping edges (as tuples) to their
+        delays.
+    """
+    delay_map = {(a, b): dist / c_fiber for (a, b), dist in distances.items()}
+    for (a, b), delay in list(delay_map.items()):
+        delay_map[(b, a)] = delay
+    return delay_map
