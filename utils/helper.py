@@ -2,7 +2,7 @@ import math
 import os
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 import networkx as nx
 import numpy as np
@@ -416,84 +416,3 @@ def edges_delay(
     for (a, b), delay in list(delay_map.items()):
         delay_map[(b, a)] = delay
     return delay_map
-
-
-def build_jobs_from_schedule(
-    env: Any,
-    schedule: List[Tuple[str, float, float]],
-    job_periods: Dict[str, float],
-    job_parameters: Dict[str, Dict[str, Any]],
-    job_network_paths: Dict[str, Any],
-    resources: Any,
-    policies: Dict[str, Any],
-    store: Any,
-    delay_map: Dict[str, Any],
-    rng: Any,
-    log: Any,
-    JobClass,
-    init_job_re: re.Pattern,
-    app_re: re.Pattern,
-) -> List[Any]:
-    """Build Job objects from the EDF schedule.
-
-    Args:
-        env (Any): SimPy environment.
-        schedule (List[Tuple[str, float, float]]): Job schedule.
-        job_periods (Dict[str, float]): Job periods.
-        job_parameters (Dict[str, Dict[str, Any]]): Job parameters.
-        job_network_paths (Dict[str, Any]): Job network paths.
-        resources (Any): Resources.
-        policies (Dict[str, Any]): Job policies.
-        store (Any): Event store.
-        delay_map (Dict[str, Any]): Delay map.
-        rng (Any): Random number generator.
-        log (Any): Log.
-        JobClass (_type_): Job class.
-        init_job_re (re.Pattern): Initial job regex.
-        app_re (re.Pattern): Application regex.
-
-    Returns:
-        List[Any]: List of created Job objects.
-    """
-    jobs = []
-
-    for inst_name, sched_start, sched_deadline in schedule:
-        m = init_job_re.match(inst_name)
-        if m:
-            base, idx = m.group(1), int(m.group(2))
-        else:
-            m2 = app_re.match(inst_name)
-            if not m2:
-                raise ValueError(f"Bad instance name: {inst_name}")
-            base, idx = m2.group(1), 0
-
-        P = float(job_periods.get(base, 0.0))
-        abs_deadline = (
-            float(sched_deadline)
-            if sched_deadline is not None
-            else ((idx * P) + P if P > 0 else float("inf"))
-        )
-        arrival = abs_deadline - P if P > 0 else float(sched_start)
-
-        params = job_parameters[base]
-
-        job = JobClass(
-            env=env,
-            name=inst_name,
-            arrival=arrival,
-            start=float(sched_start),
-            deadline=abs_deadline,
-            route=job_network_paths[base],
-            resources=resources,
-            p_gen=params["p_gen"],
-            epr_pairs=int(params["epr_pairs"]),
-            slot_duration=params["slot_duration"],
-            rng=rng,
-            log=log,
-            policy=policies[base],
-            event_store=store,
-            delay_map=delay_map,
-        )
-        jobs.append(job)
-
-    return jobs
