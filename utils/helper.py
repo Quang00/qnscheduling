@@ -113,7 +113,7 @@ def compute_durations(
     durations = {}
     for app, route in paths.items():
         pga_time = duration_pga(
-            p_packet=0.2,
+            p_packet=0.05,
             epr_pairs=epr_pairs[app],
             n_swap=math.ceil(len(route) / 2),
             memory_lifetime=50,
@@ -282,7 +282,7 @@ def save_results(
     print(df.to_string(index=False))
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
-    total = len(job_names)
+    total = len(df)
     completed = (df["status"] == "completed").sum()
     failed = (df["status"] == "failed").sum()
     throughput = completed / makespan if makespan > 0 else float("inf")
