@@ -208,7 +208,6 @@ def save_results(
     apps: Dict[str, Tuple[str, str]],
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
-    priorities: Dict[str, int],
     policies: Dict[str, str],
     output_dir: str = "results",
 ) -> None:
@@ -235,8 +234,6 @@ def save_results(
         instances.
         epr_pairs (Dict): Dictionary mapping application names to the number of
         EPR pairs.
-        priorities (Dict): Dictionary mapping application names to their
-        priorities.
         policies (Dict): Dictionary mapping application names to their
         scheduling policies.
         output_dir (str): Directory where the results CSV file will be saved.
@@ -270,7 +267,6 @@ def save_results(
             "dst_node": [apps[a][1] for a in apps],
             "instances": [instances[a] for a in apps],
             "epr_pairs": [epr_pairs[a] for a in apps],
-            "priority": [priorities[a] for a in apps],
             "policy": [policies[a] for a in apps],
         }
     )
@@ -290,7 +286,10 @@ def save_results(
     completed = (df["status"] == "completed").sum()
     failed = (df["status"] == "failed").sum()
     throughput = completed / makespan if makespan > 0 else float("inf")
-    waits = df.loc[df["status"] == "completed", "waiting_time"]
+    waits = df.loc[
+        (df["status"] == "completed") | (df["status"] == "failed"),
+        "waiting_time"
+    ]
     avg_wait = waits.mean() if not waits.empty else float("nan")
     max_wait = waits.max() if not waits.empty else float("nan")
 
@@ -331,14 +330,12 @@ def generate_n_apps(
     max_instances: int,
     max_epr_pairs: int,
     list_policies: list[str],
-    max_priority: int = 1,
-    seed: int = 42,
+    rng: np.random.Generator,
 ) -> Tuple[
     Dict[str, Tuple[str, str]],
     Dict[str, int],
     Dict[str, int],
     Dict[str, int],
-    Dict[str, str],
 ]:
     """Generates a specified number of applications with random parameters.
 
@@ -349,33 +346,29 @@ def generate_n_apps(
         max_epr_pairs (int): Maximum number of EPR pairs for each application.
         list_policies (list[str], optional): List of policies to assign to
         each application.
-        max_priority (int, optional): Maximum priority level for each app.
-        seed (int, optional): Random seed for reproducibility.
+        rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
         A tuple containing the generated applications and their parameters.
     """
-    np.random.seed(seed)
     apps = {}
     instances = {}
     epr_pairs = {}
-    priorities = {}
     policies = {}
 
     for i in range(n_apps):
         name_app = get_column_letter(i + 1)
-        rand_app = tuple(np.random.choice(nodes, 2, replace=False).tolist())
-        rand_instance = np.random.randint(1, max_instances + 1)
-        rand_epr_pairs = np.random.randint(1, max_epr_pairs + 1)
-        rand_policy = np.random.choice(list_policies, 1, replace=False).item()
+        rand_app = tuple(rng.choice(nodes, 2, replace=False).tolist())
+        rand_instance = rng.integers(1, max_instances + 1)
+        rand_epr_pairs = rng.integers(1, max_epr_pairs + 1)
+        rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = rand_app
         instances[name_app] = rand_instance
         epr_pairs[name_app] = rand_epr_pairs
-        priorities[name_app] = max_priority
         policies[name_app] = rand_policy
 
-    return apps, instances, epr_pairs, priorities, policies
+    return apps, instances, epr_pairs, policies
 
 
 def total_distances(
