@@ -30,36 +30,41 @@ from utils.helper import (
 
 
 def run_simulation(
-    cfg_file,
+    config: str,
     n_apps: int,
-    max_instances: int,
-    max_epr_pairs: int,
+    inst_range: tuple[int, int],
+    epr_range: tuple[int, int],
+    period_range: tuple[float, float],
     seed: int,
     output_dir: str,
 ):
     """Run the quantum network scheduling simulation.
 
     Args:
-        cfg_file (yaml or gml): Configuration file path in YAML or GML format.
+        config (yaml or gml): Configuration file path in YAML or GML format.
         n_apps (int): Number of applications to generate.
-        max_instances (int): Maximum number of instances per application.
-        max_epr_pairs (int): Maximum number of EPR pairs to generate per
-        application.
+        inst_range (tuple[int, int]): Range (min, max) for the number of
+        instances per application.
+        epr_range (tuple[int, int]): Range (min, max) for the number of EPR
+        pairs to generate per application.
+        period_range (tuple[float, float]): Range (min, max) for the period of
+        each application.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
     rng = np.random.default_rng(seed)
 
     # Generate network data and applications based on the configuration file
-    if cfg_file.endswith(".yaml"):
-        edges, apps, instances, epr_pairs, policies = yaml_config(cfg_file)
-    elif cfg_file.endswith(".gml"):
-        nodes, edges, distances = gml_data(cfg_file)
-        apps, instances, epr_pairs, policies = generate_n_apps(
+    if config.endswith(".yaml"):
+        edges, apps, instances, epr_pairs, policies = yaml_config(config)
+    elif config.endswith(".gml"):
+        nodes, edges, distances = gml_data(config)
+        apps, instances, epr_pairs, periods, policies = generate_n_apps(
             nodes,
             n_apps=n_apps,
-            max_instances=max_instances,
-            max_epr_pairs=max_epr_pairs,
+            inst_range=inst_range,
+            epr_range=epr_range,
+            period_range=period_range,
             list_policies=["deadline"],
             rng=rng,
         )
@@ -77,7 +82,7 @@ def run_simulation(
     job_rel_times = {app: 0.0 for app in apps}
     print("Release times:", job_rel_times)
 
-    job_periods = {job: 2 * durations[job] for job in durations}
+    job_periods = periods
     print("Periods:", job_periods)
 
     # Compute initial schedule
@@ -125,6 +130,7 @@ def main():
         "-c",
         type=str,
         required=True,
+        default="configurations/network/Garr201201.gml",
         help="Path to YAML or GML config"
     )
     run.add_argument(
@@ -138,15 +144,29 @@ def main():
         "--inst",
         "-i",
         type=int,
-        default=5,
-        help="Maximum number of instances per application",
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[2, 2],
+        help="Number of instances to generate (e.g., --inst 1 5)",
     )
     run.add_argument(
         "--epr",
         "-e",
         type=int,
-        default=2,
-        help="Maximum number of EPR pairs to generate per application",
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[2, 2],
+        help="Maximum number of EPR pairs to generate per application"
+        "(e.g., --epr 1 5)",
+    )
+    run.add_argument(
+        "--period",
+        "-p",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[10, 10],
+        help="Period of the application (e.g., --period 1.0 5.0)",
     )
     run.add_argument(
         "--seed",
@@ -165,12 +185,13 @@ def main():
     args = parser.parse_args()
     if args.command == "run":
         run_simulation(
-            args.config,
-            args.apps,
-            args.inst,
-            args.epr,
-            args.seed,
-            args.output,
+            config=args.config,
+            n_apps=args.apps,
+            inst_range=args.inst,
+            epr_range=args.epr,
+            period_range=args.period,
+            seed=args.seed,
+            output_dir=args.output,
         )
 
 

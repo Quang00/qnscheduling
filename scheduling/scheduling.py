@@ -48,10 +48,10 @@ def edf_parallel(
         # Find the earliest start time considering conflicts and release time
         start = max(curr, max(conflicts, default=curr), release)
         if start >= deadline:
-                skip = (start - deadline) // period + 1
-                release += skip * period
-                deadline += skip * period
-                start = max(start, release)
+            skip = (start - deadline) // period + 1
+            release += skip * period
+            deadline += skip * period
+            start = max(start, release)
 
         job_name = f"{job}0"
         schedule.append((job_name, start, deadline))

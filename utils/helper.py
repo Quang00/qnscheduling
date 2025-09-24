@@ -327,8 +327,9 @@ def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
 def generate_n_apps(
     nodes: list,
     n_apps: int,
-    max_instances: int,
-    max_epr_pairs: int,
+    inst_range: tuple[int, int],
+    epr_range: tuple[int, int],
+    period_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Tuple[
@@ -342,8 +343,12 @@ def generate_n_apps(
     Args:
         nodes (list): List of available nodes in the network.
         n_apps (int): Number of applications to generate.
-        max_instances (int): Maximum number of instances for each application.
-        max_epr_pairs (int): Maximum number of EPR pairs for each application.
+        inst_range (tuple[int, int]): Range (min, max) for the number of
+        instances for each application.
+        epr_range (tuple[int, int]): Range (min, max) for the number of EPR
+        pairs for each application.
+        period_range (tuple[float, float]): Range (min, max) for the period
+        of each application.
         list_policies (list[str], optional): List of policies to assign to
         each application.
         rng (np.random.Generator): Random number generator for reproducibility.
@@ -355,20 +360,23 @@ def generate_n_apps(
     instances = {}
     epr_pairs = {}
     policies = {}
+    periods = {}
 
     for i in range(n_apps):
         name_app = get_column_letter(i + 1)
         rand_app = tuple(rng.choice(nodes, 2, replace=False).tolist())
-        rand_instance = rng.integers(1, max_instances + 1)
-        rand_epr_pairs = rng.integers(1, max_epr_pairs + 1)
+        rand_instance = rng.integers(inst_range[0], inst_range[1] + 1)
+        rand_epr_pairs = rng.integers(epr_range[0], epr_range[1] + 1)
+        rand_period = rng.uniform(period_range[0], period_range[1])
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = rand_app
         instances[name_app] = rand_instance
         epr_pairs[name_app] = rand_epr_pairs
+        periods[name_app] = rand_period
         policies[name_app] = rand_policy
 
-    return apps, instances, epr_pairs, policies
+    return apps, instances, epr_pairs, periods, policies
 
 
 def total_distances(
