@@ -16,7 +16,7 @@ import os
 import numpy as np
 
 from scheduling.scheduling import edf_parallel
-from scheduling.simulation import simulate
+from scheduling.simulation import simulate_periodicity
 from utils.helper import (
     app_params_sim,
     compute_durations,
@@ -79,14 +79,12 @@ def run_simulation(
     print("Periods:", job_periods)
 
     # Compute initial schedule
-    schedule = edf_parallel(
-        job_rel_times, job_periods, parallel_map, instances
-    )
+    schedule = edf_parallel(job_rel_times, job_periods, parallel_map)
     print("Initial Schedule:", schedule)
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
-    df, job_names, release_times = simulate(
+    df, job_names, release_times = simulate_periodicity(
         schedule=schedule,
         job_parameters=app_params_sim(paths, epr_pairs),
         job_rel_times=job_rel_times,
@@ -94,6 +92,7 @@ def run_simulation(
         policies=policies,
         job_network_paths=paths,
         distances=distances,
+        instances=instances,
         rng=rng,
     )
 

@@ -3,7 +3,9 @@ Simulation Of Probabilistic Job Scheduling
 -------------------------------------------
 This module implements a simulation of quantum network applications scheduling
 using the SimPy library. It defines a `Job` class that represents a
-non-preemptive job with probabilistic success in generating EPR pairs.
+non-preemptive job with probabilistic success in generating EPR pairs. The
+function, `simulate_periodicity`, orchestrates the scheduling and execution of
+these jobs based on a provided schedule.
 """
 
 import re
@@ -35,6 +37,7 @@ class Job:
         policy: str,
         delay_map: Dict[tuple, float] = None,
         deadline: float = None,
+        done_event: simpy.events.Event | None = None,
     ) -> None:
         """Probabilistic non-preemptive job.
 
@@ -58,6 +61,12 @@ class Job:
             policy (str): Scheduling policy for the job, either "best_effort"
             or "deadline". If "deadline", the job will attempt to complete
             within the maximum burst time defined in durations.
+            delay_map (Dict[tuple, float], optional): Dictionary of delays
+            between nodes. Defaults to None, which means no additional delays.
+            deadline (float, optional): Deadline time for the job. Defaults to
+            None, which means no deadline.
+            done_event (simpy.events.Event, optional): Event to signal job
+            completion.
         """
         self.env = env
         self.name = name
@@ -73,6 +82,7 @@ class Job:
         self.policy = policy
         self.delay_map = delay_map or {}
         self.deadline = deadline
+        self.done_event = done_event
         env.process(self.run())
 
     def run(self):
@@ -157,8 +167,11 @@ class Job:
         }
         self.log.append(result)
 
+        if self.done_event is not None and not self.done_event.triggered:
+            self.done_event.succeed(result)
 
-def simulate(
+
+def simulate_periodicity(
     schedule: List[Tuple[str, float, float]],
     job_parameters: Dict[str, Dict[str, float]],
     job_rel_times: Dict[str, float],
@@ -166,9 +179,10 @@ def simulate(
     job_network_paths: Dict[str, List[str]],
     policies: Dict[str, str],
     distances: Dict[tuple, float],
+    instances: Dict[str, int],
     rng: np.random.Generator,
 ) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
-    """Simulate job scheduling and execution.
+    """Simulate periodic jobs scheduling.
 
     Args:
         schedule (List[Tuple[str, float, float]]): List of tuples where each
@@ -186,6 +200,8 @@ def simulate(
         This can be "best_effort" or "deadline".
         distances (Dict[tuple, float]): Dictionary of distances between nodes
         in the network.
+        instances (Dict[str, int]): Number of instances to run for each base
+        job.
         rng (np.random.Generator): Random number generator for probabilistic
         events.
 
@@ -212,24 +228,36 @@ def simulate(
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
     delay_map = edges_delay(distances)
+    bases = set(job_parameters.keys())
 
-    for inst_name, sched_start, deadline in schedule:
-        initial_job = INIT_JOB_RE.match(inst_name)
-        base, idx = (
-            (initial_job.group(1), int(initial_job.group(2)))
-            if initial_job
-            else (inst_name, 0)
-        )
-        rel = job_rel_times.get(base, 0.0) + idx * job_periods.get(base, 0.0)
-        release_times[inst_name] = rel
-        job_names.append(inst_name)
+    for b in bases:
+        instances.setdefault(b, int(job_parameters[b].get("instances", 1)))
+    app_done_events = {b: env.event() for b in bases}
+    success_counts = {b: 0 for b in bases}
+
+    def watch_job(ev: simpy.Event, base: str):
+        result = yield ev
+        if result.get("status") == "completed":
+            success_counts[base] += 1
+            if (not app_done_events[base].triggered) and success_counts[
+                base
+            ] >= instances[base]:
+                app_done_events[base].succeed(True)
+
+    def launch_job(
+        inst_name: str,
+        base: str,
+        arrival: float,
+        start: float,
+        deadline: float
+    ):
         params = job_parameters[base]
-
+        done_ev = env.event()
         Job(
             env=env,
             name=inst_name,
-            arrival=rel,
-            start=sched_start,
+            arrival=arrival,
+            start=start,
             route=job_network_paths[base],
             resources=resources,
             p_gen=params["p_gen"],
@@ -240,7 +268,54 @@ def simulate(
             policy=policies[base],
             delay_map=delay_map,
             deadline=deadline,
+            done_event=done_ev,
         )
+        env.process(watch_job(done_ev, base))
 
-    env.run()
+    # Initialize jobs from the initial schedule
+    for inst_name, sched_start, deadline in schedule:
+        m = INIT_JOB_RE.match(inst_name)
+        base, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
+        period = float(job_periods.get(base, 0.0))
+        rel0 = float(job_rel_times.get(base, 0.0))
+        rel = rel0 + idx * period
+        release_times[inst_name] = rel
+        job_names.append(inst_name)
+        launch_job(inst_name, base, rel, sched_start, deadline)
+
+    # Release new instances every period until target successes reached
+    def app_spawner(base: str):
+        period = float(job_periods.get(base, 0.0))
+        rel0 = float(job_rel_times.get(base, 0.0))
+        idx = int(next_idx.get(base, 0))
+
+        while True:
+            if app_done_events[base].triggered:
+                break
+
+            rel = rel0 + idx * period
+
+            if env.now < rel:
+                yield env.timeout(rel - env.now)
+                if app_done_events[base].triggered:
+                    break
+
+            if app_done_events[base].triggered:
+                break
+
+            start_time = rel
+            deadline = rel + period
+
+            inst_name = f"{base}{idx}"
+            job_names.append(inst_name)
+            release_times[inst_name] = rel
+
+            launch_job(inst_name, base, rel, start_time, deadline)
+            idx += 1
+
+    for base in bases:
+        env.process(app_spawner(base))
+
+    env.run(until=simpy.AllOf(env, list(app_done_events.values())))
+
     return pd.DataFrame(log), job_names, release_times
