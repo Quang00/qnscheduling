@@ -66,7 +66,9 @@ def run_simulation(
 
     # Compute shortest paths and parallelizable tasks
     paths = shortest_paths(edges, apps)
+    print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
+    print("Parallelizable tasks:", parallel_map)
 
     # Compute durations for each application
     durations = compute_durations(paths, epr_pairs)
