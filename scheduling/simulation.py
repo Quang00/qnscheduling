@@ -221,101 +221,121 @@ def simulate_periodicity(
     for name, _, _ in schedule:
         initial_job = INIT_JOB_RE.match(name)
         if initial_job:
-            b, idx = initial_job.group(1), int(initial_job.group(2))
-            next_idx[b] = max(next_idx.get(b, 0), idx + 1)
+            app, idx = initial_job.group(1), int(initial_job.group(2))
+            next_idx[app] = max(next_idx.get(app, 0), idx + 1)
         retry_map[name] = name
 
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
     delay_map = edges_delay(distances)
-    bases = set(job_parameters.keys())
+    apps = set(job_parameters.keys())
 
-    for b in bases:
-        instances.setdefault(b, int(job_parameters[b].get("instances", 1)))
-    app_done_events = {b: env.event() for b in bases}
-    success_counts = {b: 0 for b in bases}
+    for app in apps:
+        instances.setdefault(app, int(job_parameters[app].get("instances", 1)))
+    done_events = {app: env.event() for app in apps}
+    success_counts = {app: 0 for app in apps}
 
-    def watch_job(ev: simpy.Event, base: str):
-        result = yield ev
+    def watch_job(event: simpy.Event, app: str):
+        """Watch for job completion events.
+
+        Args:
+            event (simpy.Event): Event to monitor.
+            app (str): Application name.
+        """
+        result = yield event
         if result.get("status") == "completed":
-            success_counts[base] += 1
-            if (not app_done_events[base].triggered) and success_counts[
-                base
-            ] >= instances[base]:
-                app_done_events[base].succeed(True)
+            success_counts[app] += 1
+            if (not done_events[app].triggered) and success_counts[
+                app
+            ] >= instances[app]:
+                done_events[app].succeed(True)
 
     def launch_job(
         inst_name: str,
-        base: str,
+        app: str,
         arrival: float,
         start: float,
         deadline: float
     ):
-        params = job_parameters[base]
-        done_ev = env.event()
+        """Launch a job in the simulation.
+
+        Args:
+            inst_name (str): Instance name of the job.
+            app (str): Application name.
+            arrival (float): Arrival time of the job.
+            start (float): Start time of the job.
+            deadline (float): Deadline of the job.
+        """
+        params = job_parameters[app]
+        done_event = env.event()
         Job(
             env=env,
             name=inst_name,
             arrival=arrival,
             start=start,
-            route=job_network_paths[base],
+            route=job_network_paths[app],
             resources=resources,
             p_gen=params["p_gen"],
             epr_pairs=int(params["epr_pairs"]),
             slot_duration=params["slot_duration"],
             rng=rng,
             log=log,
-            policy=policies[base],
+            policy=policies[app],
             delay_map=delay_map,
             deadline=deadline,
-            done_event=done_ev,
+            done_event=done_event,
         )
-        env.process(watch_job(done_ev, base))
+        env.process(watch_job(done_event, app))
 
     # Initialize jobs from the initial schedule
     for inst_name, sched_start, deadline in schedule:
         m = INIT_JOB_RE.match(inst_name)
-        base, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
-        period = float(job_periods.get(base, 0.0))
-        rel0 = float(job_rel_times.get(base, 0.0))
+        app, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
+        period = float(job_periods.get(app, 0.0))
+        rel0 = float(job_rel_times.get(app, 0.0))
         rel = rel0 + idx * period
         release_times[inst_name] = rel
         job_names.append(inst_name)
-        launch_job(inst_name, base, rel, sched_start, deadline)
+        launch_job(inst_name, app, rel, sched_start, deadline)
 
-    # Release new instances every period until target successes reached
-    def app_spawner(base: str):
-        period = float(job_periods.get(base, 0.0))
-        rel0 = float(job_rel_times.get(base, 0.0))
-        idx = int(next_idx.get(base, 0))
+    def app_spawner(app: str):
+        """Spawn new job instances for a given application.
+
+        Args:
+            app (str): Application name.
+        """
+        period = float(job_periods.get(app, 0.0))
+        rel0 = float(job_rel_times.get(app, 0.0))
+        idx = int(next_idx.get(app, 0))
 
         while True:
-            if app_done_events[base].triggered:
+            if done_events[app].triggered:
                 break
 
             rel = rel0 + idx * period
 
             if env.now < rel:
                 yield env.timeout(rel - env.now)
-                if app_done_events[base].triggered:
+                if done_events[app].triggered:
                     break
 
-            if app_done_events[base].triggered:
+            if done_events[app].triggered:
                 break
 
             start_time = rel
             deadline = rel + period
 
-            inst_name = f"{base}{idx}"
+            inst_name = f"{app}{idx}"
             job_names.append(inst_name)
             release_times[inst_name] = rel
 
-            launch_job(inst_name, base, rel, start_time, deadline)
+            launch_job(inst_name, app, rel, start_time, deadline)
             idx += 1
 
-    for base in bases:
-        env.process(app_spawner(base))
+    # Start spawners for each application
+    for app in apps:
+        env.process(app_spawner(app))
 
-    env.run(until=simpy.AllOf(env, list(app_done_events.values())))
+    env.run(until=simpy.AllOf(env, list(done_events.values())))
 
     return pd.DataFrame(log), job_names, release_times
