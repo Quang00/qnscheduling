@@ -129,7 +129,6 @@ def main():
         "--config",
         "-c",
         type=str,
-        required=True,
         default="configurations/network/Dumbbell.gml",
         help="Path to YAML or GML config"
     )
