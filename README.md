@@ -27,11 +27,11 @@ pip install -r requirements.txt
 ## Quick Start
 
 ```bash
-python -m scheduling.main run --config configurations/toy_example.yaml
+python -m scheduling.main run
 ```
 
 ## Example Full command
 
 ```bash
-python -m scheduling.main run --config configurations/network/Garr201201.gml --scheduler edf --apps 5 --inst 5 --epr 2 --seed 42
+python -m scheduling.main run --config configurations/network/Garr201201.gml --apps 5 --inst 2 2 --epr 2 2 --period 10.0 10.0 --seed 42 --output results
 ```

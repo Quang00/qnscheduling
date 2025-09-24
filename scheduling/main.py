@@ -130,7 +130,7 @@ def main():
         "-c",
         type=str,
         required=True,
-        default="configurations/network/Garr201201.gml",
+        default="configurations/network/Dumbbell.gml",
         help="Path to YAML or GML config"
     )
     run.add_argument(
@@ -165,7 +165,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[10, 10],
+        default=[10.0, 10.0],
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     run.add_argument(
