@@ -6,8 +6,9 @@ generation attempts) in a quantum network. It calculates the duration of
 applications based on the parameters of the links and the paths taken by the
 applications. It uses an Earliest Deadline First (EDF) scheduling algorithm
 that takes into account the parallelization capabilities of the applications.
-The simulation can be run with a specified configuration file in YAML or GML
-format, and the results are saved to a specified output directory.
+The simulation can be run with a specified random seed for reproducibility,
+and the results are saved to a specified output directory. The network can be
+defined using a GML file.
 """
 
 import argparse
@@ -25,7 +26,6 @@ from utils.helper import (
     parallelizable_tasks,
     save_results,
     shortest_paths,
-    yaml_config,
 )
 
 
@@ -55,9 +55,7 @@ def run_simulation(
     rng = np.random.default_rng(seed)
 
     # Generate network data and applications based on the configuration file
-    if config.endswith(".yaml"):
-        edges, apps, instances, epr_pairs, policies = yaml_config(config)
-    elif config.endswith(".gml"):
+    if config.endswith(".gml"):
         nodes, edges, distances = gml_data(config)
         apps, instances, epr_pairs, periods, policies = generate_n_apps(
             nodes,
@@ -122,24 +120,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="Simulate scheduling of quantum network applications"
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run = subparsers.add_parser("run", help="Run the scheduling simulation")
-    run.add_argument(
+    parser.add_argument(
         "--config",
         "-c",
         type=str,
         default="configurations/network/Dumbbell.gml",
         help="Path to YAML or GML config"
     )
-    run.add_argument(
+    parser.add_argument(
         "--apps",
         "-a",
         type=int,
         default=10,
         help="Number of applications to generate"
     )
-    run.add_argument(
+    parser.add_argument(
         "--inst",
         "-i",
         type=int,
@@ -148,7 +144,7 @@ def main():
         default=[2, 2],
         help="Number of instances to generate (e.g., --inst 1 5)",
     )
-    run.add_argument(
+    parser.add_argument(
         "--epr",
         "-e",
         type=int,
@@ -158,7 +154,7 @@ def main():
         help="Maximum number of EPR pairs to generate per application"
         "(e.g., --epr 1 5)",
     )
-    run.add_argument(
+    parser.add_argument(
         "--period",
         "-p",
         type=float,
@@ -167,31 +163,31 @@ def main():
         default=[10.0, 10.0],
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
-    run.add_argument(
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
         default=42,
         help="Random seed for simulation (optional)",
     )
-    run.add_argument(
+    parser.add_argument(
         "--output",
         "-o",
         default="results",
-        help="Directory to save results into",
+        help="Directory to save results",
     )
 
     args = parser.parse_args()
-    if args.command == "run":
-        run_simulation(
-            config=args.config,
-            n_apps=args.apps,
-            inst_range=args.inst,
-            epr_range=args.epr,
-            period_range=args.period,
-            seed=args.seed,
-            output_dir=args.output,
-        )
+
+    run_simulation(
+        config=args.config,
+        n_apps=args.apps,
+        inst_range=args.inst,
+        epr_range=args.epr,
+        period_range=args.period,
+        seed=args.seed,
+        output_dir=args.output,
+    )
 
 
 if __name__ == "__main__":
