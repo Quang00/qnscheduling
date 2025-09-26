@@ -1,4 +1,3 @@
-import math
 import os
 import re
 from collections import defaultdict
@@ -112,10 +111,14 @@ def compute_durations(
     """
     durations = {}
     for app, route in paths.items():
+        length_route = len(route)
+        n_swaps = length_route - 2
+        if length_route <= 2:
+            n_swaps = 0
         pga_time = duration_pga(
             p_packet=0.05,
             epr_pairs=epr_pairs[app],
-            n_swap=math.ceil(len(route) / 2),
+            n_swap=n_swaps,
             memory_lifetime=50,
             p_swap=0.95,
             p_gen=0.001,
