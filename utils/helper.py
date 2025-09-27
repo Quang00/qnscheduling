@@ -406,8 +406,8 @@ def hyperperiod(periods: dict[str, float]) -> float:
         float: The hyperperiod of the given periods.
     """
     fracs = [
-        Fraction(float(v)).limit_denominator()
-        for v in periods.values() if float(v) > 0.0
+        Fraction(float(period)).limit_denominator()
+        for period in periods.values() if float(period) > 0.0
     ]
     if not fracs:
         return 0.0
