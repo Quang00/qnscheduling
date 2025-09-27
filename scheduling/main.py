@@ -160,7 +160,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[10.0, 10.0],
+        default=[3.0, 3.0],
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(

@@ -86,9 +86,8 @@ class Job:
         env.process(self.run())
 
     def run(self):
-        # Wait for arrival and scheduled start
-        yield self.env.timeout(max(0.0, self.arrival - self.env.now))
-        yield self.env.timeout(max(0.0, self.start - self.env.now))
+        if self.env.now < self.arrival:
+            yield self.env.timeout(self.arrival - self.env.now)
 
         delays = []
         prev = None
@@ -118,7 +117,6 @@ class Job:
                         break
                     yield self.env.timeout(delay)
 
-                # Check remaining budget
                 elapsed = self.env.now - t0
                 if elapsed >= time_budget:
                     break
@@ -128,7 +126,6 @@ class Job:
                 if wait < self.slot_duration:
                     break
 
-                # Bernoulli attempt
                 if self.rng.random() < self.p_gen:
                     successes += 1
             else:
