@@ -230,7 +230,8 @@ def simulate_periodicity(
     for app in apps:
         instances.setdefault(app, int(job_parameters[app].get("instances", 1)))
     done_events = {app: env.event() for app in apps}
-    success_counts = {app: 0 for app in apps}
+    succ_cpt = {app: 0 for app in apps}
+    last_done = {app: None for app in apps}
 
     def watch_job(event: simpy.Event, app: str):
         """Watch for job completion events.
@@ -241,18 +242,14 @@ def simulate_periodicity(
         """
         result = yield event
         if result.get("status") == "completed":
-            success_counts[app] += 1
-            if (not done_events[app].triggered) and success_counts[
+            succ_cpt[app] += 1
+            if (not done_events[app].triggered) and succ_cpt[app] >= instances[
                 app
-            ] >= instances[app]:
+            ]:
                 done_events[app].succeed(True)
 
     def launch_job(
-        inst_name: str,
-        app: str,
-        arrival: float,
-        start: float,
-        deadline: float
+        inst_name: str, app: str, arrival: float, start: float, deadline: float
     ):
         """Launch a job in the simulation.
 
@@ -283,6 +280,7 @@ def simulate_periodicity(
             done_event=done_event,
         )
         env.process(watch_job(done_event, app))
+        return done_event
 
     # Initialize jobs from the initial schedule
     for inst_name, sched_start, deadline in schedule:
@@ -293,7 +291,7 @@ def simulate_periodicity(
         rel = rel0 + idx * period
         release_times[inst_name] = rel
         job_names.append(inst_name)
-        launch_job(inst_name, app, rel, sched_start, deadline)
+        last_done[app] = launch_job(inst_name, app, rel, sched_start, deadline)
 
     def app_spawner(app: str):
         """Spawn new job instances for a given application.
@@ -316,17 +314,19 @@ def simulate_periodicity(
                 if done_events[app].triggered:
                     break
 
-            if done_events[app].triggered:
-                break
+            if last_done[app] is not None and not last_done[app].triggered:
+                yield last_done[app]
+                if done_events[app].triggered:
+                    break
 
-            start_time = rel
+            start = rel
             deadline = rel + period
 
             inst_name = f"{app}{idx}"
             job_names.append(inst_name)
             release_times[inst_name] = rel
 
-            launch_job(inst_name, app, rel, start_time, deadline)
+            last_done[app] = launch_job(inst_name, app, rel, start, deadline)
             idx += 1
 
     # Start spawners for each application
