@@ -1,6 +1,9 @@
 import os
 import re
 from collections import defaultdict
+from fractions import Fraction
+from functools import reduce
+from math import gcd
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -377,3 +380,40 @@ def edges_delay(
     for (a, b), delay in list(delay_map.items()):
         delay_map[(b, a)] = delay
     return delay_map
+
+
+def _lcm(a: int, b: int) -> int:
+    """Compute the least common multiple (LCM) of two integers.
+
+    Args:
+        a (int): The first integer.
+        b (int): The second integer.
+
+    Returns:
+        int: The least common multiple of a and b.
+    """
+    return abs(a // gcd(a, b) * b) if a and b else 0
+
+
+def hyperperiod(periods: dict[str, float]) -> float:
+    """Compute the hyperperiod of a set of periods.
+
+    Args:
+        periods (dict[str, float]): A dictionary mapping job names to their
+        periods.
+
+    Returns:
+        float: The hyperperiod of the given periods.
+    """
+    fracs = [
+        Fraction(float(v)).limit_denominator()
+        for v in periods.values() if float(v) > 0.0
+    ]
+    if not fracs:
+        return 0.0
+
+    D = reduce(_lcm, (frac.denominator for frac in fracs))
+    nums = [frac.numerator * (D // frac.denominator) for frac in fracs]
+    hyperperiod_ticks = reduce(_lcm, nums)
+
+    return hyperperiod_ticks / D
