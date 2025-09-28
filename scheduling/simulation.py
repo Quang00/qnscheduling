@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import simpy
 
-from utils.helper import edges_delay
+from utils.helper import edges_delay, hyperperiod
 
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 
@@ -177,6 +177,7 @@ def simulate_periodicity(
     policies: Dict[str, str],
     distances: Dict[tuple, float],
     instances: Dict[str, int],
+    hyperperiod_cycles: int,
     rng: np.random.Generator,
 ) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
     """Simulate periodic jobs scheduling.
@@ -199,6 +200,7 @@ def simulate_periodicity(
         in the network.
         instances (Dict[str, int]): Number of instances to run for each base
         job.
+        hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         rng (np.random.Generator): Random number generator for probabilistic
         events.
 
@@ -212,7 +214,6 @@ def simulate_periodicity(
     log = []
     release_times = {}
     job_names = []
-    retry_map = {}
     next_idx = {}
 
     for name, _, _ in schedule:
@@ -220,7 +221,6 @@ def simulate_periodicity(
         if initial_job:
             app, idx = initial_job.group(1), int(initial_job.group(2))
             next_idx[app] = max(next_idx.get(app, 0), idx + 1)
-        retry_map[name] = name
 
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
@@ -282,16 +282,30 @@ def simulate_periodicity(
         env.process(watch_job(done_event, app))
         return done_event
 
+    H = hyperperiod(job_periods)
+    if hyperperiod_cycles < 1:
+        hyperperiod_cycles = 1
+    horizon = float("inf") if H == 0.0 else H * hyperperiod_cycles
+
     # Initialize jobs from the initial schedule
-    for inst_name, sched_start, deadline in schedule:
+    for inst_name, sched_start, _ in schedule:
         m = INIT_JOB_RE.match(inst_name)
-        app, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
-        period = float(job_periods.get(app, 0.0))
-        rel0 = float(job_rel_times.get(app, 0.0))
-        rel = rel0 + idx * period
+        app, name_idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
+        T = float(job_periods[app])
+        r0 = float(job_rel_times[app])
+
+        k = int(round((sched_start - r0) / T))
+        rel = max(r0, r0 + k * T)
+        deadline = rel + T if policies[app] == "deadline" else None
+
+        next_idx[app] = max(next_idx.get(app, 0), name_idx + 1, k + 1)
+
+        if horizon != float('inf') and rel >= horizon:
+            continue
+
         release_times[inst_name] = rel
         job_names.append(inst_name)
-        last_done[app] = launch_job(inst_name, app, rel, sched_start, deadline)
+        last_done[app] = launch_job(inst_name, app, rel, rel, deadline)
 
     def app_spawner(app: str):
         """Spawn new job instances for a given application.
@@ -302,12 +316,20 @@ def simulate_periodicity(
         period = float(job_periods.get(app, 0.0))
         rel0 = float(job_rel_times.get(app, 0.0))
         idx = int(next_idx.get(app, 0))
+        if horizon == float("inf"):
+            stop_time = float("inf")
+        else:
+            stop_time = rel0 + horizon
 
         while True:
             if done_events[app].triggered:
                 break
 
             rel = rel0 + idx * period
+
+            # hyperperiod cap
+            if rel >= stop_time:
+                break
 
             if env.now < rel:
                 yield env.timeout(rel - env.now)
@@ -333,6 +355,12 @@ def simulate_periodicity(
     for app in apps:
         env.process(app_spawner(app))
 
-    env.run(until=simpy.AllOf(env, list(done_events.values())))
+    all_done = simpy.AllOf(env, list(done_events.values()))
+    if horizon != float("inf"):
+        rel = max(0.0, horizon - env.now)
+        stop_at = env.timeout(rel)
+        env.run(until=simpy.AnyOf(env, [stop_at, all_done]))
+    else:
+        env.run(until=all_done)
 
     return pd.DataFrame(log), job_names, release_times

@@ -35,6 +35,7 @@ def run_simulation(
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
+    hyperperiod_cycles: int,
     seed: int,
     output_dir: str,
 ):
@@ -49,6 +50,7 @@ def run_simulation(
         pairs to generate per application.
         period_range (tuple[float, float]): Range (min, max) for the period of
         each application.
+        hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
@@ -98,6 +100,7 @@ def run_simulation(
         job_network_paths=paths,
         distances=distances,
         instances=instances,
+        hyperperiod_cycles=hyperperiod_cycles,
         rng=rng,
     )
 
@@ -164,6 +167,13 @@ def main():
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(
+        "--hyperperiod",
+        "-hp",
+        type=int,
+        default=float("inf"),
+        help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -185,6 +195,7 @@ def main():
         inst_range=args.inst,
         epr_range=args.epr,
         period_range=args.period,
+        hyperperiod_cycles=args.hyperperiod,
         seed=args.seed,
         output_dir=args.output,
     )
