@@ -13,8 +13,11 @@ defined using a GML file.
 
 import argparse
 import os
+import re
+import time
 
 import numpy as np
+import pandas as pd
 
 from scheduling.scheduling import edf_parallel
 from scheduling.simulation import simulate_periodicity
@@ -257,6 +260,20 @@ def main():
 
     args = parser.parse_args()
 
+    seed_dir = os.path.join(args.output, f"seed_{args.seed}")
+    os.makedirs(seed_dir, exist_ok=True)
+
+    run_number = 1
+    pattern = re.compile(r"run(\d+)$")
+    for name in os.listdir(seed_dir):
+        m = pattern.match(name)
+        if m:
+            run_number = max(run_number, int(m.group(1)) + 1)
+
+    run_dir = os.path.join(seed_dir, f"run{run_number}")
+    os.makedirs(run_dir, exist_ok=False)
+
+    t0 = time.perf_counter()
     run_simulation(
         config=args.config,
         n_apps=args.apps,
@@ -270,8 +287,37 @@ def main():
         p_gen=args.pgen,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
-        output_dir=args.output,
+        output_dir=run_dir,
     )
+    t1 = time.perf_counter()
+    runtime = t1 - t0
+    print(f"Run time: {runtime:.3f} seconds")
+
+    params = {
+        "config": args.config,
+        "n_apps": args.apps,
+        "inst_min": args.inst[0],
+        "inst_max": args.inst[1],
+        "epr_min": args.epr[0],
+        "epr_max": args.epr[1],
+        "period_min": args.period[0],
+        "period_max": args.period[1],
+        "hyperperiod_cycles": args.hyperperiod,
+        "p_packet": args.ppacket,
+        "memory_lifetime": args.memory,
+        "p_swap": args.pswap,
+        "p_gen": args.pgen,
+        "time_slot_duration": args.slot_duration,
+        "seed": args.seed,
+        "runtime_seconds": runtime,
+        "run_number": run_number,
+    }
+    pd.DataFrame([params]).to_csv(
+        os.path.join(run_dir, "params.csv"), index=False
+    )
+
+    print(f"Saved results to: {os.path.join(run_dir, 'results.csv')}")
+    print(f"Saved parameters to: {os.path.join(run_dir, 'params.csv')}")
 
 
 if __name__ == "__main__":
