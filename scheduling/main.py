@@ -36,6 +36,11 @@ def run_simulation(
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
     hyperperiod_cycles: int,
+    p_packet: float,
+    memory_lifetime: float,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
     seed: int,
     output_dir: str,
 ):
@@ -51,6 +56,11 @@ def run_simulation(
         period_range (tuple[float, float]): Range (min, max) for the period of
         each application.
         hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
+        p_packet (float): Probability of a packet being generated.
+        memory_lifetime (float): Memory lifetime in number of time slot units.
+        p_swap (float): Probability of swapping an EPR pair in a single trial.
+        p_gen (float): Probability of generating an EPR pair in a single trial.
+        time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     """
@@ -76,7 +86,15 @@ def run_simulation(
     print("Parallelizable tasks:", parallel_map)
 
     # Compute durations for each application
-    durations = compute_durations(paths, epr_pairs)
+    durations = compute_durations(
+        paths,
+        epr_pairs,
+        p_packet,
+        memory_lifetime,
+        p_swap,
+        p_gen,
+        time_slot_duration
+    )
     print("Durations:", durations)
 
     job_rel_times = {app: 0.0 for app in apps}
@@ -96,11 +114,21 @@ def run_simulation(
     if not feasible:
         return None
 
+    job_parameters = app_params_sim(
+        paths,
+        epr_pairs,
+        p_packet,
+        memory_lifetime,
+        p_swap,
+        p_gen,
+        time_slot_duration
+    )
+
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
     df, job_names, release_times = simulate_periodicity(
         schedule=schedule,
-        job_parameters=app_params_sim(paths, epr_pairs),
+        job_parameters=job_parameters,
         job_rel_times=job_rel_times,
         job_periods=job_periods,
         policies=policies,
@@ -179,6 +207,41 @@ def main():
         help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
     )
     parser.add_argument(
+        "--ppacket",
+        "-pp",
+        type=float,
+        default=0.05,
+        help="Probability of a packet being generated",
+    )
+    parser.add_argument(
+        "--memory",
+        "-m",
+        type=int,
+        default=50,
+        help="Memory lifetime in number of time slot units",
+    )
+    parser.add_argument(
+        "--pswap",
+        "-ps",
+        type=float,
+        default=0.95,
+        help="Probability of swapping an EPR pair in a single trial",
+    )
+    parser.add_argument(
+        "--pgen",
+        "-pg",
+        type=float,
+        default=1e-3,
+        help="Probability of generating an EPR pair in a single trial",
+    )
+    parser.add_argument(
+        "--slot-duration",
+        "-sd",
+        type=float,
+        default=1e-4,
+        help="Duration of a time slot in seconds",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -201,6 +264,11 @@ def main():
         epr_range=args.epr,
         period_range=args.period,
         hyperperiod_cycles=args.hyperperiod,
+        p_packet=args.ppacket,
+        memory_lifetime=args.memory,
+        p_swap=args.pswap,
+        p_gen=args.pgen,
+        time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=args.output,
     )

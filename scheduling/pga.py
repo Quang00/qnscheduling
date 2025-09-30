@@ -13,7 +13,7 @@ from scipy.stats import binom
 
 def probability_e2e(
     n_swap: int,
-    memory_lifetime: float,
+    memory_lifetime: int,
     p_gen: float = 0.001,
     p_swap: float = 0.95
 ) -> float:
@@ -22,7 +22,7 @@ def probability_e2e(
 
     Args:
         n_swap (int): Number of swaps performed.
-        memory_lifetime (float, optional): Memory lifetime in number of time
+        memory_lifetime (int, optional): Memory lifetime in number of time
         slot units.
         p_gen (float, optional): Probability of generating an EPR pair in a
         single trial.
@@ -61,7 +61,7 @@ def duration_pga(
     p_packet: float,
     epr_pairs: int,
     n_swap: int,
-    memory_lifetime: float = 0,
+    memory_lifetime: int = 0,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
@@ -72,7 +72,7 @@ def duration_pga(
         p_packet (float): Probability of a packet being generated.
         epr_pairs (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
-        memory_lifetime (float, optional): Memory lifetime in number of time
+        memory_lifetime (int, optional): Memory lifetime in number of time
         slot units.
         p_swap (float, optional): Probability of swapping an EPR pair in a
         single trial.

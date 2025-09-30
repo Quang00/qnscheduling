@@ -95,7 +95,13 @@ def parallelizable_tasks(
 
 
 def compute_durations(
-    paths: dict[str, list[str]], epr_pairs: dict[str, int]
+    paths: dict[str, list[str]],
+    epr_pairs: dict[str, int],
+    p_packet: float,
+    memory_lifetime: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -105,6 +111,15 @@ def compute_durations(
         network.
         epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
+        p_packet (float): Probability of a packet being generated.
+        memory_lifetime (int): Memory lifetime in number of time
+        slot units.
+        p_swap (float): Probability of swapping an EPR pair in a
+        single trial.
+        p_gen (float): Probability of generating an EPR pair in a
+        single trial.
+        time_slot_duration (float): Duration of a time slot in
+        seconds.
 
     Returns:
         dict[str, float]: A dictionary mapping each application to its total
@@ -118,21 +133,27 @@ def compute_durations(
         if length_route <= 2:
             n_swaps = 0
         pga_time = duration_pga(
-            p_packet=0.05,
+            p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
-            memory_lifetime=50,
-            p_swap=0.95,
-            p_gen=0.001,
-            time_slot_duration=1e-4,
+            memory_lifetime=memory_lifetime,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
         )
         durations[app] = pga_time
     return durations
 
 
 def app_params_sim(
-    paths: dict[str, list[str]], epr_pairs: dict[str, int]
-) -> dict[str, dict[str, float]]:
+    paths: dict[str, list[str]],
+    epr_pairs: dict[str, int],
+    p_packet: float,
+    memory_lifetime: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+) -> dict[str, dict[str, int], float, int, float, float, float]:
     """Prepare application parameters for simulation.
 
     Args:
@@ -140,6 +161,15 @@ def app_params_sim(
         network.
         epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
+        p_packet (float): Probability of a packet being generated.
+        memory_lifetime (int): Memory lifetime in number of time
+        slot units.
+        p_swap (float): Probability of swapping an EPR pair in a
+        single trial.
+        p_gen (float): Probability of generating an EPR pair in a
+        single trial.
+        time_slot_duration (float): Duration of a time slot in
+        seconds.
 
     Returns:
         dict[str, dict[str, float]]: A dictionary mapping each application to
@@ -150,9 +180,12 @@ def app_params_sim(
     sim_params = {}
     for key in paths.keys():
         sim_params[key] = {
-            "p_gen": 0.001,
+            "p_packet": p_packet,
+            "memory_lifetime": memory_lifetime,
+            "p_swap": p_swap,
+            "p_gen": p_gen,
             "epr_pairs": epr_pairs[key],
-            "slot_duration": 1e-4,
+            "slot_duration": time_slot_duration,
         }
     return sim_params
 
@@ -276,9 +309,7 @@ def save_results(
         row = per_task.loc[task]
         n_completed = int(row.get("completed", 0))
         n_failed = int(row.get("failed", 0))
-        print(
-            f"    {task:<4} completed: {n_completed}, failed: {n_failed}"
-        )
+        print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
 
     print(f"Makespan         : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} jobs/s")
