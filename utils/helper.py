@@ -392,7 +392,7 @@ def _lcm(a: int, b: int) -> int:
     Returns:
         int: The least common multiple of a and b.
     """
-    return abs(a // gcd(a, b) * b) if a and b else 0
+    return 0 if (a == 0 or b == 0) else abs(a // gcd(a, b) * b)
 
 
 def hyperperiod(periods: dict[str, float]) -> float:
@@ -407,7 +407,8 @@ def hyperperiod(periods: dict[str, float]) -> float:
     """
     fracs = [
         Fraction(float(period)).limit_denominator()
-        for period in periods.values() if float(period) > 0.0
+        for period in periods.values()
+        if float(period) > 0.0
     ]
     if not fracs:
         return 0.0

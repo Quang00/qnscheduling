@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import simpy
 
-from utils.helper import edges_delay, hyperperiod
+from utils.helper import edges_delay
 
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 
@@ -27,6 +27,7 @@ class Job:
         name: str,
         arrival: float,
         start: float,
+        end: float,
         route: List[str],
         resources: Dict[str, simpy.PriorityResource],
         p_gen: float,
@@ -35,8 +36,8 @@ class Job:
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
         policy: str,
-        delay_map: Dict[tuple, float] = None,
-        deadline: float = None,
+        delay_map: Dict[tuple, float] | None = None,
+        deadline: float | None = None,
         done_event: simpy.events.Event | None = None,
     ) -> None:
         """Probabilistic non-preemptive job.
@@ -46,6 +47,7 @@ class Job:
             name (str): Job name for identification.
             arrival (float): Arrival time of the job in the simulation.
             start (float): Start time of the job in the simulation.
+            end (float): End time of the job in the simulation.
             route (List[str]): List of nodes in the job's route.
             resources (Dict[str, simpy.PriorityResource]): Dictionary of
             resources indexed by node names.
@@ -56,8 +58,6 @@ class Job:
             rng (np.random.Generator): Random number generator for
             probabilistic events.
             log (List[Dict[str, Any]]): Log to record job performance metrics.
-            durations (Dict[str, float]): Dictionary of job durations
-            indexed by job name.
             policy (str): Scheduling policy for the job, either "best_effort"
             or "deadline". If "deadline", the job will attempt to complete
             within the maximum burst time defined in durations.
@@ -70,24 +70,28 @@ class Job:
         """
         self.env = env
         self.name = name
-        self.arrival = arrival
-        self.start = start
+        self.arrival = float(arrival)
+        self.start = float(start)
+        self.end = float(end)
         self.route = route
         self.resources = resources
-        self.p_gen = p_gen
-        self.epr_pairs = epr_pairs
-        self.slot_duration = slot_duration
+        self.p_gen = float(p_gen)
+        self.epr_pairs = int(epr_pairs)
+        self.slot_duration = float(slot_duration)
         self.rng = rng
         self.log = log
         self.policy = policy
         self.delay_map = delay_map or {}
-        self.deadline = deadline
+        self.deadline = None if deadline is None else float(deadline)
         self.done_event = done_event
         env.process(self.run())
 
     def run(self):
+        # Wait until arrival then exact scheduled start
         if self.env.now < self.arrival:
             yield self.env.timeout(self.arrival - self.env.now)
+        if self.env.now < self.start:
+            yield self.env.timeout(self.start - self.env.now)
 
         delays = []
         prev = None
@@ -97,87 +101,92 @@ class Job:
             prev = node
 
         reqs = [self.resources[node].request() for node in self.route]
+        t_request = self.env.now
         yield simpy.AllOf(self.env, reqs)
         requests = list(zip(self.route, reqs))
 
-        t0 = self.env.now
-        successes = 0
-
-        if self.policy == "deadline":
-            if self.deadline is None:
-                time_budget = 0.0
-            else:
-                time_budget = max(0.0, self.deadline - t0)
+        # If we had to wait, the schedule is violated
+        if self.env.now > t_request:
+            status = "conflict"
+            completion = self.env.now
+        else:
+            # Work strictly within [start, end)
+            t0 = self.start
+            t_budget = max(0.0, self.end - self.start)
+            successes = 0
             status = "failed"
-            while successes < self.epr_pairs:
-                for delay in delays:
-                    if delay <= 0:
-                        continue
-                    if (self.env.now - t0 + delay) > time_budget:
-                        break
-                    yield self.env.timeout(delay)
 
-                elapsed = self.env.now - t0
-                if elapsed >= time_budget:
-                    break
+            if t_budget > 0:
+                if self.policy == "deadline":
+                    while successes < self.epr_pairs:
+                        for delay in delays:
+                            if delay <= 0:
+                                continue
+                            if (self.env.now - t0 + delay) > t_budget:
+                                break
+                            yield self.env.timeout(delay)
+                        elapsed = self.env.now - t0
+                        if elapsed >= t_budget:
+                            break
+                        wait = min(self.slot_duration, t_budget - elapsed)
+                        # Non-preemptive: if we can't fit a full slot, stop
+                        if wait < self.slot_duration:
+                            break
+                        yield self.env.timeout(wait)
+                        if self.rng.random() < self.p_gen:
+                            successes += 1
+                    if successes >= self.epr_pairs:
+                        status = "completed"
 
-                wait = min(self.slot_duration, time_budget - elapsed)
-                yield self.env.timeout(wait)
-                if wait < self.slot_duration:
-                    break
-
-                if self.rng.random() < self.p_gen:
-                    successes += 1
-            else:
-                status = "completed"
-        elif self.policy == "best_effort":
-            while successes < self.epr_pairs:
-                for delay in delays:
-                    if delay > 0:
-                        yield self.env.timeout(delay)
-                yield self.env.timeout(self.slot_duration)
-                if self.rng.random() < self.p_gen:
-                    successes += 1
-            status = "completed"
-
-        completion = self.env.now
+                elif self.policy == "best_effort":
+                    while successes < self.epr_pairs:
+                        for delay in delays:
+                            if delay > 0:
+                                if (self.env.now - t0 + delay) > t_budget:
+                                    break
+                                yield self.env.timeout(delay)
+                        if (self.env.now - t0 + self.slot_duration) > t_budget:
+                            break
+                        yield self.env.timeout(self.slot_duration)
+                        if self.rng.random() < self.p_gen:
+                            successes += 1
+                    if successes >= self.epr_pairs:
+                        status = "completed"
+            completion = min(self.end, self.env.now)
 
         # Release resources
         for node, req in requests:
             self.resources[node].release(req)
 
-        # Metrics
-        burst = completion - t0
+        # Metrics (relative to scheduled start)
+        burst = completion - self.start
         turnaround = completion - self.arrival
         waiting = turnaround - burst
 
         result = {
             "job": self.name,
             "arrival_time": self.arrival,
-            "start_time": t0,
+            "start_time": self.start,
             "burst_time": burst,
             "completion_time": completion,
             "turnaround_time": turnaround,
             "waiting_time": waiting,
             "status": status,
-            "deadline": self.deadline,
+            "deadline": self.deadline,  # kept only as metadata
         }
         self.log.append(result)
-
         if self.done_event is not None and not self.done_event.triggered:
             self.done_event.succeed(result)
 
 
 def simulate_periodicity(
-    schedule: List[Tuple[str, float, float]],
+    schedule: List[Tuple[str, float, float, float]],
     job_parameters: Dict[str, Dict[str, float]],
     job_rel_times: Dict[str, float],
     job_periods: Dict[str, float],
     job_network_paths: Dict[str, List[str]],
     policies: Dict[str, str],
     distances: Dict[tuple, float],
-    instances: Dict[str, int],
-    hyperperiod_cycles: int,
     rng: np.random.Generator,
 ) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
     """Simulate periodic jobs scheduling.
@@ -198,9 +207,6 @@ def simulate_periodicity(
         This can be "best_effort" or "deadline".
         distances (Dict[tuple, float]): Dictionary of distances between nodes
         in the network.
-        instances (Dict[str, int]): Number of instances to run for each base
-        job.
-        hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         rng (np.random.Generator): Random number generator for probabilistic
         events.
 
@@ -214,153 +220,42 @@ def simulate_periodicity(
     log = []
     release_times = {}
     job_names = []
-    next_idx = {}
-
-    for name, _, _ in schedule:
-        initial_job = INIT_JOB_RE.match(name)
-        if initial_job:
-            app, idx = initial_job.group(1), int(initial_job.group(2))
-            next_idx[app] = max(next_idx.get(app, 0), idx + 1)
 
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
     delay_map = edges_delay(distances)
-    apps = set(job_parameters.keys())
 
-    for app in apps:
-        instances.setdefault(app, int(job_parameters[app].get("instances", 1)))
-    done_events = {app: env.event() for app in apps}
-    succ_cpt = {app: 0 for app in apps}
-    last_done = {app: None for app in apps}
+    for inst_name, sched_start, sched_end, sched_deadline in schedule:
+        m = INIT_JOB_RE.match(inst_name)
+        app, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
 
-    def watch_job(event: simpy.Event, app: str):
-        """Watch for job completion events.
+        r0 = float(job_rel_times.get(app, 0.0))
+        T = float(job_periods.get(app, 0.0))
+        arrival = r0 + idx * T
 
-        Args:
-            event (simpy.Event): Event to monitor.
-            app (str): Application name.
-        """
-        result = yield event
-        if result.get("status") == "completed":
-            succ_cpt[app] += 1
-            if (not done_events[app].triggered) and succ_cpt[app] >= instances[
-                app
-            ]:
-                done_events[app].succeed(True)
-
-    def launch_job(
-        inst_name: str, app: str, arrival: float, start: float, deadline: float
-    ):
-        """Launch a job in the simulation.
-
-        Args:
-            inst_name (str): Instance name of the job.
-            app (str): Application name.
-            arrival (float): Arrival time of the job.
-            start (float): Start time of the job.
-            deadline (float): Deadline of the job.
-        """
-        params = job_parameters[app]
-        done_event = env.event()
         Job(
             env=env,
             name=inst_name,
             arrival=arrival,
-            start=start,
+            start=sched_start,
+            end=sched_end,
             route=job_network_paths[app],
             resources=resources,
-            p_gen=params["p_gen"],
-            epr_pairs=int(params["epr_pairs"]),
-            slot_duration=params["slot_duration"],
+            p_gen=job_parameters[app]["p_gen"],
+            epr_pairs=int(job_parameters[app]["epr_pairs"]),
+            slot_duration=job_parameters[app]["slot_duration"],
             rng=rng,
             log=log,
             policy=policies[app],
             delay_map=delay_map,
-            deadline=deadline,
-            done_event=done_event,
+            deadline=sched_deadline,
+            done_event=None,
         )
-        env.process(watch_job(done_event, app))
-        return done_event
 
-    H = hyperperiod(job_periods)
-    if hyperperiod_cycles < 1:
-        hyperperiod_cycles = 1
-    horizon = float("inf") if H == 0.0 else H * hyperperiod_cycles
-
-    # Initialize jobs from the initial schedule
-    for inst_name, sched_start, _ in schedule:
-        m = INIT_JOB_RE.match(inst_name)
-        app, name_idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
-        T = float(job_periods[app])
-        r0 = float(job_rel_times[app])
-
-        k = int(round((sched_start - r0) / T))
-        rel = max(r0, r0 + k * T)
-        deadline = rel + T if policies[app] == "deadline" else None
-
-        next_idx[app] = max(next_idx.get(app, 0), name_idx + 1, k + 1)
-
-        if horizon != float('inf') and rel >= horizon:
-            continue
-
-        release_times[inst_name] = rel
         job_names.append(inst_name)
-        last_done[app] = launch_job(inst_name, app, rel, rel, deadline)
+        release_times[inst_name] = sched_start
 
-    def app_spawner(app: str):
-        """Spawn new job instances for a given application.
-
-        Args:
-            app (str): Application name.
-        """
-        period = float(job_periods.get(app, 0.0))
-        rel0 = float(job_rel_times.get(app, 0.0))
-        idx = int(next_idx.get(app, 0))
-        if horizon == float("inf"):
-            stop_time = float("inf")
-        else:
-            stop_time = rel0 + horizon
-
-        while True:
-            if done_events[app].triggered:
-                break
-
-            rel = rel0 + idx * period
-
-            # hyperperiod cap
-            if rel >= stop_time:
-                break
-
-            if env.now < rel:
-                yield env.timeout(rel - env.now)
-                if done_events[app].triggered:
-                    break
-
-            if last_done[app] is not None and not last_done[app].triggered:
-                yield last_done[app]
-                if done_events[app].triggered:
-                    break
-
-            start = rel
-            deadline = rel + period
-
-            inst_name = f"{app}{idx}"
-            job_names.append(inst_name)
-            release_times[inst_name] = rel
-
-            last_done[app] = launch_job(inst_name, app, rel, start, deadline)
-            idx += 1
-
-    # Start spawners for each application
-    for app in apps:
-        env.process(app_spawner(app))
-
-    all_done = simpy.AllOf(env, list(done_events.values()))
-    if horizon != float("inf"):
-        rel = max(0.0, horizon - env.now)
-        stop_at = env.timeout(rel)
-        env.run(until=simpy.AnyOf(env, [stop_at, all_done]))
-    else:
-        env.run(until=all_done)
+    last_end = max((e for _, _, e, _ in schedule), default=0.0)
+    env.run(until=last_end + 1e-9)
 
     return pd.DataFrame(log), job_names, release_times

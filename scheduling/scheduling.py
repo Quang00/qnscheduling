@@ -1,60 +1,96 @@
 """
 Scheduling
 ----------
-This module implements the Earliest Deadline First (EDF) scheduling-like
-algorithm that schedules jobs based on their durations and parallelization
-capabilities.
+This module implements a feasibility test and scheduling algorithm for
+probabilistic jobs in a quantum network. It uses an Earliest Deadline First
+(EDF) approach to schedule jobs while considering their parallelization
+capabilities. The schedule is constructed over a specified number of
+hyperperiod cycles that ensure jobs are executed within their deadlines if
+feasible.
 """
 
+from math import floor
 from typing import Dict, List, Set, Tuple
+
+from utils.helper import hyperperiod
+
+PRECISION_THRESHOLD = 1e-12
 
 
 def edf_parallel(
     job_rel_times: Dict[str, float],
     job_periods: Dict[str, float],
+    durations: Dict[str, float],
     parallel_apps: Dict[str, Set[str]],
-) -> List[Tuple[str, float, float]]:
-    """EDF-like scheduling for parallel jobs.
+    horizon_cycles: int,
+) -> Tuple[bool, List[Tuple[str, float, float, float]] | str]:
+    """Edf scheduling with parallelization capabilities. The static schedule is
+    constructed over a given number of hyperperiod cycles. It checks if the
+    set of jobs is feasible and returns the schedule if so.
 
     Args:
-        job_rel_times (Dict[str, float]): Jobs' relative release times.
-        job_periods (Dict[str, float]): Jobs' periods.
-        parallel_apps (Dict[str, Set[str]]): Applications that can run in
-        parallel.
+        job_rel_times (Dict[str, float]): Job relative start times.
+        job_periods (Dict[str, float]): Job periods.
+        durations (Dict[str, float]): Job execution durations.
+        parallel_apps (Dict[str, Set[str]]): Dictionary mapping each job to a
+        set of jobs that can run in parallel with it.
+        horizon_cycles (int): Number of hyperperiod cycles to consider.
 
     Returns:
-        List[Tuple[str, float, float]]: Scheduled jobs with their start and
-        deadline times.
+        Tuple[bool, List[Tuple[str, float, float, float]] | str]: A tuple where
+        the first element indicates if the schedule is feasible, and the second
+        element is either the schedule (job_name, start, end, deadline) or an
+        error message (if not).
     """
-    schedule = []  # (job_name, start, deadline)
-    jobs = sorted(
-        job_periods,
-        key=lambda j: job_rel_times.get(j, 0.0) + job_periods[j]
-    )
-    curr = 0.0
+    H = float(hyperperiod(job_periods))
+    if H <= 0.0 or horizon_cycles < 1:
+        return False, "invalid horizon"
 
-    for job in jobs:
-        release = float(job_rel_times.get(job, 0.0))
-        period = float(job_periods[job])
-        deadline = release + period
-        can_parallel = parallel_apps.get(job, set())
+    # Parallelization conflicts
+    jobs = list(job_periods.keys())
+    conflicts = {
+        a: {b for b in jobs if b != a and b not in parallel_apps.get(a, set())}
+        for a in jobs
+    }
 
-        conflicts = [
-            dl
-            for name, _, dl in schedule
-            if name.rstrip("0123456789") not in can_parallel and dl > curr
-        ]
+    # Generate all job instances within the hyperperiod horizon
+    horizon = horizon_cycles * H
+    instances = []
+    for j in jobs:
+        T = float(job_periods[j])
+        base_r = float(job_rel_times.get(j, 0.0))
+        pga = float(durations[j])
+        n = max(0, floor(((horizon - base_r) / T) - PRECISION_THRESHOLD) + 1)
+        for k in range(n):
+            rel_k = base_r + k * T
+            if rel_k >= horizon - PRECISION_THRESHOLD:
+                break
+            dl_k = rel_k + T
+            instances.append((j, k, rel_k, dl_k, pga))
 
-        # Find the earliest start time considering conflicts and release time
-        start = max(curr, max(conflicts, default=curr), release)
-        if start >= deadline:
-            skip = (start - deadline) // period + 1
-            release += skip * period
-            deadline += skip * period
-            start = max(start, release)
+    # Sort instances by (deadline, release time)
+    instances.sort(key=lambda x: (x[3], x[2]))
 
-        job_name = f"{job}0"
-        schedule.append((job_name, start, deadline))
-        curr = start
+    # Keep track of the last finish time for each job
+    last_finish = {j: 0.0 for j in jobs}
+    schedule = []
+    for j, k, rel, dl, pga in instances:
+        block_until = 0.0
+        for c in conflicts[j]:
+            if last_finish[c] > block_until:
+                block_until = last_finish[c]
+        if last_finish[j] > block_until:
+            block_until = last_finish[j]
 
-    return schedule
+        start = max(rel, block_until)
+        end = start + pga
+        if end > dl + PRECISION_THRESHOLD:
+            return (
+                False,
+                "Infeasible schedule -> deadline miss: "
+                f"{j}{k} end={end:.9f} > deadline={dl:.9f}",
+            )
+        schedule.append((f"{j}{k}", start, end, dl))
+        last_finish[j] = end
+
+    return True, schedule

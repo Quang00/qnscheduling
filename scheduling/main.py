@@ -85,9 +85,16 @@ def run_simulation(
     job_periods = periods
     print("Periods:", job_periods)
 
-    # Compute initial schedule
-    schedule = edf_parallel(job_rel_times, job_periods, parallel_map)
-    print("Initial Schedule:", schedule)
+    print("Hyperperiod cycles:", hyperperiod_cycles)
+
+    # Compute static schedule
+    feasible, schedule = edf_parallel(
+        job_rel_times, job_periods, durations, parallel_map, hyperperiod_cycles
+    )
+    print("Schedule:", schedule)
+
+    if not feasible:
+        return None
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
@@ -99,8 +106,6 @@ def run_simulation(
         policies=policies,
         job_network_paths=paths,
         distances=distances,
-        instances=instances,
-        hyperperiod_cycles=hyperperiod_cycles,
         rng=rng,
     )
 
@@ -129,14 +134,14 @@ def main():
         "-c",
         type=str,
         default="configurations/network/Dumbbell.gml",
-        help="Path to YAML or GML config"
+        help="Path to YAML or GML config",
     )
     parser.add_argument(
         "--apps",
         "-a",
         type=int,
         default=10,
-        help="Number of applications to generate"
+        help="Number of applications to generate",
     )
     parser.add_argument(
         "--inst",
@@ -170,7 +175,7 @@ def main():
         "--hyperperiod",
         "-hp",
         type=int,
-        default=float("inf"),
+        default=10,
         help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
     )
     parser.add_argument(
