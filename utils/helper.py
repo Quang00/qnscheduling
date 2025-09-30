@@ -180,6 +180,12 @@ def save_results(
             - turnaround_time: Total time from arrival to completion
             - waiting_time: Total time the job waited before execution
             - status: Status of the job (e.g., "completed", "failed")
+            - deadline: Deadline for the job (if applicable)
+            - src_node: Source node of the job
+            - dst_node: Destination node of the job
+            - instances: Number of instances for the job
+            - epr_pairs: Number of EPR pairs for the job
+            - policy: Scheduling policy used for the job
         job_names (List): List of all job names that should be present in the
         results.
         release_times (Dict): Dictionary mapping application names to their
@@ -200,11 +206,11 @@ def save_results(
     if missing:
         filler_rows = []
         for job in missing:
-            app = re.sub(r"\d+$", "", job)
+            task = re.sub(r"\d+$", "", job)
             filler_rows.append(
                 {
                     "job": job,
-                    "arrival_time": release_times.get(app, np.nan),
+                    "arrival_time": release_times.get(task, np.nan),
                     "start_time": np.nan,
                     "burst_time": np.nan,
                     "completion_time": np.nan,
@@ -215,10 +221,10 @@ def save_results(
             )
         df = pd.concat([df, pd.DataFrame(filler_rows)], ignore_index=True)
 
-    df["app"] = df["job"].astype(str).str.replace(r"\d+$", "", regex=True)
+    df["task"] = df["job"].astype(str).str.replace(r"\d+$", "", regex=True)
     params = pd.DataFrame(
         {
-            "app": list(apps.keys()),
+            "task": list(apps.keys()),
             "src_node": [apps[a][0] for a in apps],
             "dst_node": [apps[a][1] for a in apps],
             "instances": [instances[a] for a in apps],
@@ -227,8 +233,8 @@ def save_results(
         }
     )
 
-    df = df.merge(params, on="app", how="left")
-    df = df.drop(columns="app")
+    df = df.merge(params, on="task", how="left")
+    df = df.drop(columns="task")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
 
     csv_path = os.path.join(output_dir, "job_results.csv")
@@ -240,7 +246,6 @@ def save_results(
     makespan = df["completion_time"].max() - df["arrival_time"].min()
     total = len(df)
     completed = (df["status"] == "completed").sum()
-    failed = (df["status"] == "failed").sum()
     throughput = completed / makespan if makespan > 0 else float("inf")
     waits = df.loc[
         (df["status"] == "completed") | (df["status"] == "failed"),
@@ -251,8 +256,30 @@ def save_results(
 
     print("\n=== Summary ===")
     print(f"Total jobs       : {total}")
-    print(f"  - completed    : {completed}")
-    print(f"  - failed       : {failed}")
+
+    tmp = df.copy()
+    tmp["task"] = tmp["job"].astype(str).str.replace(r"\d+$", "", regex=True)
+    expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in job_names})
+    per_task = (
+        tmp.groupby(["task", "status"])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(expected_tasks, fill_value=0)
+    )
+
+    for col in ["completed", "failed"]:
+        if col not in per_task.columns:
+            per_task[col] = 0
+
+    tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
+    for task in tasks_sorted:
+        row = per_task.loc[task]
+        n_completed = int(row.get("completed", 0))
+        n_failed = int(row.get("failed", 0))
+        print(
+            f"    {task:<4} completed: {n_completed}, failed: {n_failed}"
+        )
+
     print(f"Makespan         : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} jobs/s")
     print(f"Avg waiting time : {avg_wait:.4f}")
