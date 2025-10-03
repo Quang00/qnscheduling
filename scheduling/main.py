@@ -151,7 +151,6 @@ def run_simulation(
         policies,
         output_dir=output_dir,
     )
-    print(f"Results saved to directory {output_dir}")
     return df
 
 

@@ -343,8 +343,8 @@ def simulate_periodicity(
             deadline=sched_deadline,
             done_event=None,
             p_swap=job_parameters[app]["p_swap"],
-            memory_lifetime=50,
-            memory_capacity=50,
+            memory_lifetime=job_parameters[app]["memory_lifetime"],
+            memory_capacity=job_parameters[app]["memory_lifetime"],
         )
 
         job_names.append(inst_name)
