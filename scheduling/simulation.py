@@ -9,15 +9,67 @@ these jobs based on a provided schedule.
 """
 
 import re
-from typing import Any, Dict, List, Tuple
+from collections import defaultdict, deque
+from dataclasses import dataclass
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import simpy
 
+from scheduling.pga import probability_e2e
 from utils.helper import edges_delay
 
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+@dataclass
+class HalfQubit:
+    qubit: str
+    creation_time: float
+
+
+class Memory:
+    def __init__(self, capacity: int, coherence_time_s: float):
+        self.capacity = int(capacity)
+        self.coherence_time_s = float(coherence_time_s)
+        self.total: Deque[HalfQubit] = deque()
+        self.qubit: Dict[str, Deque[HalfQubit]] = defaultdict(deque)
+
+    def purge_expired(self, now: float) -> None:
+        cohenrence_time = now - self.coherence_time_s
+        while self.total and self.total[0].creation_time < cohenrence_time:
+            exprired = self.total.popleft()
+            qubit = self.qubit[exprired.qubit]
+            while qubit and qubit[0].creation_time < cohenrence_time:
+                qubit.pop()
+            if not qubit:
+                self.qubit.pop(exprired.qubit, None)
+
+    def store(self, now: float, partner: str) -> bool:
+        self.purge_expired(now)
+        if self.capacity - len(self.total) <= 0:
+            return False
+        h = HalfQubit(qubit=partner, creation_time=now)
+        self.total.append(h)
+        self.qubit[partner].append(h)
+        return True
+
+    def discard(self, partner: str) -> Optional[HalfQubit]:
+        qubit = self.qubit.get(partner)
+        if not qubit:
+            return None
+        half = qubit.pop()
+        for i, t in enumerate(self.total):
+            if (
+                t.qubit == half.qubit
+                and t.creation_time == half.creation_time
+            ):
+                del self.total[i]
+                break
+        if not qubit:
+            self.qubit.pop(partner, None)
+        return half
 
 
 class Job:
@@ -36,9 +88,13 @@ class Job:
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
         policy: str,
-        delay_map: Dict[tuple, float] | None = None,
+        p_swap: float,
+        memory_lifetime: int,
+        memory_capacity: int,
+        delay_map: Dict[Tuple[str, str], float] | None = None,
         deadline: float | None = None,
         done_event: simpy.events.Event | None = None,
+        memories: Dict[str, Memory] | None = None,
     ) -> None:
         """Probabilistic non-preemptive job.
 
@@ -84,10 +140,43 @@ class Job:
         self.delay_map = delay_map or {}
         self.deadline = None if deadline is None else float(deadline)
         self.done_event = done_event
+
+        if memories is None:
+            coherence_time_s = (memory_lifetime + 1) * self.slot_duration
+            self.memories = {
+                n: Memory(memory_capacity, coherence_time_s) for n in self.route
+            }
+        else:
+            self.memories = memories
+
+        self.n_swap = max(0, len(self.route) - 2)
+        self.p_e2e = probability_e2e(
+            self.n_swap, int(memory_lifetime), self.p_gen, float(p_swap)
+        )
+
         env.process(self.run())
 
+    def _purge_all(self):
+        cur = self.env.now
+        for n in self.route:
+            self.memories[n].purge_expired(cur)
+
+    def _store_e2e(self) -> bool:
+        src_node, dst_node = self.route[0], self.route[-1]
+        cur = self.env.now
+        src_mem, dst_mem = self.memories[src_node], self.memories[dst_node]
+        is_src_mem_stored = src_mem.store(cur, partner=dst_node)
+        is_dst_mem_stored = dst_mem.store(cur, partner=src_node)
+        if is_src_mem_stored and is_dst_mem_stored:
+            return True
+        if is_src_mem_stored:
+            src_mem.discard(dst_node)
+        if is_dst_mem_stored:
+            dst_mem.discard(src_node)
+        return False
+
     def run(self):
-        # Wait until arrival then exact scheduled start
+        # wait for arrival and scheduled start
         if self.env.now < self.arrival:
             yield self.env.timeout(self.arrival - self.env.now)
         if self.env.now < self.start:
@@ -105,38 +194,41 @@ class Job:
         yield simpy.AllOf(self.env, reqs)
         requests = list(zip(self.route, reqs))
 
-        # If we had to wait, the schedule is violated
         if self.env.now > t_request:
             status = "conflict"
             completion = self.env.now
         else:
-            # Work strictly within [start, end)
             t0 = self.start
             t_budget = max(0.0, self.end - self.start)
-            successes = 0
             status = "failed"
+            successes = 0
 
-            if t_budget > 0:
-                if self.policy == "deadline":
-                    while successes < self.epr_pairs:
-                        for delay in delays:
-                            if delay <= 0:
-                                continue
-                            if (self.env.now - t0 + delay) > t_budget:
+            if t_budget > 0 and self.policy == "deadline":
+                while successes < self.epr_pairs:
+                    self._purge_all()
+
+                    elapsed = self.env.now - t0
+                    if elapsed >= t_budget:
+                        break
+
+                    remaining = t_budget - elapsed
+                    if remaining < self.slot_duration:
+                        break
+
+                    for d in delays:
+                        if d > 0:
+                            if (self.env.now - t0 + d) > t_budget:
                                 break
-                            yield self.env.timeout(delay)
-                        elapsed = self.env.now - t0
-                        if elapsed >= t_budget:
-                            break
-                        wait = min(self.slot_duration, t_budget - elapsed)
-                        # Non-preemptive: if we can't fit a full slot, stop
-                        if wait < self.slot_duration:
-                            break
-                        yield self.env.timeout(wait)
-                        if self.rng.random() < self.p_gen:
+                            yield self.env.timeout(d)
+
+                    yield self.env.timeout(self.slot_duration)
+
+                    if self.rng.random() < self.p_e2e:
+                        if self._store_e2e():
                             successes += 1
-                    if successes >= self.epr_pairs:
-                        status = "completed"
+
+                if successes >= self.epr_pairs:
+                    status = "completed"
 
                 elif self.policy == "best_effort":
                     while successes < self.epr_pairs:
@@ -154,11 +246,11 @@ class Job:
                         status = "completed"
             completion = min(self.end, self.env.now)
 
-        # Release resources
+        # release resources
         for node, req in requests:
             self.resources[node].release(req)
 
-        # Metrics (relative to scheduled start)
+        # metrics
         burst = completion - self.start
         turnaround = completion - self.arrival
         waiting = turnaround - burst
@@ -172,7 +264,7 @@ class Job:
             "turnaround_time": turnaround,
             "waiting_time": waiting,
             "status": status,
-            "deadline": self.deadline,  # kept only as metadata
+            "deadline": self.deadline,
         }
         self.log.append(result)
         if self.done_event is not None and not self.done_event.triggered:
@@ -250,6 +342,9 @@ def simulate_periodicity(
             delay_map=delay_map,
             deadline=sched_deadline,
             done_event=None,
+            p_swap=job_parameters[app]["p_swap"],
+            memory_lifetime=50,
+            memory_capacity=50,
         )
 
         job_names.append(inst_name)
