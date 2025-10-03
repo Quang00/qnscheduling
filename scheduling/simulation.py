@@ -61,10 +61,7 @@ class Memory:
             return None
         half = qubit.pop()
         for i, t in enumerate(self.total):
-            if (
-                t.qubit == half.qubit
-                and t.creation_time == half.creation_time
-            ):
+            if t.qubit == half.qubit and t.creation_time == half.creation_time:
                 del self.total[i]
                 break
         if not qubit:
@@ -144,7 +141,8 @@ class Job:
         if memories is None:
             coherence_time_s = (memory_lifetime + 1) * self.slot_duration
             self.memories = {
-                n: Memory(memory_capacity, coherence_time_s) for n in self.route
+                n: Memory(memory_capacity, coherence_time_s)
+                for n in self.route
             }
         else:
             self.memories = memories
