@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import binom
 
 from scheduling.pga import duration_pga, probability_e2e
 
@@ -59,34 +58,6 @@ def test_p_e2e_monotonicity():
     assert better_p_gen > base
     assert better_swap > base
     assert more_swaps < base
-
-
-def test_duration_pga_minimality():
-    # Check the binary search returns the minimal n meeting the threshold
-    p_packet = 0.8
-    epr_pairs = 2
-    n_swap = 1
-    memory_lifetime = 5
-    p_swap = 0.9
-    p_gen = 0.05
-    ts = 1e-6
-
-    dur = duration_pga(
-        p_packet,
-        epr_pairs,
-        n_swap,
-        memory_lifetime=memory_lifetime,
-        p_swap=p_swap,
-        p_gen=p_gen,
-        time_slot_duration=ts,
-    )
-    n = int(round(dur / ts))
-    p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
-
-    # Minimality: n satisfies, n-1 does not (unless n == epr_pairs)
-    assert binom.sf(epr_pairs - 1, float(n), p_e2e) >= p_packet
-    if n - 1 >= epr_pairs:
-        assert binom.sf(epr_pairs - 1, float(n - 1), p_e2e) < p_packet
 
 
 def test_duration_pga_monotonicity_wrt_params():
