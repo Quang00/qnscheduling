@@ -411,7 +411,7 @@ def total_distances(
     total_distances = {}
     for name, path in paths.items():
         total = 0.0
-        for start, end in zip(path, path[1:]):
+        for start, end in zip(path, path[1:], strict=False):
             if (start, end) in distances:
                 total += distances[(start, end)]
             else:
