@@ -1,84 +1,35 @@
 """
 Simulation Of Probabilistic Job Scheduling
 -------------------------------------------
-This module implements a simulation of quantum network applications scheduling
-using the SimPy library. It defines a `Job` class that represents a
-non-preemptive job with probabilistic success in generating EPR pairs. The
-function, `simulate_periodicity`, orchestrates the scheduling and execution of
-these jobs based on a provided schedule.
+This module implements a discrete-event simulation for quantum network
+applications. It defines a `Job` class that represents a non-preemptive job
+with probabilistic success in generating EPR pairs. The function
+`simulate_periodicity` orchestrates the scheduling and execution of these jobs
+based on a provided static schedule.
 """
 
 import re
-from collections import defaultdict, deque
-from dataclasses import dataclass
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-import simpy
 
 from scheduling.pga import probability_e2e
 from utils.helper import edges_delay
 
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
-
-
-@dataclass
-class HalfQubit:
-    qubit: str
-    creation_time: float
-
-
-class Memory:
-    def __init__(self, capacity: int, coherence_time_s: float):
-        self.capacity = int(capacity)
-        self.coherence_time_s = float(coherence_time_s)
-        self.total: Deque[HalfQubit] = deque()
-        self.qubit: Dict[str, Deque[HalfQubit]] = defaultdict(deque)
-
-    def purge_expired(self, now: float) -> None:
-        cohenrence_time = now - self.coherence_time_s
-        while self.total and self.total[0].creation_time < cohenrence_time:
-            exprired = self.total.popleft()
-            qubit = self.qubit[exprired.qubit]
-            while qubit and qubit[0].creation_time < cohenrence_time:
-                qubit.pop()
-            if not qubit:
-                self.qubit.pop(exprired.qubit, None)
-
-    def store(self, now: float, partner: str) -> bool:
-        self.purge_expired(now)
-        if self.capacity - len(self.total) <= 0:
-            return False
-        h = HalfQubit(qubit=partner, creation_time=now)
-        self.total.append(h)
-        self.qubit[partner].append(h)
-        return True
-
-    def discard(self, partner: str) -> Optional[HalfQubit]:
-        qubit = self.qubit.get(partner)
-        if not qubit:
-            return None
-        half = qubit.pop()
-        for i, t in enumerate(self.total):
-            if t.qubit == half.qubit and t.creation_time == half.creation_time:
-                del self.total[i]
-                break
-        if not qubit:
-            self.qubit.pop(partner, None)
-        return half
+EPS = 1e-12
 
 
 class Job:
     def __init__(
         self,
-        env: simpy.Environment,
         name: str,
         arrival: float,
         start: float,
         end: float,
         route: List[str],
-        resources: Dict[str, simpy.PriorityResource],
+        resources: Dict[str, float],
         p_gen: float,
         epr_pairs: int,
         slot_duration: float,
@@ -87,23 +38,19 @@ class Job:
         policy: str,
         p_swap: float,
         memory_lifetime: int,
-        memory_capacity: int,
         delay_map: Dict[Tuple[str, str], float] | None = None,
         deadline: float | None = None,
-        done_event: simpy.events.Event | None = None,
-        memories: Dict[str, Memory] | None = None,
     ) -> None:
         """Probabilistic non-preemptive job.
 
         Args:
-            env (simpy.Environment): Environment in which the job runs.
             name (str): Job name for identification.
             arrival (float): Arrival time of the job in the simulation.
             start (float): Start time of the job in the simulation.
             end (float): End time of the job in the simulation.
             route (List[str]): List of nodes in the job's route.
-            resources (Dict[str, simpy.PriorityResource]): Dictionary of
-            resources indexed by node names.
+            resources (Dict[str, float]): Dictionary of resources indexed by
+            node names.
             p_gen (float): Probability of generating an EPR pair in a single
             trial.
             epr_pairs (int): Number of EPR pairs to generate for this job.
@@ -121,7 +68,6 @@ class Job:
             done_event (simpy.events.Event, optional): Event to signal job
             completion.
         """
-        self.env = env
         self.name = name
         self.arrival = float(arrival)
         self.start = float(start)
@@ -134,121 +80,81 @@ class Job:
         self.rng = rng
         self.log = log
         self.policy = policy
-        self.delay_map = delay_map or {}
+        self.delay_map = {}
         self.deadline = None if deadline is None else float(deadline)
-        self.done_event = done_event
 
-        if memories is None:
-            coherence_time_s = (memory_lifetime + 1) * self.slot_duration
-            self.memories = {
-                n: Memory(memory_capacity, coherence_time_s)
-                for n in self.route
-            }
-        else:
-            self.memories = memories
+        self.delays = []
+        total_delay = 0.0
+        max_prefix = 0.0
+        prev = None
+        for node in self.route:
+            if prev is not None:
+                delay = max(0.0, self.delay_map.get((prev, node), 0.0))
+                total_delay += delay
+                if total_delay > max_prefix:
+                    max_prefix = total_delay
+                self.delays.append(delay)
+            prev = node
+
+        self.total_delay = total_delay
+        self.max_delay_prefix = max_prefix
+        self.per_attempt_time = self.total_delay + self.slot_duration
 
         self.n_swap = max(0, len(self.route) - 2)
         self.p_e2e = probability_e2e(
             self.n_swap, int(memory_lifetime), self.p_gen, float(p_swap)
         )
 
-        env.process(self.run())
-
-    def _purge_all(self):
-        cur = self.env.now
-        for n in self.route:
-            self.memories[n].purge_expired(cur)
-
-    def _store_e2e(self) -> bool:
-        src_node, dst_node = self.route[0], self.route[-1]
-        cur = self.env.now
-        src_mem, dst_mem = self.memories[src_node], self.memories[dst_node]
-        is_src_mem_stored = src_mem.store(cur, partner=dst_node)
-        is_dst_mem_stored = dst_mem.store(cur, partner=src_node)
-        if is_src_mem_stored and is_dst_mem_stored:
-            return True
-        if is_src_mem_stored:
-            src_mem.discard(dst_node)
-        if is_dst_mem_stored:
-            dst_mem.discard(src_node)
-        return False
-
-    def run(self):
-        # wait for arrival and scheduled start
-        if self.env.now < self.arrival:
-            yield self.env.timeout(self.arrival - self.env.now)
-        if self.env.now < self.start:
-            yield self.env.timeout(self.start - self.env.now)
-
-        delays = []
-        prev = None
+    def run(self) -> Dict[str, Any]:
+        wait_until = 0.0
         for node in self.route:
-            if prev is not None:
-                delays.append(self.delay_map.get((prev, node), 0.0))
-            prev = node
+            wait_until = max(
+                wait_until,
+                self.resources.get(node, 0.0),
+            )
 
-        reqs = [self.resources[node].request() for node in self.route]
-        t_request = self.env.now
-        yield simpy.AllOf(self.env, reqs)
-        requests = list(zip(self.route, reqs))
-
-        if self.env.now > t_request:
+        if wait_until > self.start + EPS:
+            completion = wait_until
             status = "conflict"
-            completion = self.env.now
         else:
-            t0 = self.start
+            current_time = self.start
             t_budget = max(0.0, self.end - self.start)
             status = "failed"
-            successes = 0
+            attempts_run = 0
 
-            if t_budget > 0 and self.policy == "deadline":
-                while successes < self.epr_pairs:
-                    self._purge_all()
+            if (
+                t_budget > EPS
+                and self.policy == "deadline"
+                and self.per_attempt_time > EPS
+                and self.max_delay_prefix <= t_budget + EPS
+            ):
+                max_attempts = int((t_budget + EPS) // self.per_attempt_time)
+                p_success = max(0.0, min(1.0, self.p_e2e))
 
-                    elapsed = self.env.now - t0
-                    if elapsed >= t_budget:
-                        break
-
-                    remaining = t_budget - elapsed
-                    if remaining < self.slot_duration:
-                        break
-
-                    for d in delays:
-                        if d > 0:
-                            if (self.env.now - t0 + d) > t_budget:
-                                break
-                            yield self.env.timeout(d)
-
-                    yield self.env.timeout(self.slot_duration)
-
-                    if self.rng.random() < self.p_e2e:
-                        if self._store_e2e():
-                            successes += 1
-
-                if successes >= self.epr_pairs:
-                    status = "completed"
-
-                elif self.policy == "best_effort":
-                    while successes < self.epr_pairs:
-                        for delay in delays:
-                            if delay > 0:
-                                if (self.env.now - t0 + delay) > t_budget:
-                                    break
-                                yield self.env.timeout(delay)
-                        if (self.env.now - t0 + self.slot_duration) > t_budget:
-                            break
-                        yield self.env.timeout(self.slot_duration)
-                        if self.rng.random() < self.p_gen:
-                            successes += 1
-                    if successes >= self.epr_pairs:
+                if max_attempts > 0 and p_success > 0.0:
+                    failures = self.rng.negative_binomial(
+                        self.epr_pairs, p_success
+                    )
+                    trials_needed = failures + self.epr_pairs
+                    if trials_needed <= max_attempts:
                         status = "completed"
-            completion = min(self.end, self.env.now)
+                        attempts_run = trials_needed
+                    else:
+                        attempts_run = max_attempts
+                elif max_attempts > 0:
+                    attempts_run = max_attempts
 
-        # release resources
-        for node, req in requests:
-            self.resources[node].release(req)
+                current_time = (
+                    self.start + attempts_run * self.per_attempt_time
+                )
 
-        # metrics
+            completion = min(self.end, current_time)
+
+            for node in self.route:
+                self.resources[node] = max(
+                    self.resources.get(node, 0.0), completion
+                )
+
         burst = completion - self.start
         turnaround = completion - self.arrival
         waiting = turnaround - burst
@@ -265,8 +171,7 @@ class Job:
             "deadline": self.deadline,
         }
         self.log.append(result)
-        if self.done_event is not None and not self.done_event.triggered:
-            self.done_event.succeed(result)
+        return result
 
 
 def simulate_periodicity(
@@ -306,13 +211,12 @@ def simulate_periodicity(
             - List of job names.
             - Dictionary mapping job names to their release times.
     """
-    env = simpy.Environment()
     log = []
     release_times = {}
     job_names = []
 
     all_nodes = {n for path in job_network_paths.values() for n in path}
-    resources = {n: simpy.PriorityResource(env, capacity=1) for n in all_nodes}
+    resources = {n: 0.0 for n in all_nodes}
     delay_map = edges_delay(distances)
 
     for inst_name, sched_start, sched_end, sched_deadline in schedule:
@@ -323,8 +227,7 @@ def simulate_periodicity(
         T = float(job_periods.get(app, 0.0))
         arrival = r0 + idx * T
 
-        Job(
-            env=env,
+        job = Job(
             name=inst_name,
             arrival=arrival,
             start=sched_start,
@@ -337,18 +240,14 @@ def simulate_periodicity(
             rng=rng,
             log=log,
             policy=policies[app],
-            delay_map=delay_map,
-            deadline=sched_deadline,
-            done_event=None,
             p_swap=job_parameters[app]["p_swap"],
             memory_lifetime=job_parameters[app]["memory_lifetime"],
-            memory_capacity=job_parameters[app]["memory_lifetime"],
+            delay_map=delay_map,
+            deadline=sched_deadline,
         )
+        job.run()
 
         job_names.append(inst_name)
         release_times[inst_name] = sched_start
-
-    last_end = max((e for _, _, e, _ in schedule), default=0.0)
-    env.run(until=last_end + 1e-9)
 
     return pd.DataFrame(log), job_names, release_times

@@ -273,8 +273,8 @@ def save_results(
     csv_path = os.path.join(output_dir, "job_results.csv")
     df.to_csv(csv_path, index=False)
 
-    print("\n=== Job Results ===")
-    print(df.to_string(index=False))
+    print("\n=== Preview Job Results ===")
+    print(df.head(20).to_string(index=False))
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
     total = len(df)

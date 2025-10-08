@@ -14,7 +14,7 @@ from typing import Dict, List, Set, Tuple
 
 from utils.helper import hyperperiod
 
-PRECISION_THRESHOLD = 1e-12
+EPS = 1e-12
 
 
 def edf_parallel(
@@ -60,10 +60,10 @@ def edf_parallel(
         T = float(job_periods[j])
         base_r = float(job_rel_times.get(j, 0.0))
         pga = float(durations[j])
-        n = max(0, floor(((horizon - base_r) / T) - PRECISION_THRESHOLD) + 1)
+        n = max(0, floor(((horizon - base_r) / T) - EPS) + 1)
         for k in range(n):
             rel_k = base_r + k * T
-            if rel_k >= horizon - PRECISION_THRESHOLD:
+            if rel_k >= horizon - EPS:
                 break
             dl_k = rel_k + T
             instances.append((j, k, rel_k, dl_k, pga))
@@ -84,7 +84,7 @@ def edf_parallel(
 
         start = max(rel, block_until)
         end = start + pga
-        if end > dl + PRECISION_THRESHOLD:
+        if end > dl + EPS:
             return (
                 False,
                 "Infeasible schedule -> deadline miss: "

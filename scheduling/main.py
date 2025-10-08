@@ -112,7 +112,7 @@ def run_simulation(
     feasible, schedule = edf_parallel(
         job_rel_times, job_periods, durations, parallel_map, hyperperiod_cycles
     )
-    print("Schedule:", schedule)
+    print("Preview Schedule:", schedule[:n_apps * 2])
 
     if not feasible:
         return None
@@ -204,7 +204,7 @@ def main():
     parser.add_argument(
         "--hyperperiod",
         "-hp",
-        type=int,
+        type=float,
         default=10,
         help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
     )
