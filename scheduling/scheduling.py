@@ -42,12 +42,21 @@ def edf_parallel(
         element is either the schedule (job_name, start, end, deadline) or an
         error message (if not).
     """
+    jobs = list(job_periods.keys())
+
+    U = {j: float(durations[j]) / float(job_periods[j]) for j in jobs}
+    for j in jobs:
+        if U[j] > 1.0 + EPS:
+            return False, (
+                f"Infeasible: job '{j}' has utilization > 1 "
+                f"(duration={durations[j]:.9f} > period={job_periods[j]:.9f})"
+            )
+
     H = float(hyperperiod(job_periods))
     if H <= 0.0 or horizon_cycles < 1:
         return False, "invalid horizon"
 
     # Parallelization conflicts
-    jobs = list(job_periods.keys())
     conflicts = {
         a: {b for b in jobs if b != a and b not in parallel_apps.get(a, set())}
         for a in jobs
