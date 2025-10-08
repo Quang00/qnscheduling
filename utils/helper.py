@@ -198,6 +198,7 @@ def save_results(
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
     policies: Dict[str, str],
+    link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
     output_dir: str = "results",
 ) -> None:
     """Save the results of job scheduling and execution to a CSV file and print
@@ -231,6 +232,8 @@ def save_results(
         EPR pairs.
         policies (Dict): Dictionary mapping application names to their
         scheduling policies.
+        link_utilization (Dict): Dictionary mapping links to busy time and
+        utilization metrics.
         output_dir (str): Directory where the results CSV file will be saved.
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -275,6 +278,26 @@ def save_results(
 
     print("\n=== Preview Job Results ===")
     print(df.head(20).to_string(index=False))
+
+    if link_utilization:
+        link_util_rows = [
+            {
+                "link": f"{min(a, b)}-{max(a, b)}",
+                "busy_time": metrics.get("busy_time", float("nan")),
+                "utilization": metrics.get("utilization", float("nan")),
+            }
+            for (a, b), metrics in link_utilization.items()
+        ]
+        link_util_df = (
+            pd.DataFrame(link_util_rows)
+            .sort_values("utilization", ascending=False)
+            .reset_index(drop=True)
+        )
+        link_util_path = os.path.join(output_dir, "link_utilization.csv")
+        link_util_df.to_csv(link_util_path, index=False)
+
+        print("\n=== Link Utilization ===")
+        print(link_util_df.to_string(index=False))
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
     total = len(df)

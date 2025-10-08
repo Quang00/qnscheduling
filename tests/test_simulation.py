@@ -25,7 +25,7 @@ def test_simulation_completes_basic(base_job_parameters):
     schedule = [("A0", 0.0, 5.0, 10.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _ = simulate_periodicity(
+    df, _, _, _ = simulate_periodicity(
         schedule=schedule,
         job_parameters=job_parameters,
         job_rel_times=job_rel_times,
@@ -49,7 +49,7 @@ def test_simulation_fails_basic(base_job_parameters):
     schedule = [("A0", 0.0, 0.01, 5.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _ = simulate_periodicity(
+    df, _, _, _ = simulate_periodicity(
         schedule=schedule,
         job_parameters=job_parameters,
         job_rel_times=job_rel_times,

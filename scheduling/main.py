@@ -112,7 +112,7 @@ def run_simulation(
     feasible, schedule = edf_parallel(
         job_rel_times, job_periods, durations, parallel_map, hyperperiod_cycles
     )
-    print("Preview Schedule:", schedule[:n_apps * 2])
+    print("Preview Schedule:", schedule[: n_apps * 2])
 
     if not feasible:
         return None
@@ -129,7 +129,7 @@ def run_simulation(
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
-    df, job_names, release_times = simulate_periodicity(
+    df, job_names, release_times, link_utilization = simulate_periodicity(
         schedule=schedule,
         job_parameters=job_parameters,
         job_rel_times=job_rel_times,
@@ -149,6 +149,7 @@ def run_simulation(
         instances,
         epr_pairs,
         policies,
+        link_utilization=link_utilization,
         output_dir=output_dir,
     )
     return df
@@ -290,7 +291,7 @@ def main():
     )
     t1 = time.perf_counter()
     runtime = t1 - t0
-    print(f"Run time: {runtime:.3f} seconds")
+    print(f"Run time: {runtime:.3f} seconds\n")
 
     params = {
         "config": args.config,
@@ -311,12 +312,14 @@ def main():
         "runtime_seconds": runtime,
         "run_number": run_number,
     }
-    pd.DataFrame([params]).to_csv(
-        os.path.join(run_dir, "params.csv"), index=False
-    )
+    pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
-    print(f"Saved results to: {os.path.join(run_dir, 'results.csv')}")
-    print(f"Saved parameters to: {os.path.join(run_dir, 'params.csv')}")
+    path_results = os.path.join(run_dir, "results.csv")
+    path_params = os.path.join(run_dir, "params.csv")
+    path_link_util = os.path.join(run_dir, "link_utilization.csv")
+    print(f"Saved results to: {path_results}")
+    print(f"Saved parameters to: {path_params}")
+    print(f"Saved link utilization to: {path_link_util}")
 
 
 if __name__ == "__main__":

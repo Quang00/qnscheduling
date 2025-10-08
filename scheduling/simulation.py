@@ -30,6 +30,7 @@ class Job:
         end: float,
         route: List[str],
         resources: Dict[str, float],
+        link_busy: Dict[Tuple[str, str], float],
         p_gen: float,
         epr_pairs: int,
         slot_duration: float,
@@ -51,6 +52,8 @@ class Job:
             route (List[str]): List of nodes in the job's route.
             resources (Dict[str, float]): Dictionary of resources indexed by
             node names.
+            link_busy (Dict[Tuple[str, str], float]): Dictionary to track busy
+            time of links.
             p_gen (float): Probability of generating an EPR pair in a single
             trial.
             epr_pairs (int): Number of EPR pairs to generate for this job.
@@ -61,12 +64,13 @@ class Job:
             policy (str): Scheduling policy for the job, either "best_effort"
             or "deadline". If "deadline", the job will attempt to complete
             within the maximum burst time defined in durations.
+            p_swap (float): Probability of swapping an EPR pair.
+            memory_lifetime (int): Memory lifetime in number of time slot
+            units.
             delay_map (Dict[tuple, float], optional): Dictionary of delays
             between nodes. Defaults to None, which means no additional delays.
             deadline (float, optional): Deadline time for the job. Defaults to
             None, which means no deadline.
-            done_event (simpy.events.Event, optional): Event to signal job
-            completion.
         """
         self.name = name
         self.arrival = float(arrival)
@@ -74,6 +78,7 @@ class Job:
         self.end = float(end)
         self.route = route
         self.resources = resources
+        self.link_busy = link_busy
         self.p_gen = float(p_gen)
         self.epr_pairs = int(epr_pairs)
         self.slot_duration = float(slot_duration)
@@ -84,12 +89,21 @@ class Job:
         self.deadline = None if deadline is None else float(deadline)
 
         self.delays = []
+        self.links = []
         total_delay = 0.0
         max_prefix = 0.0
         prev = None
         for node in self.route:
             if prev is not None:
-                delay = max(0.0, self.delay_map.get((prev, node), 0.0))
+                link = (prev, node)
+                self.links.append(link)
+                delay = max(
+                    0.0,
+                    self.delay_map.get(
+                        (prev, node),
+                        self.delay_map.get((node, prev), 0.0),
+                    ),
+                )
                 total_delay += delay
                 if total_delay > max_prefix:
                     max_prefix = total_delay
@@ -106,6 +120,7 @@ class Job:
         )
 
     def run(self) -> Dict[str, Any]:
+        attempts_run = 0
         wait_until = 0.0
         for node in self.route:
             wait_until = max(
@@ -120,7 +135,6 @@ class Job:
             current_time = self.start
             t_budget = max(0.0, self.end - self.start)
             status = "failed"
-            attempts_run = 0
 
             if (
                 t_budget > EPS
@@ -155,6 +169,12 @@ class Job:
                     self.resources.get(node, 0.0), completion
                 )
 
+            if attempts_run > 0 and self.links:
+                per_attempt_slot = self.slot_duration
+                for link, delay in zip(self.links, self.delays, strict=True):
+                    busy = attempts_run * (per_attempt_slot + delay)
+                    self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
+
         burst = completion - self.start
         turnaround = completion - self.arrival
         waiting = turnaround - burst
@@ -183,7 +203,12 @@ def simulate_periodicity(
     policies: Dict[str, str],
     distances: Dict[tuple, float],
     rng: np.random.Generator,
-) -> Tuple[pd.DataFrame, List[str], Dict[str, float]]:
+) -> Tuple[
+    pd.DataFrame,
+    List[str],
+    Dict[str, float],
+    Dict[Tuple[str, str], Dict[str, float]],
+]:
     """Simulate periodic jobs scheduling.
 
     Args:
@@ -206,10 +231,16 @@ def simulate_periodicity(
         events.
 
     Returns:
-        Tuple[pd.DataFrame, List[str], Dict[str, float]]: A tuple containing:
+        Tuple[
+            pd.DataFrame,
+            List[str],
+            Dict[str, float],
+            Dict[Tuple[str, str], Dict[str, float]],
+        ]: Contains:
             - DataFrame with job performance metrics.
             - List of job names.
             - Dictionary mapping job names to their release times.
+            - Dictionary mapping undirected links to busy time and utilization.
     """
     log = []
     release_times = {}
@@ -218,6 +249,9 @@ def simulate_periodicity(
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: 0.0 for n in all_nodes}
     delay_map = edges_delay(distances)
+    link_busy = {}
+    min_start = float("inf")
+    max_completion = 0.0
 
     for inst_name, sched_start, sched_end, sched_deadline in schedule:
         m = INIT_JOB_RE.match(inst_name)
@@ -234,6 +268,7 @@ def simulate_periodicity(
             end=sched_end,
             route=job_network_paths[app],
             resources=resources,
+            link_busy=link_busy,
             p_gen=job_parameters[app]["p_gen"],
             epr_pairs=int(job_parameters[app]["epr_pairs"]),
             slot_duration=job_parameters[app]["slot_duration"],
@@ -245,9 +280,28 @@ def simulate_periodicity(
             delay_map=delay_map,
             deadline=sched_deadline,
         )
-        job.run()
+        result = job.run()
 
         job_names.append(inst_name)
         release_times[inst_name] = sched_start
+        min_start = min(min_start, result["start_time"])
+        max_completion = max(max_completion, result["completion_time"])
 
-    return pd.DataFrame(log), job_names, release_times
+    df = pd.DataFrame(log)
+    horizon = max_completion - min_start if log else 0.0
+    link_utilization = {}
+    if horizon > 0:
+        link_utilization = {
+            link: {
+                "busy_time": busy,
+                "utilization": busy / horizon,
+            }
+            for link, busy in link_busy.items()
+        }
+    elif link_busy:
+        link_utilization = {
+            link: {"busy_time": busy, "utilization": 0.0}
+            for link, busy in link_busy.items()
+        }
+
+    return df, job_names, release_times, link_utilization
