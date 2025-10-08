@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "QNScheduling"
+version = "0.1.0"
+description = "A simulator for quantum network scheduling"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "Quang-Phong Tran", email = "quangphong755@gmail.com" }]
+
+[project.scripts]
+run_simulation = "scheduling:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.urls]
+Repository = "https://github.com/Quang00/QNScheduling"
