@@ -66,6 +66,10 @@ def run_simulation(
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
+    Returns:
+        tuple[bool, pd.DataFrame | None]: A tuple indicating whether the EDF
+        scheduling problem was feasible and the resulting job DataFrame when
+        applicable.
     """
     rng = np.random.default_rng(seed)
 
@@ -113,10 +117,12 @@ def run_simulation(
     feasible, schedule = edf_parallel(
         job_rel_times, job_periods, durations, parallel_map, hyperperiod_cycles
     )
-    print("Preview Schedule:", schedule[: n_apps * 2])
 
     if not feasible:
-        return None
+        print("Schedule", schedule)
+        return False, None
+    else:
+        print("Preview Schedule:", schedule[: n_apps * 2])
 
     job_parameters = app_params_sim(
         paths,
@@ -153,7 +159,7 @@ def run_simulation(
         link_utilization=link_utilization,
         output_dir=output_dir,
     )
-    return df
+    return True, df
 
 
 def main():
@@ -275,7 +281,7 @@ def main():
     os.makedirs(run_dir, exist_ok=False)
 
     t0 = time.perf_counter()
-    run_simulation(
+    feasible, _ = run_simulation(
         config=args.config,
         n_apps=args.apps,
         inst_range=args.inst,
@@ -291,6 +297,10 @@ def main():
         output_dir=run_dir,
     )
     t1 = time.perf_counter()
+
+    if not feasible:
+        return
+
     runtime = t1 - t0
     print(f"Run time: {runtime:.3f} seconds\n")
 

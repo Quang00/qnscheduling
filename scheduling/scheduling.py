@@ -48,7 +48,7 @@ def edf_parallel(
     for j in jobs:
         if U[j] > 1.0 + EPS:
             return False, (
-                f"Infeasible: job '{j}' has utilization > 1 "
+                f"Infeasible: task '{j}' has utilization > 1 "
                 f"(duration={durations[j]:.9f} > period={job_periods[j]:.9f})"
             )
 
