@@ -63,12 +63,12 @@ def duration_pga(
     p_packet: float,
     epr_pairs: int,
     n_swap: int,
+    route: list[str],
+    distances: dict[tuple[str, str], float],
     memory_lifetime: int = 0,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
-    route: list[str] | None = None,
-    distances: dict[tuple[str, str], float] | None = None,
 ) -> float:
     """Calculate the duration of a PGA (Packet Generation Attempt).
 
@@ -76,6 +76,10 @@ def duration_pga(
         p_packet (float): Probability of a packet being generated.
         epr_pairs (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
+        route (list[str]): The path taken by the application
+        in the network.
+        distances (dict[tuple[str, str], float]): Distances between nodes in
+        the network.
         memory_lifetime (int, optional): Memory lifetime in number of time
         slot units.
         p_swap (float, optional): Probability of swapping an EPR pair in a
@@ -84,10 +88,6 @@ def duration_pga(
         single trial.
         time_slot_duration (float, optional): Duration of a time slot in
         seconds.
-        route (list[str] | None, optional): The path taken by the application
-        in the network.
-        distances (dict[tuple[str, str], float] | None, optional): Distances
-        between nodes in the network.
 
     Returns:
         float: Duration of a PGA in seconds.
@@ -156,12 +156,12 @@ def compute_durations(
             p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
+            route=route,
+            distances=distances,
             memory_lifetime=memory_lifetime,
             p_swap=p_swap,
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
-            route=route,
-            distances=distances,
         )
         durations[app] = pga_time
     return durations
