@@ -10,6 +10,8 @@ probabilities.
 
 from scipy.stats import binom
 
+from utils.helper import edges_delay, sum_path_delay
+
 
 def probability_e2e(
     n_swap: int,
@@ -65,6 +67,8 @@ def duration_pga(
     p_swap: float = 0.95,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
+    route: list[str] | None = None,
+    distances: dict[tuple[str, str], float] | None = None,
 ) -> float:
     """Calculate the duration of a PGA (Packet Generation Attempt).
 
@@ -80,11 +84,17 @@ def duration_pga(
         single trial.
         time_slot_duration (float, optional): Duration of a time slot in
         seconds.
+        route (list[str] | None, optional): The path taken by the application
+        in the network.
+        distances (dict[tuple[str, str], float] | None, optional): Distances
+        between nodes in the network.
 
     Returns:
         float: Duration of a PGA in seconds.
     """
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
+    delay_map = edges_delay(distances)
+    per_attempt_time = time_slot_duration + sum_path_delay(route, delay_map)
 
     # exponential search
     low = epr_pairs
@@ -98,4 +108,60 @@ def duration_pga(
             high = mid
         else:
             low = mid + 1
-    return low * time_slot_duration
+    return low * per_attempt_time
+
+
+def compute_durations(
+    paths: dict[str, list[str]],
+    epr_pairs: dict[str, int],
+    p_packet: float,
+    memory_lifetime: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+    distances: dict[tuple[str, str], float],
+) -> dict[str, float]:
+    """Compute the duration of each application based on the paths and
+    link parameters.
+
+    Args:
+        paths (dict[str, list[str]]): Paths for each application in the
+        network.
+        epr_pairs (dict[str, int]): Entanglement generation pairs for each
+        application, indicating how many EPR pairs are to be generated.
+        p_packet (float): Probability of a packet being generated.
+        memory_lifetime (int): Memory lifetime in number of time
+        slot units.
+        p_swap (float): Probability of swapping an EPR pair in a
+        single trial.
+        p_gen (float): Probability of generating an EPR pair in a
+        single trial.
+        time_slot_duration (float): Duration of a time slot in
+        seconds.
+        distances (dict[tuple[str, str], float]): Distances between nodes in
+        the network.
+
+    Returns:
+        dict[str, float]: A dictionary mapping each application to its total
+        duration, which includes the time taken for probabilistic generation
+        of EPR pairs and the latency based on the distance of the path.
+    """
+    durations = {}
+    for app, route in paths.items():
+        length_route = len(route)
+        n_swaps = length_route - 2
+        if length_route <= 2:
+            n_swaps = 0
+        pga_time = duration_pga(
+            p_packet=p_packet,
+            epr_pairs=epr_pairs[app],
+            n_swap=n_swaps,
+            memory_lifetime=memory_lifetime,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
+            route=route,
+            distances=distances,
+        )
+        durations[app] = pga_time
+    return durations

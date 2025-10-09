@@ -11,8 +11,6 @@ import numpy as np
 import pandas as pd
 from openpyxl.utils import get_column_letter
 
-from scheduling.pga import duration_pga
-
 
 def shortest_paths(
     edges: List[Tuple[str, str]], app_requests: Dict[str, Tuple[str, str]]
@@ -92,57 +90,6 @@ def parallelizable_tasks(
     }
 
     return parallelizable_applications
-
-
-def compute_durations(
-    paths: dict[str, list[str]],
-    epr_pairs: dict[str, int],
-    p_packet: float,
-    memory_lifetime: int,
-    p_swap: float,
-    p_gen: float,
-    time_slot_duration: float,
-) -> dict[str, float]:
-    """Compute the duration of each application based on the paths and
-    link parameters.
-
-    Args:
-        paths (dict[str, list[str]]): Paths for each application in the
-        network.
-        epr_pairs (dict[str, int]): Entanglement generation pairs for each
-        application, indicating how many EPR pairs are to be generated.
-        p_packet (float): Probability of a packet being generated.
-        memory_lifetime (int): Memory lifetime in number of time
-        slot units.
-        p_swap (float): Probability of swapping an EPR pair in a
-        single trial.
-        p_gen (float): Probability of generating an EPR pair in a
-        single trial.
-        time_slot_duration (float): Duration of a time slot in
-        seconds.
-
-    Returns:
-        dict[str, float]: A dictionary mapping each application to its total
-        duration, which includes the time taken for probabilistic generation
-        of EPR pairs and the latency based on the distance of the path.
-    """
-    durations = {}
-    for app, route in paths.items():
-        length_route = len(route)
-        n_swaps = length_route - 2
-        if length_route <= 2:
-            n_swaps = 0
-        pga_time = duration_pga(
-            p_packet=p_packet,
-            epr_pairs=epr_pairs[app],
-            n_swap=n_swaps,
-            memory_lifetime=memory_lifetime,
-            p_swap=p_swap,
-            p_gen=p_gen,
-            time_slot_duration=time_slot_duration,
-        )
-        durations[app] = pga_time
-    return durations
 
 
 def app_params_sim(
@@ -416,33 +363,6 @@ def generate_n_apps(
     return apps, instances, epr_pairs, periods, policies
 
 
-def total_distances(
-    distances: dict[tuple, float], paths: dict[str, list[str]]
-) -> dict[str, float]:
-    """Compute the total distance for each path in the given paths.
-
-    Args:
-        distances (dict[tuple, float]): A dictionary mapping edges (as tuples)
-        to their distances.
-        paths (dict[str, list[str]]): A dictionary mapping application names
-        to their network paths.
-
-    Returns:
-        dict[str, float]: A dictionary mapping application names to their total
-        distances.
-    """
-    total_distances = {}
-    for name, path in paths.items():
-        total = 0.0
-        for start, end in zip(path, path[1:], strict=False):
-            if (start, end) in distances:
-                total += distances[(start, end)]
-            else:
-                total += distances[(end, start)]
-        total_distances[name] = total
-    return total_distances
-
-
 def edges_delay(
     distances: dict[tuple, float], c_fiber: float = 200_000.0
 ) -> dict[tuple, float]:
@@ -461,6 +381,22 @@ def edges_delay(
     for (a, b), delay in list(delay_map.items()):
         delay_map[(b, a)] = delay
     return delay_map
+
+
+def sum_path_delay(route: list[str], delay_map: dict[tuple, float]) -> float:
+    """Summing the total delay along a given route based on a delay map.
+
+    Args:
+        route (list[str]): A list of nodes representing the route.
+        delay_map (dict[tuple, float]): A mapping of edges to their delays.
+
+    Returns:
+        float: The total delay along the route.
+    """
+    total = 0.0
+    for u, v in zip(route[:-1], route[1:], strict=False):
+        total += max(0.0, delay_map.get((u, v), delay_map.get((v, u), 0.0)))
+    return total
 
 
 def _lcm(a: int, b: int) -> int:

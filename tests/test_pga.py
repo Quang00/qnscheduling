@@ -68,6 +68,8 @@ def test_duration_pga_monotonicity_wrt_params():
     base_p_swap = 0.9
     base_p_gen = 0.02
     base_time_slot_duration = 1e-5
+    base_route = ["Alice", "Bob", "Charlie"]
+    base_distances = {("Alice", "Bob"): 10.0, ("Bob", "Charlie"): 20.0}
 
     base = duration_pga(
         base_p_packet,
@@ -77,6 +79,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     better_gen = duration_pga(
         base_p_packet,
@@ -86,6 +90,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap,
         base_p_gen * 2,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     better_swap = duration_pga(
         base_p_packet,
@@ -95,6 +101,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap * 1.05,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     more_memory = duration_pga(
         base_p_packet,
@@ -104,6 +112,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     more_swaps = duration_pga(
         base_p_packet,
@@ -113,6 +123,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     more_epr_pairs = duration_pga(
         base_p_packet,
@@ -122,6 +134,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_swap,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
     higher_ppacket = duration_pga(
         base_p_packet + 0.1,
@@ -131,6 +145,8 @@ def test_duration_pga_monotonicity_wrt_params():
         base_p_packet,
         base_p_gen,
         base_time_slot_duration,
+        base_route,
+        base_distances,
     )
 
     assert better_gen < base

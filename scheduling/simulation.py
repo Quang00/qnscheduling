@@ -85,7 +85,7 @@ class Job:
         self.rng = rng
         self.log = log
         self.policy = policy
-        self.delay_map = {}
+        self.delay_map = delay_map if delay_map is not None else {}
         self.deadline = None if deadline is None else float(deadline)
 
         self.delays = []

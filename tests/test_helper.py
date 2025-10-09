@@ -9,7 +9,6 @@ from utils.helper import (
     parallelizable_tasks,
     save_results,
     shortest_paths,
-    total_distances,
 )
 
 
@@ -163,17 +162,6 @@ def test_save_results_basic(tmp_path):
     assert b0_row["instances"] == 1
     assert b0_row["epr_pairs"] == 1
     assert b0_row["policy"] == "deadline"
-
-
-def test_total_distances_basic():
-    distances = {
-        ("Alice", "Bob"): 10.0,
-        ("Bob", "Charlie"): 5.5,
-        ("Charlie", "David"): 2.0,
-    }
-    paths = {"A": ["Alice", "Bob", "Charlie", "David"]}
-    res = total_distances(distances, paths)
-    assert res == {"A": 10.0 + 5.5 + 2.0}
 
 
 def edges_delay_basic():

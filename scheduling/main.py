@@ -19,11 +19,11 @@ import time
 import numpy as np
 import pandas as pd
 
+from scheduling.pga import compute_durations
 from scheduling.scheduling import edf_parallel
 from scheduling.simulation import simulate_periodicity
 from utils.helper import (
     app_params_sim,
-    compute_durations,
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
@@ -96,7 +96,8 @@ def run_simulation(
         memory_lifetime,
         p_swap,
         p_gen,
-        time_slot_duration
+        time_slot_duration,
+        distances=distances,
     )
     print("Durations:", durations)
 
@@ -314,7 +315,7 @@ def main():
     }
     pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
-    path_results = os.path.join(run_dir, "results.csv")
+    path_results = os.path.join(run_dir, "job_results.csv")
     path_params = os.path.join(run_dir, "params.csv")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     print(f"Saved results to: {path_results}")
