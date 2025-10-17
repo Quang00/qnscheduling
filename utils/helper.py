@@ -216,8 +216,7 @@ def save_results(
         }
     )
 
-    df = df.merge(params, on="task", how="left")
-    df = df.drop(columns="task")
+    df = df.merge(params, on="task", how="left").drop(columns="task")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
 
     csv_path = os.path.join(output_dir, "job_results.csv")
@@ -256,6 +255,7 @@ def save_results(
     ]
     avg_wait = waits.mean() if not waits.empty else float("nan")
     max_wait = waits.max() if not waits.empty else float("nan")
+    completed_ratio = (completed / total) if total > 0 else float("nan")
 
     print("\n=== Summary ===")
     print(f"Total jobs       : {total}")
@@ -282,9 +282,32 @@ def save_results(
         print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
 
     print(f"Makespan         : {makespan:.4f}")
-    print(f"Throughput       : {throughput:.4f} jobs/s")
+    print(f"Throughput       : {throughput:.4f} completed jobs/s")
+    print(f"Completed ratio  : {completed_ratio:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
+
+    overall_df = pd.DataFrame(
+        [
+            {
+                "makespan": float(makespan),
+                "throughput": float(throughput),
+                "completed_ratio": float(completed_ratio),
+                "avg_waiting_time": float(avg_wait),
+                "max_waiting_time": float(max_wait),
+            }
+        ]
+    )
+    overall_path = os.path.join(output_dir, "summary.csv")
+    overall_df.to_csv(overall_path, index=False)
+
+    per_task_df = (
+        per_task.loc[tasks_sorted, ["completed", "failed"]]
+        .reset_index()
+        .rename(columns={"task": "task_name"})
+    )
+    per_task_path = os.path.join(output_dir, "summary_per_task.csv")
+    per_task_df.to_csv(per_task_path, index=False)
 
 
 def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
