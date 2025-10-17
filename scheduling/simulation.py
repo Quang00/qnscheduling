@@ -96,7 +96,8 @@ class Job:
         for node in self.route:
             if prev is not None:
                 link = (prev, node)
-                self.links.append(link)
+                unique_link = tuple(sorted(link))
+                self.links.append(unique_link)
                 delay = max(
                     0.0,
                     self.delay_map.get(
