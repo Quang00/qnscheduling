@@ -1,3 +1,4 @@
+import math
 import os
 import re
 from collections import defaultdict
@@ -445,10 +446,15 @@ def hyperperiod(periods: dict[str, float]) -> float:
     Returns:
         float: The hyperperiod of the given periods.
     """
+    positive_periods = [
+        float(period) for period in periods.values() if float(period) > 0.0
+    ]
+    if not positive_periods:
+        return 0.0
+
     fracs = [
-        Fraction(float(period)).limit_denominator()
-        for period in periods.values()
-        if float(period) > 0.0
+        Fraction(period).limit_denominator()
+        for period in positive_periods
     ]
     if not fracs:
         return 0.0
@@ -457,4 +463,16 @@ def hyperperiod(periods: dict[str, float]) -> float:
     nums = [frac.numerator * (D // frac.denominator) for frac in fracs]
     hyperperiod_ticks = reduce(_lcm, nums)
 
-    return hyperperiod_ticks / D
+    try:
+        value = hyperperiod_ticks / D
+    except OverflowError:
+        return max(positive_periods)
+
+    if not math.isfinite(value):
+        return max(positive_periods)
+
+    MAX_HYPERPERIOD_SECONDS = 1e6
+    if value > MAX_HYPERPERIOD_SECONDS:
+        return max(positive_periods)
+
+    return value
