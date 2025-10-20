@@ -1,14 +1,49 @@
 """
 QNScheduling
-------------
-This script simulates the scheduling of probabilistic jobs (entanglement
-generation attempts) in a quantum network. It calculates the duration of
-applications based on the parameters of the links and the paths taken by the
-applications. It uses an Earliest Deadline First (EDF) scheduling algorithm
-that takes into account the parallelization capabilities of the applications.
-The simulation can be run with a specified random seed for reproducibility,
-and the results are saved to a specified output directory. The network can be
-defined using a GML file.
+============
+
+Overview:
+---------
+This script simulates the scheduling of quantum network applications. It generates
+a set of applications based on a given network configuration, computes their
+durations using Packet Generation Attempt (PGA) models, and applies an Earliest
+Deadline First (EDF) scheduling algorithm to create a static schedule.The
+simulation then runs over a specified number of hyperperiod cycles, tracking job
+performance and link utilization, and saves the results to an output directory.
+Each PGA duration is calculated based on the end-to-end probability of generating
+EPR pairs, considering factors such as memory lifetime, swap probabilities, and
+generation probabilities. The scheduling process accounts for parallelizable tasks
+to optimize resource usage.
+
+Process:
+--------
+1. Parse command-line arguments for configuration, application parameters,
+   scheduling parameters, and output settings.
+2. Generate network data and applications based on the provided configuration.
+3. Compute shortest paths for each application and identify parallelizable tasks.
+4. Calculate the duration of each application using the PGA model.
+5. Create a static schedule using the EDF scheduling algorithm.
+6. Run a probabilistic simulation of the scheduled jobs over the defined
+   hyperperiod cycles.
+7. Save the simulation results, including job performance metrics and link
+   utilization, to the specified output directory.
+
+Usage:
+------
+Run the script from the command line with appropriate arguments:
+    --config: Path to the network configuration file (YAML or GML).
+    --apps: Number of applications to generate.
+    --inst: Range for the number of instances per application.
+    --epr: Range for the number of EPR pairs per application.
+    --period: Range for the period of each application.
+    --hyperperiod: Number of hyperperiod cycles to simulate.
+    --ppacket: Probability of a packet being generated.
+    --memory: Memory lifetime in number of time slot units.
+    --pswap: Probability of swapping an EPR pair in a single trial.
+    --pgen: Probability of generating an EPR pair in a single trial.
+    --slot-duration: Duration of a time slot in seconds.
+    --seed: Random seed for reproducibility.
+    --output: Directory to save the simulation results.
 """
 
 import argparse
