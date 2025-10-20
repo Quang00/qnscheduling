@@ -15,7 +15,7 @@ from utils.helper import edges_delay, sum_path_delay
 
 def probability_e2e(
     n_swap: int,
-    memory_lifetime: int,
+    memory_lifetime: int = 1,
     p_gen: float = 0.001,
     p_swap: float = 0.95
 ) -> float:
@@ -34,6 +34,8 @@ def probability_e2e(
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
+    if memory_lifetime < 0:
+        raise ValueError("memory_lifetime must be non-negative")
     p_succ_one_link = 1 - (1 - p_gen) ** (memory_lifetime)
     p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
