@@ -5,7 +5,7 @@ from scheduling.pga import duration_pga, probability_e2e
 
 def test_p_e2e_basic():
     p_gen = 0.2
-    memory_lifetime = 0
+    memory_lifetime = 1
     n_swap = 0
     p_swap = 0.95
     assert np.isclose(
