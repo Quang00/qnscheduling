@@ -34,7 +34,7 @@ def probability_e2e(
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
-    p_succ_one_link = 1 - (1 - p_gen) ** (memory_lifetime + 1)
+    p_succ_one_link = 1 - (1 - p_gen) ** (memory_lifetime)
     p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
 
@@ -65,7 +65,7 @@ def duration_pga(
     n_swap: int,
     route: list[str],
     distances: dict[tuple[str, str], float],
-    memory_lifetime: int = 0,
+    memory_lifetime: int = 1,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
@@ -94,7 +94,14 @@ def duration_pga(
     """
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
     delay_map = edges_delay(distances)
-    per_attempt_time = time_slot_duration + sum_path_delay(route, delay_map)
+    duration_memory = (
+        (memory_lifetime * time_slot_duration)
+        if memory_lifetime > 0
+        else time_slot_duration
+    )
+    per_attempt_time = (
+        time_slot_duration + duration_memory + sum_path_delay(route, delay_map)
+    )
 
     # exponential search
     low = epr_pairs

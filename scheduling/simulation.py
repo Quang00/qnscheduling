@@ -1,11 +1,13 @@
 """
 Simulation Of Probabilistic Job Scheduling
 -------------------------------------------
-This module implements a discrete-event simulation for quantum network
-applications. It defines a `Job` class that represents a non-preemptive job
-with probabilistic success in generating EPR pairs. The function
+This module implements a simulation framework for scheduling jobs in a
+quantum network. It defines a `Job` class that simulates end-to-end EPR pair
+generation attempts based on specified parameters such as arrival time,
+start time, end time, network route, and resource availability. The function
 `simulate_periodicity` orchestrates the scheduling and execution of these jobs
-based on a provided static schedule.
+based on a provided static schedule. It tracks resource usage, link busy times,
+and job performance metrics, returning a report of the simulation.
 """
 
 import re
@@ -42,7 +44,7 @@ class Job:
         delay_map: Dict[Tuple[str, str], float] | None = None,
         deadline: float | None = None,
     ) -> None:
-        """Probabilistic non-preemptive job.
+        """End-to-end job simulation for EPR pair generation in a quantum network.
 
         Args:
             name (str): Job name for identification.
@@ -113,7 +115,14 @@ class Job:
 
         self.total_delay = total_delay
         self.max_delay_prefix = max_prefix
-        self.per_attempt_time = self.total_delay + self.slot_duration
+        self.duration_memory = (
+            (memory_lifetime * self.slot_duration)
+            if memory_lifetime > 0
+            else self.slot_duration
+        )
+        self.per_attempt_time = (
+            self.slot_duration + self.duration_memory + self.total_delay
+        )
 
         self.n_swap = max(0, len(self.route) - 2)
         self.p_e2e = probability_e2e(
