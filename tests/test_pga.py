@@ -68,15 +68,11 @@ def test_duration_pga_monotonicity_wrt_params():
     base_p_swap = 0.9
     base_p_gen = 0.02
     base_time_slot_duration = 1e-5
-    base_route = ["Alice", "Bob", "Charlie"]
-    base_distances = {("Alice", "Bob"): 10.0, ("Bob", "Charlie"): 20.0}
 
     base = duration_pga(
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap,
         p_gen=base_p_gen,
@@ -86,8 +82,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap,
         p_gen=base_p_gen * 2,
@@ -97,8 +91,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap * 1.05,
         p_gen=base_p_gen,
@@ -108,8 +100,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime + 1,
         p_swap=base_p_swap,
         p_gen=base_p_gen,
@@ -119,8 +109,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap + 1,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap,
         p_gen=base_p_gen,
@@ -130,8 +118,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet,
         epr_pairs=base_epr_pairs + 1,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap,
         p_gen=base_p_gen,
@@ -142,8 +128,6 @@ def test_duration_pga_monotonicity_wrt_params():
         p_packet=base_p_packet + 0.1,
         epr_pairs=base_epr_pairs,
         n_swap=base_n_swap,
-        route=base_route,
-        distances=base_distances,
         memory_lifetime=base_memory_lifetime,
         p_swap=base_p_swap,
         p_gen=base_p_gen,
