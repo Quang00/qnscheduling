@@ -41,7 +41,6 @@ class Job:
         policy: str,
         p_swap: float,
         memory_lifetime: int,
-        delay_map: Dict[Tuple[str, str], float] | None = None,
         deadline: float | None = None,
     ) -> None:
         """End-to-end job simulation for EPR pair generation in a quantum network.
@@ -69,8 +68,6 @@ class Job:
             p_swap (float): Probability of swapping an EPR pair.
             memory_lifetime (int): Memory lifetime in number of time slot
             units.
-            delay_map (Dict[tuple, float], optional): Dictionary of delays
-            between nodes. Defaults to None, which means no additional delays.
             deadline (float, optional): Deadline time for the job. Defaults to
             None, which means no deadline.
         """
@@ -87,43 +84,18 @@ class Job:
         self.rng = rng
         self.log = log
         self.policy = policy
-        self.delay_map = delay_map if delay_map is not None else {}
         self.deadline = None if deadline is None else float(deadline)
 
-        self.delays = []
-        self.links = []
-        total_delay = 0.0
-        max_prefix = 0.0
-        prev = None
-        for node in self.route:
-            if prev is not None:
-                link = (prev, node)
-                unique_link = tuple(sorted(link))
-                self.links.append(unique_link)
-                delay = max(
-                    0.0,
-                    self.delay_map.get(
-                        (prev, node),
-                        self.delay_map.get((node, prev), 0.0),
-                    ),
-                )
-                total_delay += delay
-                if total_delay > max_prefix:
-                    max_prefix = total_delay
-                self.delays.append(delay)
-            prev = node
-
-        self.total_delay = total_delay
-        self.max_delay_prefix = max_prefix
         self.duration_memory = (
             (memory_lifetime * self.slot_duration)
             if memory_lifetime > 0
             else self.slot_duration
         )
         self.per_attempt_time = (
-            self.slot_duration + self.duration_memory + self.total_delay
+            self.slot_duration + self.duration_memory
         )
 
+        self.links = []
         self.n_swap = max(0, len(self.route) - 2)
         self.p_e2e = probability_e2e(
             self.n_swap, int(memory_lifetime), self.p_gen, float(p_swap)
@@ -150,7 +122,6 @@ class Job:
                 t_budget > EPS
                 and self.policy == "deadline"
                 and self.per_attempt_time > EPS
-                and self.max_delay_prefix <= t_budget + EPS
             ):
                 max_attempts = int((t_budget + EPS) // self.per_attempt_time)
                 p_success = max(0.0, min(1.0, self.p_e2e))
@@ -180,9 +151,8 @@ class Job:
                 )
 
             if attempts_run > 0 and self.links:
-                per_attempt_slot = self.slot_duration
-                for link, delay in zip(self.links, self.delays, strict=True):
-                    busy = attempts_run * (per_attempt_slot + delay)
+                for link in self.links:
+                    busy = attempts_run * self.slot_duration
                     self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
 
         burst = completion - self.start
@@ -211,7 +181,6 @@ def simulate_periodicity(
     job_periods: Dict[str, float],
     job_network_paths: Dict[str, List[str]],
     policies: Dict[str, str],
-    distances: Dict[tuple, float],
     rng: np.random.Generator,
 ) -> Tuple[
     pd.DataFrame,
@@ -258,7 +227,6 @@ def simulate_periodicity(
 
     all_nodes = {n for path in job_network_paths.values() for n in path}
     resources = {n: 0.0 for n in all_nodes}
-    delay_map = edges_delay(distances)
     link_busy = {}
     min_start = float("inf")
     max_completion = 0.0
@@ -287,7 +255,6 @@ def simulate_periodicity(
             policy=policies[app],
             p_swap=job_parameters[app]["p_swap"],
             memory_lifetime=job_parameters[app]["memory_lifetime"],
-            delay_map=delay_map,
             deadline=sched_deadline,
         )
         result = job.run()

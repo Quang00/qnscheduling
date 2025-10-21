@@ -10,8 +10,6 @@ probabilities.
 
 from scipy.stats import binom
 
-from utils.helper import edges_delay, sum_path_delay
-
 
 def probability_e2e(
     n_swap: int,
@@ -65,8 +63,6 @@ def duration_pga(
     p_packet: float,
     epr_pairs: int,
     n_swap: int,
-    route: list[str],
-    distances: dict[tuple[str, str], float],
     memory_lifetime: int = 1,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
@@ -78,10 +74,6 @@ def duration_pga(
         p_packet (float): Probability of a packet being generated.
         epr_pairs (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
-        route (list[str]): The path taken by the application
-        in the network.
-        distances (dict[tuple[str, str], float]): Distances between nodes in
-        the network.
         memory_lifetime (int, optional): Memory lifetime in number of time
         slot units.
         p_swap (float, optional): Probability of swapping an EPR pair in a
@@ -95,14 +87,13 @@ def duration_pga(
         float: Duration of a PGA in seconds.
     """
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
-    delay_map = edges_delay(distances)
     duration_memory = (
         (memory_lifetime * time_slot_duration)
         if memory_lifetime > 0
         else time_slot_duration
     )
     per_attempt_time = (
-        time_slot_duration + duration_memory + sum_path_delay(route, delay_map)
+        time_slot_duration + duration_memory
     )
 
     # exponential search
@@ -128,7 +119,6 @@ def compute_durations(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-    distances: dict[tuple[str, str], float],
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -147,8 +137,6 @@ def compute_durations(
         single trial.
         time_slot_duration (float): Duration of a time slot in
         seconds.
-        distances (dict[tuple[str, str], float]): Distances between nodes in
-        the network.
 
     Returns:
         dict[str, float]: A dictionary mapping each application to its total
@@ -165,8 +153,6 @@ def compute_durations(
             p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
-            route=route,
-            distances=distances,
             memory_lifetime=memory_lifetime,
             p_swap=p_swap,
             p_gen=p_gen,

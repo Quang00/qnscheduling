@@ -136,7 +136,6 @@ def run_simulation(
         p_swap,
         p_gen,
         time_slot_duration,
-        distances=distances,
     )
     print("Durations:", durations)
 
@@ -178,7 +177,6 @@ def run_simulation(
         job_periods=job_periods,
         policies=policies,
         job_network_paths=paths,
-        distances=distances,
         rng=rng,
     )
 
