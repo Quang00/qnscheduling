@@ -21,7 +21,6 @@ def test_simulation_completes_basic(base_job_parameters):
     job_periods = {"A": 10.0}
     job_network_paths = {"A": ["Alice", "Bob"]}
     policies = {"A": "deadline"}
-    distances = {("Alice", "Bob"): 0.0}
     schedule = [("A0", 0.0, 5.0, 10.0)]
     rng = np.random.default_rng(42)
 
@@ -32,7 +31,6 @@ def test_simulation_completes_basic(base_job_parameters):
         job_periods=job_periods,
         job_network_paths=job_network_paths,
         policies=policies,
-        distances=distances,
         rng=rng,
     )
 
@@ -45,7 +43,6 @@ def test_simulation_fails_basic(base_job_parameters):
     job_periods = {"A": 5.0}
     job_network_paths = {"A": ["Alice", "Bob"]}
     policies = {"A": "deadline"}
-    distances = {("Alice", "Bob"): 0.0}
     schedule = [("A0", 0.0, 0.01, 5.0)]
     rng = np.random.default_rng(42)
 
@@ -56,7 +53,6 @@ def test_simulation_fails_basic(base_job_parameters):
         job_periods=job_periods,
         job_network_paths=job_network_paths,
         policies=policies,
-        distances=distances,
         rng=rng,
     )
 
