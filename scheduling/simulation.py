@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from scheduling.pga import probability_e2e
 
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
@@ -85,11 +84,33 @@ class Job:
         self.log = log
         self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
-        self.links = []
+        self.links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(route[:-1], route[1:], strict=False)
+        ]
         self.n_swap = max(0, len(self.route) - 2)
-        self.p_e2e = probability_e2e(
-            self.n_swap, int(memory_lifetime), self.p_gen, float(p_swap)
-        )
+        self.p_swap = float(p_swap)
+        self.memory_lifetime = max(0, int(memory_lifetime))
+
+    def _simulate_e2e_attempt(self) -> bool:
+        """Simulate a single end-to-end entanglement attempt."""
+        n_links = self.n_swap + 1
+        memory_slots = self.memory_lifetime
+
+        for _ in range(n_links):
+            link_success = False
+            for _ in range(memory_slots):
+                if self.rng.random() < self.p_gen:
+                    link_success = True
+                    break
+            if not link_success:
+                return False
+
+        for _ in range(self.n_swap):
+            if self.rng.random() >= self.p_swap:
+                return False
+
+        return True
 
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
@@ -107,26 +128,21 @@ class Job:
             current_time = self.start
             t_budget = max(0.0, self.end - self.start)
             status = "failed"
+            successes = 0
 
             if (
                 t_budget > EPS
                 and self.policy == "deadline"
             ):
                 max_attempts = int((t_budget + EPS) // self.slot_duration)
-                p_success = max(0.0, min(1.0, self.p_e2e))
 
-                if max_attempts > 0 and p_success > 0.0:
-                    failures = self.rng.negative_binomial(
-                        self.epr_pairs, p_success
-                    )
-                    trials_needed = failures + self.epr_pairs
-                    if trials_needed <= max_attempts:
-                        status = "completed"
-                        attempts_run = trials_needed
-                    else:
-                        attempts_run = max_attempts
-                elif max_attempts > 0:
-                    attempts_run = max_attempts
+                for _ in range(max_attempts):
+                    attempts_run += 1
+                    if self._simulate_e2e_attempt():
+                        successes += 1
+                        if successes >= self.epr_pairs:
+                            status = "completed"
+                            break
 
                 current_time = (
                     self.start + attempts_run * self.slot_duration
