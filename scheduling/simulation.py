@@ -42,7 +42,8 @@ class Job:
         memory_lifetime: int,
         deadline: float | None = None,
     ) -> None:
-        """End-to-end job simulation for EPR pair generation in a quantum network.
+        """End-to-end job simulation for EPR pair generation in a
+        quantum network.
 
         Args:
             name (str): Job name for identification.
@@ -84,16 +85,6 @@ class Job:
         self.log = log
         self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
-
-        self.duration_memory = (
-            (memory_lifetime * self.slot_duration)
-            if memory_lifetime > 0
-            else self.slot_duration
-        )
-        self.per_attempt_time = (
-            self.slot_duration + self.duration_memory
-        )
-
         self.links = []
         self.n_swap = max(0, len(self.route) - 2)
         self.p_e2e = probability_e2e(
@@ -120,9 +111,8 @@ class Job:
             if (
                 t_budget > EPS
                 and self.policy == "deadline"
-                and self.per_attempt_time > EPS
             ):
-                max_attempts = int((t_budget + EPS) // self.per_attempt_time)
+                max_attempts = int((t_budget + EPS) // self.slot_duration)
                 p_success = max(0.0, min(1.0, self.p_e2e))
 
                 if max_attempts > 0 and p_success > 0.0:
@@ -139,7 +129,7 @@ class Job:
                     attempts_run = max_attempts
 
                 current_time = (
-                    self.start + attempts_run * self.per_attempt_time
+                    self.start + attempts_run * self.slot_duration
                 )
 
             completion = min(self.end, current_time)

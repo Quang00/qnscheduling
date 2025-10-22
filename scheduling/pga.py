@@ -87,14 +87,6 @@ def duration_pga(
         float: Duration of a PGA in seconds.
     """
     p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
-    duration_memory = (
-        (memory_lifetime * time_slot_duration)
-        if memory_lifetime > 0
-        else time_slot_duration
-    )
-    per_attempt_time = (
-        time_slot_duration + duration_memory
-    )
 
     # exponential search
     low = epr_pairs
@@ -108,7 +100,7 @@ def duration_pga(
             high = mid
         else:
             low = mid + 1
-    return low * per_attempt_time
+    return low * time_slot_duration
 
 
 def compute_durations(
