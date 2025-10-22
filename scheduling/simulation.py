@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-
 INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
 
@@ -93,24 +92,31 @@ class Job:
         self.memory_lifetime = max(0, int(memory_lifetime))
 
     def _simulate_e2e_attempt(self) -> bool:
-        """Simulate a single end-to-end entanglement attempt."""
+        """Single end-to-end entanglement attempt."""
+        if self.memory_lifetime <= 0 or self.p_gen <= 0.0:
+            return False
+
         n_links = self.n_swap + 1
-        memory_slots = self.memory_lifetime
+        start_slots = self.rng.geometric(self.p_gen, size=n_links) - 1
+        end_slots = start_slots + (self.memory_lifetime - 1)
 
-        for _ in range(n_links):
-            link_success = False
-            for _ in range(memory_slots):
-                if self.rng.random() < self.p_gen:
-                    link_success = True
-                    break
-            if not link_success:
-                return False
+        candidate = int(start_slots.max())
+        last_valid = int(end_slots.min())
 
-        for _ in range(self.n_swap):
-            if self.rng.random() >= self.p_swap:
-                return False
+        if candidate >= self.memory_lifetime:
+            return False
 
-        return True
+        if last_valid < candidate:
+            return False
+
+        if self.n_swap == 0:
+            return True
+        p_swap = min(1.0, max(0.0, float(self.p_swap)))
+        if p_swap <= 0.0:
+            return False
+        if p_swap >= 1.0:
+            return True
+        return self.rng.random() < (p_swap**self.n_swap)
 
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
@@ -130,10 +136,7 @@ class Job:
             status = "failed"
             successes = 0
 
-            if (
-                t_budget > EPS
-                and self.policy == "deadline"
-            ):
+            if t_budget > EPS and self.policy == "deadline":
                 max_attempts = int((t_budget + EPS) // self.slot_duration)
 
                 for _ in range(max_attempts):
@@ -144,9 +147,7 @@ class Job:
                             status = "completed"
                             break
 
-                current_time = (
-                    self.start + attempts_run * self.slot_duration
-                )
+                current_time = self.start + attempts_run * self.slot_duration
 
             completion = min(self.end, current_time)
 
