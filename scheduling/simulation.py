@@ -94,32 +94,32 @@ class PGA:
         self.p_swap = float(p_swap)
         self.memory_lifetime = max(0, int(memory_lifetime))
 
-    def _simulate_e2e_attempt(self) -> bool:
-        """Single end-to-end entanglement attempt."""
-        if self.memory_lifetime <= 0 or self.p_gen <= 0.0:
-            return False
+    def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
+        """Single end-to-end entanglement for a batch of attempts."""
+        if self.memory_lifetime <= 0 or self.p_gen <= 0.0 or max_attempts <= 0:
+            return np.zeros(max_attempts, dtype=bool)
 
         n_links = self.n_swap + 1
-        start_slots = self.rng.geometric(self.p_gen, size=n_links) - 1
-        end_slots = start_slots + (self.memory_lifetime - 1)
+        t_mem = self.memory_lifetime
+        size = (max_attempts, n_links)
 
-        candidate = int(start_slots.max())
-        last_valid = int(end_slots.min())
+        starts = self.rng.geometric(self.p_gen, size=size) - 1
+        ends = starts + (t_mem - 1)
 
-        if candidate >= self.memory_lifetime:
-            return False
+        candidate = starts.max(axis=1)
+        last_valid = ends.min(axis=1)
 
-        if last_valid < candidate:
-            return False
+        succ = (candidate < t_mem) & (last_valid >= candidate)
 
-        if self.n_swap == 0:
-            return True
-        p_swap = min(1.0, max(0.0, float(self.p_swap)))
-        if p_swap <= 0.0:
-            return False
-        if p_swap >= 1.0:
-            return True
-        return self.rng.random() < (p_swap**self.n_swap)
+        if self.n_swap > 0:
+            p_swap = float(np.clip(self.p_swap, 0.0, 1.0))
+            if p_swap <= 0.0:
+                return np.zeros_like(succ, dtype=bool)
+            elif p_swap < 1.0:
+                swap_ok = self.rng.random(max_attempts) < (p_swap**self.n_swap)
+                succ &= swap_ok
+
+        return succ
 
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
@@ -137,20 +137,29 @@ class PGA:
             current_time = self.start
             t_budget = max(0.0, self.end - self.start)
             status = "failed"
-            successes = 0
 
-            if t_budget > EPS and self.policy == "deadline":
+        if t_budget > EPS and self.policy == "deadline":
+            if self.slot_duration <= 0.0:
+                max_attempts = 0
+            else:
                 max_attempts = int((t_budget + EPS) // self.slot_duration)
 
-                for _ in range(max_attempts):
-                    attempts_run += 1
-                    if self._simulate_e2e_attempt():
-                        successes += 1
-                        if successes >= self.epr_pairs:
-                            status = "completed"
-                            break
+            succ = self._simulate_e2e_attempts(max_attempts)
 
-                current_time = self.start + attempts_run * self.slot_duration
+            if self.epr_pairs <= 0:
+                attempts_run = 0
+                status = "completed"
+            else:
+                csum = np.cumsum(succ, dtype=int)
+                hit = np.searchsorted(csum, self.epr_pairs, side="left")
+
+                if hit < len(csum):
+                    attempts_run = int(hit + 1)
+                    status = "completed"
+                else:
+                    attempts_run = max_attempts
+
+            current_time = self.start + attempts_run * self.slot_duration
 
             completion = min(self.end, current_time)
 
