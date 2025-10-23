@@ -1,13 +1,13 @@
 """
 Simulation Of Probabilistic Job Scheduling
 -------------------------------------------
-This module implements a simulation framework for scheduling jobs in a
-quantum network. It defines a `Job` class that simulates end-to-end EPR pair
-generation attempts based on specified parameters such as arrival time,
-start time, end time, network route, and resource availability. The function
-`simulate_periodicity` orchestrates the scheduling and execution of these jobs
-based on a provided static schedule. It tracks resource usage, link busy times,
-and job performance metrics, returning a report of the simulation.
+This module provides classes and functions to simulate the scheduling of
+jobs in a quantum network. Each job represents a Packet Generation
+Attempt (PGA) that tries to generate entangled EPR pairs over a specified route
+within a defined time window, considering resource availability and link busy
+times. The main function, `simulate_periodicity`, orchestrates the scheduling
+and execution of these jobs based on a provided static schedule, tracking
+resource usage, link busy times, and job performance metrics.
 """
 
 import re
@@ -20,7 +20,7 @@ INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
 
 
-class Job:
+class PGA:
     def __init__(
         self,
         name: str,
@@ -40,8 +40,11 @@ class Job:
         memory_lifetime: int,
         deadline: float | None = None,
     ) -> None:
-        """End-to-end job simulation for EPR pair generation in a
-        quantum network.
+        """Packet Generation Attempt (PGA) simulation. The goal is to
+        simulate end-to-end EPR pairs generation in a quantum network.
+        Each pga attempts to generate a specified number of EPR pairs over a
+        defined route within a given time window, considering resource
+        availability and link busy times.
 
         Args:
             name (str): Job name for identification.
@@ -194,7 +197,9 @@ def simulate_periodicity(
     Dict[str, float],
     Dict[Tuple[str, str], Dict[str, float]],
 ]:
-    """Simulate periodic jobs scheduling.
+    """Simulate periodic jobs scheduling. The provided static schedule defines
+    when each job starts and ends. Each job is a PGA that attempts to generate
+    EPR pairs over a specified route within a scheduled time window.
 
     Args:
         schedule (List[Tuple[str, float, float]]): List of tuples where each
@@ -237,16 +242,16 @@ def simulate_periodicity(
     min_start = float("inf")
     max_completion = 0.0
 
-    for inst_name, sched_start, sched_end, sched_deadline in schedule:
-        m = INIT_JOB_RE.match(inst_name)
-        app, idx = (m.group(1), int(m.group(2))) if m else (inst_name, 0)
+    for job_name, sched_start, sched_end, sched_deadline in schedule:
+        m = INIT_JOB_RE.match(job_name)
+        app, idx = (m.group(1), int(m.group(2))) if m else (job_name, 0)
 
         r0 = float(job_rel_times.get(app, 0.0))
         T = float(job_periods.get(app, 0.0))
         arrival = r0 + idx * T
 
-        job = Job(
-            name=inst_name,
+        pga = PGA(
+            name=job_name,
             arrival=arrival,
             start=sched_start,
             end=sched_end,
@@ -263,10 +268,10 @@ def simulate_periodicity(
             memory_lifetime=job_parameters[app]["memory_lifetime"],
             deadline=sched_deadline,
         )
-        result = job.run()
+        result = pga.run()
 
-        job_names.append(inst_name)
-        release_times[inst_name] = sched_start
+        job_names.append(job_name)
+        release_times[job_name] = sched_start
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
 
