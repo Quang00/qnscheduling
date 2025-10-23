@@ -254,8 +254,18 @@ def save_results(
         (df["status"] == "completed") | (df["status"] == "failed"),
         "waiting_time"
     ]
+    turnarounds = df.loc[
+        (df["status"] == "completed") | (df["status"] == "failed"),
+        "turnaround_time"
+    ]
     avg_wait = waits.mean() if not waits.empty else float("nan")
     max_wait = waits.max() if not waits.empty else float("nan")
+    avg_turnaround = (
+        turnarounds.mean() if not turnarounds.empty else float("nan")
+    )
+    max_turnaround = (
+        turnarounds.max() if not turnarounds.empty else float("nan")
+    )
     completed_ratio = (completed / total) if total > 0 else float("nan")
 
     print("\n=== Summary ===")
@@ -287,6 +297,8 @@ def save_results(
     print(f"Completed ratio  : {completed_ratio:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
+    print(f"Avg turnaround   : {avg_turnaround:.4f}")
+    print(f"Max turnaround   : {max_turnaround:.4f}")
 
     overall_df = pd.DataFrame(
         [
@@ -296,6 +308,8 @@ def save_results(
                 "completed_ratio": float(completed_ratio),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),
+                "avg_turnaround_time": float(avg_turnaround),
+                "max_turnaround_time": float(max_turnaround),
             }
         ]
     )
