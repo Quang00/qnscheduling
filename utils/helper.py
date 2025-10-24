@@ -146,6 +146,7 @@ def save_results(
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
     policies: Dict[str, str],
+    durations: Dict[str, float] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
     output_dir: str = "results",
 ) -> None:
@@ -180,6 +181,8 @@ def save_results(
         EPR pairs.
         policies (Dict): Dictionary mapping application names to their
         scheduling policies.
+        durations (Dict | None): Optional mapping of deterministic PGA
+        durations per application.
         link_utilization (Dict): Dictionary mapping links to busy time and
         utilization metrics.
         output_dir (str): Directory where the results CSV file will be saved.
@@ -214,6 +217,10 @@ def save_results(
             "instances": [instances[a] for a in apps],
             "epr_pairs": [epr_pairs[a] for a in apps],
             "policy": [policies[a] for a in apps],
+            "pga_duration": [
+                float(durations[a]) if durations and a in durations else np.nan
+                for a in apps
+            ],
         }
     )
 
@@ -258,6 +265,11 @@ def save_results(
         (df["status"] == "completed") | (df["status"] == "failed"),
         "turnaround_time"
     ]
+    pga_durations = (
+        np.array(list(durations.values()), dtype=float)
+        if durations
+        else np.array([], dtype=float)
+    )
     avg_wait = waits.mean() if not waits.empty else float("nan")
     max_wait = waits.max() if not waits.empty else float("nan")
     avg_turnaround = (
@@ -265,6 +277,9 @@ def save_results(
     )
     max_turnaround = (
         turnarounds.max() if not turnarounds.empty else float("nan")
+    )
+    total_pga_duration = (
+        float(np.sum(pga_durations)) if pga_durations.size else float("nan")
     )
     completed_ratio = (completed / total) if total > 0 else float("nan")
 
@@ -299,6 +314,8 @@ def save_results(
     print(f"Max waiting time : {max_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
+    if pga_durations.size:
+        print(f"Total PGA duration : {total_pga_duration:.4f}")
 
     overall_df = pd.DataFrame(
         [
@@ -310,6 +327,7 @@ def save_results(
                 "max_waiting_time": float(max_wait),
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
+                "total_pga_duration": float(total_pga_duration),
             }
         ]
     )
@@ -320,6 +338,13 @@ def save_results(
         per_task.loc[tasks_sorted, ["completed", "failed"]]
         .reset_index()
         .rename(columns={"task": "task_name"})
+    )
+    per_task_df = per_task_df.merge(
+        params.rename(columns={"task": "task_name"})[
+            ["task_name", "pga_duration"]
+        ],
+        on="task_name",
+        how="left",
     )
     per_task_path = os.path.join(output_dir, "summary_per_task.csv")
     per_task_df.to_csv(per_task_path, index=False)

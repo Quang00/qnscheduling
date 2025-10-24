@@ -104,9 +104,9 @@ def run_simulation(
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     Returns:
-        tuple[bool, pd.DataFrame | None]: A tuple indicating whether the EDF
-        scheduling problem was feasible and the resulting job DataFrame when
-        applicable.
+        tuple[bool, pd.DataFrame | None, dict[str, float]]: A tuple indicating
+        whether the schedule is feasible, the resulting job DataFrame when
+        feasible, and the PGA durations per application.
     """
     rng = np.random.default_rng(seed)
 
@@ -156,7 +156,7 @@ def run_simulation(
 
     if not feasible:
         print("Schedule", schedule)
-        return False, None
+        return False, None, durations
     else:
         print("Preview Schedule:", schedule[: n_apps * 2])
 
@@ -191,10 +191,11 @@ def run_simulation(
         instances,
         epr_pairs,
         policies,
+        durations=durations,
         link_utilization=link_utilization,
         output_dir=output_dir,
     )
-    return True, df
+    return True, df, durations
 
 
 def main():
@@ -316,7 +317,7 @@ def main():
     os.makedirs(run_dir, exist_ok=False)
 
     t0 = time.perf_counter()
-    feasible, _ = run_simulation(
+    feasible, _, _ = run_simulation(
         config=args.config,
         n_apps=args.apps,
         inst_range=args.inst,
