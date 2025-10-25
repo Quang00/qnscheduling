@@ -7,7 +7,7 @@
 
 </div>
 
-This repository simulates real-time scheduling and execute probabilistic jobs (entanglement generation) of a given quantum network.
+This repository simulates scheduling on-demand heralded bipartite entanglement (EPR pairs) across a multi-hop quantum network, by using Packet Generation Attempts (PGAs) from the paper [[1]](#1).
 
 ## Installation
 
@@ -49,3 +49,8 @@ python -m scheduling.main \
     --seed 42 \
     --output results
 ```
+
+## References
+
+<a id="1">[1]</a>
+T. R. Beauchamp, H. Jirovská, S. Gauthier and S. Wehner, "Extended Abstract: A Modular Quantum Network Architecture for Integrating Network Scheduling with Local Program Execution," IEEE INFOCOM 2025 - IEEE Conference on Computer Communications Workshops (INFOCOM WKSHPS), London, United Kingdom, 2025, pp. 1-7, doi: 10.1109/INFOCOMWKSHPS65812.2025.11152936.

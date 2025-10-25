@@ -1,13 +1,13 @@
 """
-Simulation Of Probabilistic Job Scheduling
--------------------------------------------
+Simulation Of PGAs Scheduling
+-----------------------------
 This module provides classes and functions to simulate the scheduling of
-jobs in a quantum network. Each job represents a Packet Generation
-Attempt (PGA) that tries to generate entangled EPR pairs over a specified route
-within a defined time window, considering resource availability and link busy
-times. The main function, `simulate_periodicity`, orchestrates the scheduling
-and execution of these jobs based on a provided static schedule, tracking
-resource usage, link busy times, and job performance metrics.
+Packet Generation Attempts (PGAs) in a quantum network. Each PGA tries to
+generate entangled EPR pairs over a specified route within a defined time
+window, considering resource availability and link busy times. The main
+function, `simulate_periodicity`, orchestrates the scheduling and execution of
+these PGAs based on a provided static schedule, tracking resource usage, link
+busy times, and performance metrics.
 """
 
 import re
@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-INIT_JOB_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
+INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
 
 
@@ -42,34 +42,34 @@ class PGA:
     ) -> None:
         """Packet Generation Attempt (PGA) simulation. The goal is to
         simulate end-to-end EPR pairs generation in a quantum network.
-        Each pga attempts to generate a specified number of EPR pairs over a
+        Each PGA attempts to generate a specified number of EPR pairs over a
         defined route within a given time window, considering resource
         availability and link busy times.
 
         Args:
-            name (str): Job name for identification.
-            arrival (float): Arrival time of the job in the simulation.
-            start (float): Start time of the job in the simulation.
-            end (float): End time of the job in the simulation.
-            route (List[str]): List of nodes in the job's route.
+            name (str): PGA identifier.
+            arrival (float): Arrival time of the PGA in the simulation.
+            start (float): Start time of the PGA in the simulation.
+            end (float): End time of the PGA in the simulation.
+            route (List[str]): List of nodes in the PGA's route.
             resources (Dict[str, float]): Dictionary of resources indexed by
             node names.
             link_busy (Dict[Tuple[str, str], float]): Dictionary to track busy
             time of links.
             p_gen (float): Probability of generating an EPR pair in a single
             trial.
-            epr_pairs (int): Number of EPR pairs to generate for this job.
+            epr_pairs (int): Number of EPR pairs to generate for this PGA.
             slot_duration (float): Duration of a time slot for EPR generation.
             rng (np.random.Generator): Random number generator for
             probabilistic events.
-            log (List[Dict[str, Any]]): Log to record job performance metrics.
-            policy (str): Scheduling policy for the job, either "best_effort"
-            or "deadline". If "deadline", the job will attempt to complete
+            log (List[Dict[str, Any]]): Log to record PGA performance metrics.
+            policy (str): Scheduling policy for the PGA, either "best_effort"
+            or "deadline". If "deadline", the PGA will attempt to complete
             within the maximum burst time defined in durations.
             p_swap (float): Probability of swapping an EPR pair.
             memory_lifetime (int): Memory lifetime in number of time slot
             units.
-            deadline (float, optional): Deadline time for the job. Defaults to
+            deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
         """
         self.name = name
@@ -190,7 +190,7 @@ class PGA:
         waiting = turnaround - burst
 
         result = {
-            "job": self.name,
+            "pga": self.name,
             "arrival_time": self.arrival,
             "start_time": self.start,
             "burst_time": burst,
@@ -207,10 +207,10 @@ class PGA:
 
 def simulate_periodicity(
     schedule: List[Tuple[str, float, float, float]],
-    job_parameters: Dict[str, Dict[str, float]],
-    job_rel_times: Dict[str, float],
-    job_periods: Dict[str, float],
-    job_network_paths: Dict[str, List[str]],
+    pga_parameters: Dict[str, Dict[str, float]],
+    pga_rel_times: Dict[str, float],
+    pga_periods: Dict[str, float],
+    pga_network_paths: Dict[str, List[str]],
     policies: Dict[str, str],
     rng: np.random.Generator,
 ) -> Tuple[
@@ -219,26 +219,25 @@ def simulate_periodicity(
     Dict[str, float],
     Dict[Tuple[str, str], Dict[str, float]],
 ]:
-    """Simulate periodic jobs scheduling. The provided static schedule defines
-    when each job starts and ends. Each job is a PGA that attempts to generate
-    EPR pairs over a specified route within a scheduled time window.
+    """Simulate periodic PGA scheduling. The provided static schedule defines
+    when each PGA starts and ends. Each scheduled entry is a PGA that attempts
+    to generate EPR pairs over a specified route within a scheduled time
+    window.
 
     Args:
-        schedule (List[Tuple[str, float, float]]): List of tuples where each
-        contains the job name, start time, and end time of the scheduled job.
-        job_parameters (Dict[str, Dict[str, float]]): Parameters for each job,
+        schedule (List[Tuple[str, float, float, float]]): List of tuples where
+        each contains the PGA name, start time, end time, and deadline of the
+        scheduled PGA.
+        pga_parameters (Dict[str, Dict[str, float]]): Parameters for each PGA,
         including the probability of generating an EPR pair, number of
-        successes, and slot duration.
-        job_rel_times (Dict[str, float]): Relative release times for each
-        job.
-        job_periods (Dict[str, float]): Periods for each job, indicating the
-        time interval between successive releases of the job.
-        job_network_paths (Dict[str, list[str]]): List of nodes for each job's
-        path in the network.
-        policies (Dict[str, str]): Scheduling policy for each job.
-        This can be "best_effort" or "deadline".
-        distances (Dict[tuple, float]): Dictionary of distances between nodes
-        in the network.
+        required successes, and slot duration.
+        pga_rel_times (Dict[str, float]): Relative release times for each PGA.
+        pga_periods (Dict[str, float]): Periods for each PGA, indicating the
+        time interval between successive releases of the PGA.
+    pga_network_paths (Dict[str, list[str]]): List of nodes for each PGA's
+    path in the network.
+    policies (Dict[str, str]): Scheduling policy for each PGA. This can be
+    "best_effort" or "deadline".
         rng (np.random.Generator): Random number generator for probabilistic
         events.
 
@@ -249,51 +248,51 @@ def simulate_periodicity(
             Dict[str, float],
             Dict[Tuple[str, str], Dict[str, float]],
         ]: Contains:
-            - DataFrame with job performance metrics.
-            - List of job names.
-            - Dictionary mapping job names to their release times.
+            - DataFrame with PGA performance metrics.
+            - List of PGA names.
+            - Dictionary mapping PGA names to their release times.
             - Dictionary mapping undirected links to busy time and utilization.
     """
     log = []
-    release_times = {}
-    job_names = []
+    pga_release_times = {}
+    pga_names = []
 
-    all_nodes = {n for path in job_network_paths.values() for n in path}
+    all_nodes = {n for path in pga_network_paths.values() for n in path}
     resources = {n: 0.0 for n in all_nodes}
     link_busy = {}
     min_start = float("inf")
     max_completion = 0.0
 
-    for job_name, sched_start, sched_end, sched_deadline in schedule:
-        m = INIT_JOB_RE.match(job_name)
-        app, idx = (m.group(1), int(m.group(2))) if m else (job_name, 0)
+    for pga_name, sched_start, sched_end, sched_deadline in schedule:
+        m = INIT_PGA_RE.match(pga_name)
+        app, idx = (m.group(1), int(m.group(2))) if m else (pga_name, 0)
 
-        r0 = float(job_rel_times.get(app, 0.0))
-        T = float(job_periods.get(app, 0.0))
+        r0 = float(pga_rel_times.get(app, 0.0))
+        T = float(pga_periods.get(app, 0.0))
         arrival = r0 + idx * T
 
         pga = PGA(
-            name=job_name,
+            name=pga_name,
             arrival=arrival,
             start=sched_start,
             end=sched_end,
-            route=job_network_paths[app],
+            route=pga_network_paths[app],
             resources=resources,
             link_busy=link_busy,
-            p_gen=job_parameters[app]["p_gen"],
-            epr_pairs=int(job_parameters[app]["epr_pairs"]),
-            slot_duration=job_parameters[app]["slot_duration"],
+            p_gen=pga_parameters[app]["p_gen"],
+            epr_pairs=int(pga_parameters[app]["epr_pairs"]),
+            slot_duration=pga_parameters[app]["slot_duration"],
             rng=rng,
             log=log,
             policy=policies[app],
-            p_swap=job_parameters[app]["p_swap"],
-            memory_lifetime=job_parameters[app]["memory_lifetime"],
+            p_swap=pga_parameters[app]["p_swap"],
+            memory_lifetime=pga_parameters[app]["memory_lifetime"],
             deadline=sched_deadline,
         )
         result = pga.run()
 
-        job_names.append(job_name)
-        release_times[job_name] = sched_start
+        pga_names.append(pga_name)
+        pga_release_times[pga_name] = sched_start
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
 
@@ -314,4 +313,4 @@ def simulate_periodicity(
             for link, busy in link_busy.items()
         }
 
-    return df, job_names, release_times, link_utilization
+    return df, pga_names, pga_release_times, link_utilization

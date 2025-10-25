@@ -140,8 +140,8 @@ def app_params_sim(
 
 def save_results(
     df: pd.DataFrame,
-    job_names: List[str],
-    release_times: Dict[str, float],
+    pga_names: List[str],
+    pga_release_times: Dict[str, float],
     apps: Dict[str, Tuple[str, str]],
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
@@ -150,29 +150,29 @@ def save_results(
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
     output_dir: str = "results",
 ) -> None:
-    """Save the results of job scheduling and execution to a CSV file and print
+    """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
 
     Args:
-        df (DataFrame): DataFrame containing job results with columns:
-            - job: Job identifier
-            - arrival_time: Time when the job arrived
-            - start_time: Time when the job started execution
-            - burst_time: Total time required for the job to complete
-            - completion_time: Time when the job completed execution
+        df (DataFrame): DataFrame containing PGA results with columns:
+            - pga: PGA identifier
+            - arrival_time: Time when the PGA arrived
+            - start_time: Time when the PGA started execution
+            - burst_time: Total time required for the PGA to complete
+            - completion_time: Time when the PGA completed execution
             - turnaround_time: Total time from arrival to completion
-            - waiting_time: Total time the job waited before execution
-            - status: Status of the job (e.g., "completed", "failed")
-            - deadline: Deadline for the job (if applicable)
-            - src_node: Source node of the job
-            - dst_node: Destination node of the job
-            - instances: Number of instances for the job
-            - epr_pairs: Number of EPR pairs for the job
-            - policy: Scheduling policy used for the job
-        job_names (List): List of all job names that should be present in the
+            - waiting_time: Total time the PGA waited before execution
+            - status: Status of the PGA (e.g., "completed", "failed")
+            - deadline: Deadline for the PGA (if applicable)
+            - src_node: Source node of the PGA
+            - dst_node: Destination node of the PGA
+            - instances: Number of instances for the PGA
+            - epr_pairs: Number of EPR pairs for the PGA
+            - policy: Scheduling policy used for the PGA
+        pga_names (List): List of all PGA names that should be present in the
         results.
-        release_times (Dict): Dictionary mapping application names to their
-        relative release times, used to fill in missing jobs.
+    pga_release_times (Dict): Dictionary mapping PGA names to their
+    relative release times, used to fill in missing PGAs.
         apps (Dict): Dictionary mapping application names to their source and
         destination nodes.
         instances (Dict): Dictionary mapping application names to the number of
@@ -189,15 +189,15 @@ def save_results(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    missing = set(job_names) - set(df["job"])
+    missing = set(pga_names) - set(df["pga"])
     if missing:
         filler_rows = []
-        for job in missing:
-            task = re.sub(r"\d+$", "", job)
+        for pga in missing:
+            task = re.sub(r"\d+$", "", pga)
             filler_rows.append(
                 {
-                    "job": job,
-                    "arrival_time": release_times.get(task, np.nan),
+                    "pga": pga,
+                    "arrival_time": pga_release_times.get(pga, np.nan),
                     "start_time": np.nan,
                     "burst_time": np.nan,
                     "completion_time": np.nan,
@@ -208,7 +208,7 @@ def save_results(
             )
         df = pd.concat([df, pd.DataFrame(filler_rows)], ignore_index=True)
 
-    df["task"] = df["job"].astype(str).str.replace(r"\d+$", "", regex=True)
+    df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
     params = pd.DataFrame(
         {
             "task": list(apps.keys()),
@@ -227,10 +227,10 @@ def save_results(
     df = df.merge(params, on="task", how="left").drop(columns="task")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
 
-    csv_path = os.path.join(output_dir, "job_results.csv")
+    csv_path = os.path.join(output_dir, "pga_results.csv")
     df.to_csv(csv_path, index=False)
 
-    print("\n=== Preview Job Results ===")
+    print("\n=== Preview PGA Results ===")
     print(df.head(20).to_string(index=False))
 
     if link_utilization:
@@ -284,11 +284,11 @@ def save_results(
     completed_ratio = (completed / total) if total > 0 else float("nan")
 
     print("\n=== Summary ===")
-    print(f"Total jobs       : {total}")
+    print(f"Total PGAs       : {total}")
 
     tmp = df.copy()
-    tmp["task"] = tmp["job"].astype(str).str.replace(r"\d+$", "", regex=True)
-    expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in job_names})
+    tmp["task"] = tmp["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
+    expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in pga_names})
     per_task = (
         tmp.groupby(["task", "status"])
         .size()
@@ -308,7 +308,7 @@ def save_results(
         print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
 
     print(f"Makespan         : {makespan:.4f}")
-    print(f"Throughput       : {throughput:.4f} completed jobs/s")
+    print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completed ratio  : {completed_ratio:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
@@ -479,7 +479,7 @@ def hyperperiod(periods: dict[str, float]) -> float:
     """Compute the hyperperiod of a set of periods.
 
     Args:
-        periods (dict[str, float]): A dictionary mapping job names to their
+        periods (dict[str, float]): A dictionary mapping PGA names to their
         periods.
 
     Returns:

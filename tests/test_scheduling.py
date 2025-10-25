@@ -40,7 +40,7 @@ def test_utilization_gt_1(patch_hyperperiod):
     assert is_feasible is False
 
 
-def test_schedule_single_job(patch_hyperperiod):
+def test_schedule_single_pga(patch_hyperperiod):
     patch_hyperperiod(10.0)
     rel = {"A": 0.0}
     periods = {"A": 10.0}
@@ -59,7 +59,7 @@ def test_schedule_single_job(patch_hyperperiod):
     assert end == dl
 
 
-def test_schedule_two_jobs_parallel(patch_hyperperiod):
+def test_schedule_two_pgas_parallel(patch_hyperperiod):
     patch_hyperperiod(10.0)
     rel = {"A": 0.0, "B": 0.0}
     periods = {"A": 10.0, "B": 10.0}

@@ -5,7 +5,7 @@ from scheduling.simulation import simulate_periodicity
 
 
 @pytest.fixture
-def base_job_parameters():
+def base_pga_parameters():
     return {
         "p_gen": 1.0,
         "p_swap": 1.0,
@@ -15,21 +15,21 @@ def base_job_parameters():
     }
 
 
-def test_simulation_completes_basic(base_job_parameters):
-    job_parameters = {"A": dict(base_job_parameters)}
-    job_rel_times = {"A": 0.0}
-    job_periods = {"A": 10.0}
-    job_network_paths = {"A": ["Alice", "Bob"]}
+def test_simulation_completes_basic(base_pga_parameters):
+    pga_parameters = {"A": dict(base_pga_parameters)}
+    pga_rel_times = {"A": 0.0}
+    pga_periods = {"A": 10.0}
+    pga_network_paths = {"A": ["Alice", "Bob"]}
     policies = {"A": "deadline"}
     schedule = [("A0", 0.0, 5.0, 10.0)]
     rng = np.random.default_rng(42)
 
     df, _, _, _ = simulate_periodicity(
         schedule=schedule,
-        job_parameters=job_parameters,
-        job_rel_times=job_rel_times,
-        job_periods=job_periods,
-        job_network_paths=job_network_paths,
+        pga_parameters=pga_parameters,
+        pga_rel_times=pga_rel_times,
+        pga_periods=pga_periods,
+        pga_network_paths=pga_network_paths,
         policies=policies,
         rng=rng,
     )
@@ -37,21 +37,21 @@ def test_simulation_completes_basic(base_job_parameters):
     assert df.loc[0, "status"] == "completed"
 
 
-def test_simulation_fails_basic(base_job_parameters):
-    job_parameters = {"A": dict(base_job_parameters)}
-    job_rel_times = {"A": 0.0}
-    job_periods = {"A": 5.0}
-    job_network_paths = {"A": ["Alice", "Bob"]}
+def test_simulation_fails_basic(base_pga_parameters):
+    pga_parameters = {"A": dict(base_pga_parameters)}
+    pga_rel_times = {"A": 0.0}
+    pga_periods = {"A": 5.0}
+    pga_network_paths = {"A": ["Alice", "Bob"]}
     policies = {"A": "deadline"}
     schedule = [("A0", 0.0, 0.01, 5.0)]
     rng = np.random.default_rng(42)
 
     df, _, _, _ = simulate_periodicity(
         schedule=schedule,
-        job_parameters=job_parameters,
-        job_rel_times=job_rel_times,
-        job_periods=job_periods,
-        job_network_paths=job_network_paths,
+        pga_parameters=pga_parameters,
+        pga_rel_times=pga_rel_times,
+        pga_periods=pga_periods,
+        pga_network_paths=pga_network_paths,
         policies=policies,
         rng=rng,
     )

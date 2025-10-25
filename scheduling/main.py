@@ -9,7 +9,7 @@ generates a set of applications based on a given network configuration,
 computes their durations using Packet Generation Attempt (PGA) models, and
 applies an Earliest Deadline First (EDF) scheduling algorithm to create a
 static schedule. The simulation then runs over a specified number of
-hyperperiod cycles, tracking job performance and link utilization, and saves
+hyperperiod cycles, tracking PGA performance and link utilization, and saves
 the results to an output directory. Each PGA duration is calculated based on
 the end-to-end probability of generating EPR pairs, considering factors such
 as memory lifetime, swap probabilities, and generation probabilities. The
@@ -25,9 +25,9 @@ Process:
    tasks.
 4. Calculate the duration of each application using the PGA model.
 5. Create a static schedule using the EDF scheduling algorithm.
-6. Run a probabilistic simulation of the scheduled jobs over the defined
+6. Run a probabilistic simulation of the scheduled PGAs over the defined
    hyperperiod cycles.
-7. Save the simulation results, including job performance metrics and link
+7. Save the simulation results, including PGA performance metrics and link
    utilization, to the specified output directory.
 
 Usage:
@@ -104,9 +104,9 @@ def run_simulation(
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     Returns:
-        tuple[bool, pd.DataFrame | None, dict[str, float]]: A tuple indicating
-        whether the schedule is feasible, the resulting job DataFrame when
-        feasible, and the PGA durations per application.
+    tuple[bool, pd.DataFrame | None, dict[str, float]]: A tuple indicating
+    whether the schedule is feasible, the resulting PGA DataFrame when
+    feasible, and the PGA durations per application.
     """
     rng = np.random.default_rng(seed)
 
@@ -141,17 +141,17 @@ def run_simulation(
     )
     print("Durations:", durations)
 
-    job_rel_times = {app: 0.0 for app in apps}
-    print("Release times:", job_rel_times)
+    pga_rel_times = {app: 0.0 for app in apps}
+    print("Release times:", pga_rel_times)
 
-    job_periods = periods
-    print("Periods:", job_periods)
+    pga_periods = periods
+    print("Periods:", pga_periods)
 
     print("Hyperperiod cycles:", hyperperiod_cycles)
 
     # Compute static schedule
     feasible, schedule = edf_parallel(
-        job_rel_times, job_periods, durations, parallel_map, hyperperiod_cycles
+        pga_rel_times, pga_periods, durations, parallel_map, hyperperiod_cycles
     )
 
     if not feasible:
@@ -160,7 +160,7 @@ def run_simulation(
     else:
         print("Preview Schedule:", schedule[: n_apps * 2])
 
-    job_parameters = app_params_sim(
+    pga_parameters = app_params_sim(
         paths,
         epr_pairs,
         p_packet,
@@ -172,21 +172,21 @@ def run_simulation(
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
-    df, job_names, release_times, link_utilization = simulate_periodicity(
+    df, pga_names, pga_release_times, link_utilization = simulate_periodicity(
         schedule=schedule,
-        job_parameters=job_parameters,
-        job_rel_times=job_rel_times,
-        job_periods=job_periods,
+        pga_parameters=pga_parameters,
+        pga_rel_times=pga_rel_times,
+        pga_periods=pga_periods,
         policies=policies,
-        job_network_paths=paths,
+        pga_network_paths=paths,
         rng=rng,
     )
 
     # Save results
     save_results(
         df,
-        job_names,
-        release_times,
+        pga_names,
+        pga_release_times,
         apps,
         instances,
         epr_pairs,
@@ -361,7 +361,7 @@ def main():
     }
     pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
-    path_results = os.path.join(run_dir, "job_results.csv")
+    path_results = os.path.join(run_dir, "pga_results.csv")
     path_params = os.path.join(run_dir, "params.csv")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     print(f"Saved results to: {path_results}")

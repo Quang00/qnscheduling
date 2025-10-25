@@ -118,7 +118,7 @@ def test_save_results_basic(tmp_path):
     df = pd.DataFrame(
         [
             {
-                "job": "A0",
+                "pga": "A0",
                 "arrival_time": 0.0,
                 "start_time": 0.0,
                 "burst_time": 0.2,
@@ -131,8 +131,8 @@ def test_save_results_basic(tmp_path):
         ]
     )
 
-    job_names = ["A0", "B0"]
-    release_times = {"A": 0.0, "B": 5.0}
+    pga_names = ["A0", "B0"]
+    release_times = {"A0": 0.0, "B0": 5.0}
     apps = {"A": ("srcA", "dstA"), "B": ("srcB", "dstB")}
     instances = {"A": 2, "B": 1}
     epr_pairs = {"A": 3, "B": 1}
@@ -140,7 +140,7 @@ def test_save_results_basic(tmp_path):
 
     save_results(
         df,
-        job_names,
+        pga_names,
         release_times,
         apps,
         instances,
@@ -149,10 +149,10 @@ def test_save_results_basic(tmp_path):
         output_dir=str(tmp_path),
     )
 
-    result = pd.read_csv(tmp_path / "job_results.csv")
+    result = pd.read_csv(tmp_path / "pga_results.csv")
 
-    assert set(result["job"]) == {"A0", "B0"}
-    b0_row = result.loc[result["job"] == "B0"].iloc[0]
+    assert set(result["pga"]) == {"A0", "B0"}
+    b0_row = result.loc[result["pga"] == "B0"].iloc[0]
 
     assert b0_row["status"] == "missing"
     assert np.isnan(b0_row["start_time"])
