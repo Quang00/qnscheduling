@@ -215,7 +215,7 @@ def save_results(
             "src_node": [apps[a][0] for a in apps],
             "dst_node": [apps[a][1] for a in apps],
             "instances": [instances[a] for a in apps],
-            "epr_pairs": [epr_pairs[a] for a in apps],
+            "pairs_requested": [epr_pairs[a] for a in apps],
             "policy": [policies[a] for a in apps],
             "pga_duration": [
                 float(durations[a]) if durations and a in durations else np.nan

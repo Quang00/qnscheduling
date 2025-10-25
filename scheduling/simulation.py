@@ -123,44 +123,54 @@ class PGA:
 
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
+        pairs_generated = 0
         wait_until = 0.0
+
         for node in self.route:
-            wait_until = max(
-                wait_until,
-                self.resources.get(node, 0.0),
-            )
+            wait_until = max(wait_until, self.resources.get(node, 0.0))
 
         if wait_until > self.start + EPS:
             completion = wait_until
             status = "conflict"
-        else:
-            current_time = self.start
-            t_budget = max(0.0, self.end - self.start)
-            status = "failed"
+            return
+
+        current_time = self.start
+        t_budget = max(0.0, self.end - self.start)
+        status = "failed"
 
         if t_budget > EPS and self.policy == "deadline":
             if self.slot_duration <= 0.0:
                 max_attempts = 0
+                succ = np.zeros(0, dtype=bool)
             else:
                 max_attempts = int((t_budget + EPS) // self.slot_duration)
-
-            succ = self._simulate_e2e_attempts(max_attempts)
+                succ = self._simulate_e2e_attempts(max_attempts)
 
             if self.epr_pairs <= 0:
                 attempts_run = 0
+                pairs_generated = 0
                 status = "completed"
             else:
-                csum = np.cumsum(succ, dtype=int)
-                hit = np.searchsorted(csum, self.epr_pairs, side="left")
+                csum = (
+                    np.cumsum(succ, dtype=int)
+                    if len(succ)
+                    else np.array([], dtype=int)
+                )
+                hit = (
+                    np.searchsorted(csum, self.epr_pairs, side="left")
+                    if len(csum)
+                    else len(csum)
+                )
 
-                if hit < len(csum):
+                if len(csum) and hit < len(csum):
                     attempts_run = int(hit + 1)
+                    pairs_generated = int(csum[attempts_run - 1])
                     status = "completed"
                 else:
                     attempts_run = max_attempts
+                    pairs_generated = int(csum[-1]) if len(csum) else 0
 
             current_time = self.start + attempts_run * self.slot_duration
-
             completion = min(self.end, current_time)
 
             for node in self.route:
@@ -169,9 +179,11 @@ class PGA:
                 )
 
             if attempts_run > 0 and self.links:
+                busy = attempts_run * self.slot_duration
                 for link in self.links:
-                    busy = attempts_run * self.slot_duration
                     self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
+        else:
+            completion = self.start
 
         burst = completion - self.start
         turnaround = completion - self.arrival
@@ -185,6 +197,7 @@ class PGA:
             "completion_time": completion,
             "turnaround_time": turnaround,
             "waiting_time": waiting,
+            "pairs_generated": pairs_generated,
             "status": status,
             "deadline": self.deadline,
         }
