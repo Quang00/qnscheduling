@@ -160,7 +160,7 @@ def test_save_results_basic(tmp_path):
     assert b0_row["src_node"] == "srcB"
     assert b0_row["dst_node"] == "dstB"
     assert b0_row["instances"] == 1
-    assert b0_row["epr_pairs"] == 1
+    assert b0_row["pairs_requested"] == 1
     assert b0_row["policy"] == "deadline"
 
 
