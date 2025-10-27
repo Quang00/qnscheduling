@@ -580,11 +580,11 @@ def aggregate_metric(
     column: str,
     prefix: str,
     clip: tuple[float | None, float | None] | None = None,
-    prefixed_bands: bool = True,
+    prefixed_columns: bool = True,
 ) -> pd.DataFrame:
     mean_col = f"mean_{prefix}"
     std_col = f"std_{prefix}"
-    if prefixed_bands:
+    if prefixed_columns:
         sem_col, ci_col, lower_col, upper_col = (
             f"sem_{prefix}",
             f"ci95_{prefix}",

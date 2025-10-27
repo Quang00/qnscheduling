@@ -278,7 +278,7 @@ def build_metric_specs(
             "ymax": 1.0,
             "format_str": "{:.2f}",
             "include_in_return": True,
-            "prefixed_bands": False,
+            "prefixed_columns": False,
         },
         {
             "key": "makespan",
@@ -364,8 +364,7 @@ def build_metric_specs(
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
-            "yscale": "log",
-            "log_floor": 1e-12,
+            "clip": (0.0, None),
         },
         {
             "key": "avg_link_utilization",
@@ -403,7 +402,7 @@ def build_metric_specs(
         prefix = metric["prefix"]
         metric["mean_col"] = f"mean_{prefix}"
         metric["std_col"] = f"std_{prefix}"
-        if metric.get("prefixed_bands", True):
+        if metric.get("prefixed_columns", True):
             metric["sem_col"] = f"sem_{prefix}"
             metric["ci_col"] = f"ci95_{prefix}"
             metric["lower_col"] = f"lower_{prefix}"
@@ -442,16 +441,6 @@ def render_plot(
     if plot_df.empty:
         return
 
-    is_log_scale = spec.get("yscale") == "log"
-    floor = spec.get("log_floor", 1e-12) if is_log_scale else None
-
-    if is_log_scale:
-        plot_df = plot_df[plot_df[spec["mean_col"]] > 0].copy()
-        if plot_df.empty:
-            return
-        for bound_col in (spec["lower_col"], spec["upper_col"]):
-            plot_df[bound_col] = np.clip(plot_df[bound_col], floor, None)
-
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
     sns.lineplot(
@@ -466,15 +455,9 @@ def render_plot(
         label="Mean",
     )
 
-    if is_log_scale:
-        ax.set_yscale("log")
-
     x_vals = plot_df["p_packet"].to_numpy()
     lower_vals = plot_df[spec["lower_col"]].to_numpy()
     upper_vals = plot_df[spec["upper_col"]].to_numpy()
-    if is_log_scale:
-        lower_vals = np.clip(lower_vals, floor, None)
-        upper_vals = np.clip(upper_vals, floor, None)
 
     ax.fill_between(
         x_vals,
@@ -494,21 +477,14 @@ def render_plot(
     if spec.get("auto_ylim"):
         data_min, data_max = np.nanmin(lower_vals), np.nanmax(upper_vals)
         if np.isfinite(data_min) and np.isfinite(data_max):
-            if is_log_scale:
-                pad_mult = spec.get("log_pad_multiplier", 0.2)
-                data_min = max(data_min, floor)
-                data_max = max(data_max, data_min * (1.0 + 1e-6))
-                y_min = max(data_min / (1.0 + pad_mult), floor)
-                y_max = data_max * (1.0 + pad_mult)
-            else:
-                pad_frac = spec.get("pad_fraction", 0.05)
-                span = data_max - data_min
-                pad = (
-                    (max(abs(data_max), 1.0) * pad_frac)
-                    if span <= 1e-9
-                    else (span * pad_frac)
-                )
-                y_min, y_max = data_min - pad, data_max + pad
+            pad_frac = spec.get("pad_fraction", 0.05)
+            span = data_max - data_min
+            pad = (
+                (max(abs(data_max), 1.0) * pad_frac)
+                if span <= 1e-9
+                else (span * pad_frac)
+            )
+            y_min, y_max = data_min - pad, data_max + pad
             low_clip, high_clip = spec.get("clip", (None, None))
             if low_clip is not None:
                 y_min = max(y_min, low_clip)
@@ -518,18 +494,10 @@ def render_plot(
     bottom, top = ax.get_ylim()
     bottom = y_min if y_min is not None else bottom
     top = y_max if y_max is not None else top
-    if is_log_scale:
-        if not np.isfinite(bottom) or bottom <= 0:
-            bottom = floor
-        bottom = max(bottom, floor)
-        if not np.isfinite(top) or top <= bottom:
-            span_mult = spec.get("log_min_span", 0.05)
-            top = bottom * (1.0 + max(span_mult, 1e-3))
-    else:
-        if not spec.get("auto_ylim") and y_min is None and y_max is None:
-            bottom = 0.0
-        if top <= bottom:
-            top = bottom + max(abs(bottom) * 0.05, 1e-6)
+    if not spec.get("auto_ylim") and y_min is None and y_max is None:
+        bottom = 0.0
+    if top <= bottom:
+        top = bottom + max(abs(bottom) * 0.05, 1e-6)
     ax.set_ylim(bottom, top)
 
     if spec.get("percentage"):
@@ -537,14 +505,11 @@ def render_plot(
         ax.yaxis.set_major_formatter(
             FuncFormatter(lambda y, _: pct_fmt.format(y * 100.0))
         )
-    elif is_log_scale:
-        ax.yaxis.set_major_formatter(LogFormatterMathtext())
     else:
         fmt = spec.get("format_str", "{:.2f}")
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: fmt.format(y)))
 
-    if not is_log_scale:
-        ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.xaxis.set_minor_locator(AutoMinorLocator())
     ax.grid(True, which="major", linewidth=0.6)
     ax.grid(True, which="minor", linewidth=0.3, alpha=0.2)
@@ -676,7 +641,7 @@ def plot_metrics_vs_ppacket(
             column=spec["key"],
             prefix=spec["prefix"],
             clip=spec.get("clip"),
-            prefixed_bands=spec.get("prefixed_bands", True),
+            prefixed_columns=spec.get("prefixed_columns", True),
         )
         aggregated_results[spec["key"]] = summary_df
         summary_df.to_csv(spec["csv_path"], index=False)
