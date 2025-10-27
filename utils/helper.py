@@ -1,11 +1,13 @@
+import json
 import math
 import os
 import re
 from collections import defaultdict
+from datetime import datetime
 from fractions import Fraction
 from functools import reduce
 from math import gcd
-from typing import Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import networkx as nx
 import numpy as np
@@ -515,3 +517,168 @@ def hyperperiod(periods: dict[str, float]) -> float:
         return max(positive_periods)
 
     return value
+
+
+def ppacket_dirname(value: float) -> str:
+    label = f"{value:.6f}".rstrip("0").rstrip(".")
+    if not label:
+        label = "0"
+    return f"ppacket_{label.replace('.', '_')}"
+
+
+def prepare_run_dir(
+    output_dir: str, ppacket_values: Iterable[float]
+) -> tuple[str, str]:
+    base_output = output_dir or "results"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = os.path.join(base_output, timestamp)
+    os.makedirs(run_dir, exist_ok=True)
+    for p_val in ppacket_values:
+        subdir = os.path.join(run_dir, ppacket_dirname(p_val))
+        os.makedirs(subdir, exist_ok=True)
+    return run_dir, timestamp
+
+
+def build_default_sim_args(config: str, args: dict | None) -> dict:
+    default_args = {
+        "config": config,
+        "n_apps": 100,
+        "inst_range": (100, 100),
+        "epr_range": (2, 2),
+        "period_range": (110, 110),
+        "hyperperiod_cycles": 100,
+        "memory_lifetime": 200,
+        "p_swap": 0.95,
+        "p_gen": 1e-3,
+        "time_slot_duration": 1e-4,
+    }
+    if args:
+        default_args.update(args)
+    return default_args
+
+
+def build_tasks(
+    ppacket_values: Iterable[float],
+    simulations_per_point: int,
+    seed_start: int,
+    run_dir: str,
+    default_kwargs: dict,
+    n_apps: int,
+) -> list[tuple[Any, ...]]:
+    tasks = []
+    for p_idx, p_packet in enumerate(ppacket_values):
+        for trial_idx in range(simulations_per_point):
+            run_seed = seed_start + p_idx * simulations_per_point + trial_idx
+            tasks.append((p_packet, run_seed, run_dir, default_kwargs, n_apps))
+    return tasks
+
+
+def aggregate_metric(
+    data: pd.DataFrame,
+    column: str,
+    prefix: str,
+    clip: tuple[float | None, float | None] | None = None,
+    prefixed_bands: bool = True,
+) -> pd.DataFrame:
+    mean_col = f"mean_{prefix}"
+    std_col = f"std_{prefix}"
+    if prefixed_bands:
+        sem_col, ci_col, lower_col, upper_col = (
+            f"sem_{prefix}",
+            f"ci95_{prefix}",
+            f"lower_{prefix}",
+            f"upper_{prefix}",
+        )
+    else:
+        sem_col, ci_col, lower_col, upper_col = "sem", "ci95", "lower", "upper"
+
+    ordered_cols = [
+        "p_packet",
+        mean_col,
+        std_col,
+        "count",
+        sem_col,
+        ci_col,
+        lower_col,
+        upper_col,
+    ]
+    metric_df = data.dropna(subset=[column])
+    if metric_df.empty:
+        return pd.DataFrame(columns=ordered_cols)
+
+    grouped = (
+        metric_df.groupby("p_packet", as_index=False)
+        .agg(
+            mean=(column, "mean"),
+            std=(column, "std"),
+            count=(column, "count"),
+        )
+        .assign(
+            sem=lambda df: df["std"] / np.sqrt(df["count"].clip(lower=1)),
+        )
+    )
+
+    grouped["std"] = grouped["std"].fillna(0.0)
+    grouped["sem"] = grouped["sem"].fillna(0.0)
+
+    grouped["ci95"] = grouped["sem"] * 1.96
+    grouped["lower"] = grouped["mean"] - grouped["ci95"]
+    grouped["upper"] = grouped["mean"] + grouped["ci95"]
+
+    if clip is not None:
+        lo, hi = clip
+        grouped["lower"] = grouped["lower"].clip(lower=lo, upper=hi)
+        grouped["upper"] = grouped["upper"].clip(lower=lo, upper=hi)
+
+    grouped["count"] = grouped["count"].astype(int)
+    grouped = grouped.rename(
+        columns={
+            "mean": mean_col,
+            "std": std_col,
+            "sem": sem_col,
+            "ci95": ci_col,
+            "lower": lower_col,
+            "upper": upper_col,
+        }
+    )
+    return grouped[ordered_cols]
+
+
+def generate_metadata(
+    run_dir: str,
+    timestamp: str,
+    ppacket_values: Iterable[float],
+    simulations_per_point: int,
+    seed_start: int,
+    config: str,
+    save_path: str,
+    raw_csv_path: str,
+    default_kwargs: dict,
+    metrics_to_plot: list[dict[str, Any]],
+) -> None:
+    metrics_metadata = {
+        spec["key"]: {
+            "base_label": spec.get("base_label"),
+            "plot": (
+                os.path.basename(spec.get("plot_path", ""))
+                if spec.get("plot_path")
+                else None
+            ),
+            "summary_csv": os.path.basename(spec["csv_path"]),
+        }
+        for spec in metrics_to_plot
+    }
+    metadata = {
+        "timestamp": timestamp,
+        "output_dir": run_dir,
+        "ppacket_values": [float(v) for v in ppacket_values],
+        "simulations_per_point": simulations_per_point,
+        "seed_start": seed_start,
+        "config": config,
+        "save_path": save_path,
+        "raw_csv": os.path.basename(raw_csv_path),
+        "metrics": metrics_metadata,
+        "parameters": {k: default_kwargs[k] for k in default_kwargs},
+    }
+    with open(os.path.join(run_dir, "params.json"), "w") as f:
+        json.dump(metadata, f, indent=2, sort_keys=True)
