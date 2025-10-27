@@ -695,10 +695,10 @@ def plot_metrics_vs_ppacket(
 """
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
-    sweep_values = np.round(np.linspace(0.1, 1.0, 10), 2).tolist()
+    sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
     plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
         simulations_per_point=100,
-        config="configurations/network/Garr201201.gml",
+        config="configurations/network/Dumbbell.gml",
     )
 """

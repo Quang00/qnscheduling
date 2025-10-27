@@ -545,9 +545,9 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "n_apps": 100,
         "inst_range": (100, 100),
         "epr_range": (2, 2),
-        "period_range": (110, 110),
+        "period_range": (70, 70),
         "hyperperiod_cycles": 100,
-        "memory_lifetime": 200,
+        "memory_lifetime": 50,
         "p_swap": 0.95,
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
@@ -566,9 +566,11 @@ def build_tasks(
     n_apps: int,
 ) -> list[tuple[Any, ...]]:
     tasks = []
-    for p_idx, p_packet in enumerate(ppacket_values):
-        for trial_idx in range(simulations_per_point):
-            run_seed = seed_start + p_idx * simulations_per_point + trial_idx
+    seed_pool = [
+        seed_start + offset for offset in range(simulations_per_point)
+    ]
+    for p_packet in ppacket_values:
+        for run_seed in seed_pool:
             tasks.append((p_packet, run_seed, run_dir, default_kwargs, n_apps))
     return tasks
 
