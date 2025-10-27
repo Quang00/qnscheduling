@@ -633,7 +633,7 @@ def plot_metrics_vs_ppacket(
 
     set_plot_theme(dpi)
     palette = sns.color_palette("colorblind", len(metrics_to_plot))
-    aggregated_results: dict[str, pd.DataFrame] = {}
+    aggregated_results = {}
 
     for idx, spec in enumerate(metrics_to_plot):
         summary_df = aggregate_metric(
@@ -664,6 +664,15 @@ if __name__ == "__main__":
     plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
         simulations_per_point=100,
+        simulation_kwargs={
+            "n_apps": 100,
+            "inst_range": (100, 100),
+            "epr_range": (2, 2),
+            "period_range": (70, 70),
+            "hyperperiod_cycles": 100,
+            "memory_lifetime": 50,
+            "p_swap": 0.95,
+        },
         config="configurations/network/Dumbbell.gml",
     )
 """
