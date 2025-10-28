@@ -235,6 +235,7 @@ def save_results(
     print("\n=== Preview PGA Results ===")
     print(df.head(20).to_string(index=False))
 
+    total_link_utilization = float("nan")
     if link_utilization:
         link_util_rows = [
             {
@@ -249,6 +250,13 @@ def save_results(
             .sort_values("utilization", ascending=False)
             .reset_index(drop=True)
         )
+        if not link_util_df.empty and "utilization" in link_util_df.columns:
+            util_series = pd.to_numeric(
+                link_util_df["utilization"], errors="coerce"
+            ).replace([np.inf, -np.inf], np.nan)
+            valid_sum = util_series.dropna().sum()
+            if not np.isnan(valid_sum):
+                total_link_utilization = float(valid_sum)
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
         link_util_df.to_csv(link_util_path, index=False)
 
@@ -318,6 +326,8 @@ def save_results(
     print(f"Max turnaround   : {max_turnaround:.4f}")
     if pga_durations.size:
         print(f"Total PGA duration : {total_pga_duration:.4f}")
+    if np.isfinite(total_link_utilization):
+        print(f"Total link utilization : {total_link_utilization:.4f}")
 
     overall_df = pd.DataFrame(
         [
@@ -330,6 +340,7 @@ def save_results(
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
                 "total_pga_duration": float(total_pga_duration),
+                "total_link_utilization": float(total_link_utilization),
             }
         ]
     )
