@@ -596,6 +596,7 @@ def aggregate_metric(
 
     ordered_cols = [
         "p_packet",
+        "total",
         mean_col,
         std_col,
         "count",
@@ -611,6 +612,7 @@ def aggregate_metric(
     grouped = (
         metric_df.groupby("p_packet", as_index=False)
         .agg(
+            total=(column, "sum"),
             mean=(column, "mean"),
             std=(column, "std"),
             count=(column, "count"),
@@ -620,6 +622,7 @@ def aggregate_metric(
         )
     )
 
+    grouped["total"] = grouped["total"].astype(float)
     grouped["std"] = grouped["std"].fillna(0.0)
     grouped["sem"] = grouped["sem"].fillna(0.0)
 
