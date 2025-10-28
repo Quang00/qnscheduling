@@ -712,7 +712,7 @@ if __name__ == "__main__":
             "hyperperiod_cycles": 100,
             "memory_lifetime": 50,
             "p_swap": 0.95,
-            show_runs=True,
+            "show_runs": True,
         },
         config="configurations/network/Dumbbell.gml",
     )
