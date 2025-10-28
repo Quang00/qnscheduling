@@ -703,17 +703,17 @@ if __name__ == "__main__":
     sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
     plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
-        simulations_per_point=100,
+        simulations_per_point=5000,
         simulation_kwargs={
-            "n_apps": 100,
+            "n_apps": 1,
             "inst_range": (100, 100),
             "epr_range": (2, 2),
-            "period_range": (70, 70),
+            "period_range": (1, 1),
             "hyperperiod_cycles": 100,
-            "memory_lifetime": 50,
+            "memory_lifetime": 200,
             "p_swap": 0.95,
-            "show_runs": True,
         },
-        config="configurations/network/Dumbbell.gml",
+        config="configurations/network/Garr201201.gml",
+        show_runs=True,
     )
 """
