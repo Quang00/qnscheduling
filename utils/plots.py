@@ -434,6 +434,8 @@ def render_plot(
     figsize: tuple[float, float],
     dpi: int,
     simulations_per_point: int,
+    raw_data: Optional[pd.DataFrame] = None,
+    show_runs: bool = False,
 ) -> None:
     if summary_df.empty:
         return
@@ -458,6 +460,20 @@ def render_plot(
     x_vals = plot_df["p_packet"].to_numpy()
     lower_vals = plot_df[spec["lower_col"]].to_numpy()
     upper_vals = plot_df[spec["upper_col"]].to_numpy()
+
+    if show_runs and raw_data is not None and not raw_data.empty:
+        if spec["key"] in raw_data.columns:
+            scatter_df = raw_data[["p_packet", spec["key"]]].dropna()
+            if not scatter_df.empty:
+                ax.scatter(
+                    scatter_df["p_packet"],
+                    scatter_df[spec["key"]],
+                    s=18,
+                    color=color,
+                    linewidth=0.0,
+                    alpha=0.3,
+                    label="Runs",
+                )
 
     ax.fill_between(
         x_vals,
@@ -519,7 +535,22 @@ def render_plot(
     ax.set_ylabel(spec["ylabel"])
     ax.set_title(spec["title"], pad=6)
 
-    legend = ax.legend(frameon=False, loc="best", ncols=1)
+    handles, labels = ax.get_legend_handles_labels()
+    uniq_handles = []
+    uniq_labels = []
+    for handle, label in zip(handles, labels, strict=False):
+        if label in uniq_labels:
+            continue
+        uniq_handles.append(handle)
+        uniq_labels.append(label)
+
+    legend = ax.legend(
+        uniq_handles,
+        uniq_labels,
+        frameon=False,
+        loc="best",
+        ncols=1,
+    )
     if legend is not None:
         for handle in legend.legend_handles:
             handle.set_alpha(1.0)
@@ -555,6 +586,7 @@ def plot_metrics_vs_ppacket(
     dpi: int = 300,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
+    show_runs: bool = False,
 ) -> pd.DataFrame:
     """Run multiple simulations varying the packet generation probability.
 
@@ -576,6 +608,8 @@ def plot_metrics_vs_ppacket(
         parallel processing.
         show_progress (bool, optional): Whether to show progress bars during
         simulations.
+        show_runs (bool, optional): Plot individual simulation points when
+            True.
 
     Raises:
         RuntimeError: If no valid simulation data is generated.
@@ -636,8 +670,12 @@ def plot_metrics_vs_ppacket(
     aggregated_results = {}
 
     for idx, spec in enumerate(metrics_to_plot):
+        metric_data = results_df
+        if spec.get("requires_summary", False):
+            metric_data = results_df[results_df["has_summary"]]
+
         summary_df = aggregate_metric(
-            data=results_df,
+            data=metric_data,
             column=spec["key"],
             prefix=spec["prefix"],
             clip=spec.get("clip"),
@@ -652,6 +690,8 @@ def plot_metrics_vs_ppacket(
             figsize=figsize,
             dpi=dpi,
             simulations_per_point=simulations_per_point,
+            raw_data=metric_data if show_runs else None,
+            show_runs=show_runs,
         )
 
     return aggregated_results.get("admission_rate", pd.DataFrame())
@@ -672,6 +712,7 @@ if __name__ == "__main__":
             "hyperperiod_cycles": 100,
             "memory_lifetime": 50,
             "p_swap": 0.95,
+            show_runs=True,
         },
         config="configurations/network/Dumbbell.gml",
     )
