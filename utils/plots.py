@@ -400,9 +400,7 @@ def build_metric_specs(
             metric["base_label"] = plot_label
             metric["plot_path"] = save_path
         else:
-            base_label = (
-                f"{metric['key']}_vs_ppacket_n_tasks_{n_tasks}"
-            )
+            base_label = f"{metric['key']}_vs_ppacket_n_tasks_{n_tasks}"
             metric["base_label"] = base_label
             metric["plot_path"] = os.path.join(
                 run_dir,
@@ -437,17 +435,28 @@ def render_plot(
 
     data = data.dropna().reset_index(drop=True)
 
-    summary_df: Optional[pd.DataFrame] = None
+    summary_df = None
     if spec["plot_type"] == "line":
         summary_df = (
-            data.groupby("p_packet", as_index=False)[metric].mean()
+            data.groupby("p_packet", as_index=False)
+            .agg(
+                mean=(metric, "mean"),
+                std=(metric, lambda s: s.std(ddof=1)),
+                count=(metric, "count"),
+            )
+            .sort_values("p_packet")
+            .reset_index(drop=True)
         )
         if summary_df.empty:
             return summary_df
-        summary_df = summary_df.sort_values("p_packet").reset_index(drop=True)
-    else:
-        if data.empty:
-            return None
+
+        summary_df["sem"] = (
+            summary_df["std"] / np.sqrt(summary_df["count"])
+        ).where(summary_df["count"] >= 2)
+        summary_df["ci95"] = 1.96 * summary_df["sem"]
+        summary_df["lower"] = summary_df["mean"] - summary_df["ci95"]
+        summary_df["upper"] = summary_df["mean"] + summary_df["ci95"]
+        summary_df[metric] = summary_df["mean"]
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
@@ -462,6 +471,15 @@ def render_plot(
             color=color,
             ax=ax,
         )
+        if not summary_df[["lower", "upper"]].isnull().values.all():
+            ax.fill_between(
+                summary_df["p_packet"],
+                summary_df["lower"],
+                summary_df["upper"],
+                color=color,
+                alpha=0.18,
+                linewidth=0,
+            )
         ax.margins(x=0.02)
     else:
         labelled = data.assign(
@@ -481,11 +499,18 @@ def render_plot(
             ax=ax,
         )
 
-    series = (
-        summary_df[metric].to_numpy()
-        if summary_df is not None
-        else data[metric].to_numpy()
-    )
+    if summary_df is not None:
+        stacked = [summary_df[metric].to_numpy()]
+        if "lower" in summary_df.columns and "upper" in summary_df.columns:
+            stacked.extend(
+                [
+                    summary_df["lower"].to_numpy(),
+                    summary_df["upper"].to_numpy(),
+                ]
+            )
+        series = np.concatenate(stacked)
+    else:
+        series = data[metric].to_numpy()
     values = np.asarray(series, dtype=float)
 
     y_min = spec.get("ymin")
