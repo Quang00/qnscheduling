@@ -293,19 +293,17 @@ def build_metric_specs(
         },
         {
             "key": "throughput",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Throughput (jobs/s)",
             "title": (
                 r"Throughput vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.3f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
         },
         {
             "key": "completed_ratio",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Completed ratio",
             "title": (
                 r"Completed Ratio vs $p_{\mathrm{packet}}$ "
