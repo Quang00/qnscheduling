@@ -19,7 +19,6 @@ from tqdm.auto import tqdm
 from scheduling.main import run_simulation
 from scheduling.pga import duration_pga
 from utils.helper import (
-    aggregate_metric,
     build_default_sim_args,
     build_tasks,
     generate_metadata,
@@ -195,9 +194,9 @@ def simulate_one_ppacket(args: tuple) -> dict:
         util_df = pd.read_csv(link_util_path)
         if not util_df.empty and "utilization" in util_df.columns:
             util_values = (
-                util_df["utilization"].astype(float).replace(
-                    [np.inf, -np.inf], np.nan
-                )
+                util_df["utilization"]
+                .astype(float)
+                .replace([np.inf, -np.inf], np.nan)
             )
             util_array = util_values.to_numpy()
             util_mask = np.isfinite(util_array)
@@ -211,7 +210,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
                 )
 
     pga_duration_total = summary_metrics.get(
-        "total_pga_duration", float("nan")
+        "total_pga_duration",
+        float("nan"),
     )
     if (not np.isfinite(pga_duration_total)) and durations:
         duration_vals = np.array(list(durations.values()), dtype=float)
@@ -266,26 +266,25 @@ def build_metric_specs(
     metrics = [
         {
             "key": "admission_rate",
-            "prefix": "admission",
+            "plot_type": "line",
             "ylabel": "Admission rate",
             "title": (
-                rf"Admission Rate vs $p_{{\mathrm{{packet}}}}$ "
+                r"Admission Rate vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "percentage": True,
             "clip": (0.0, 1.0),
             "ymin": 0.0,
             "ymax": 1.0,
             "format_str": "{:.2f}",
-            "include_in_return": True,
-            "prefixed_columns": False,
+            "percentage": True,
+            "auto_ylim": False,
         },
         {
             "key": "makespan",
-            "prefix": "makespan",
+            "plot_type": "violin",
             "ylabel": "Makespan (s)",
             "title": (
-                rf"Makespan vs $p_{{\mathrm{{packet}}}}$ "
+                r"Makespan vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.1f}",
@@ -294,10 +293,10 @@ def build_metric_specs(
         },
         {
             "key": "throughput",
-            "prefix": "throughput",
+            "plot_type": "violin",
             "ylabel": "Throughput (jobs/s)",
             "title": (
-                rf"Throughput vs $p_{{\mathrm{{packet}}}}$ "
+                r"Throughput vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.3f}",
@@ -306,23 +305,23 @@ def build_metric_specs(
         },
         {
             "key": "completed_ratio",
-            "prefix": "completed_ratio",
+            "plot_type": "violin",
             "ylabel": "Completed ratio",
             "title": (
-                rf"Completed Ratio vs $p_{{\mathrm{{packet}}}}$ "
+                r"Completed Ratio vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "clip": (0.0, 1.0),
-            "ymin": 0.0,
-            "ymax": 1.0,
             "format_str": "{:.2f}",
+            "percentage": True,
+            "auto_ylim": False,
         },
         {
             "key": "avg_waiting_time",
-            "prefix": "avg_waiting_time",
-            "ylabel": "Average waiting time (s)",
+            "plot_type": "violin",
+            "ylabel": "Average Waiting Time (s)",
             "title": (
-                rf"Average Waiting Time vs $p_{{\mathrm{{packet}}}}$ "
+                r"Average Waiting Time vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.2f}",
@@ -331,10 +330,10 @@ def build_metric_specs(
         },
         {
             "key": "max_waiting_time",
-            "prefix": "max_waiting_time",
-            "ylabel": "Max waiting time (s)",
+            "plot_type": "violin",
+            "ylabel": "Max Waiting Time (s)",
             "title": (
-                rf"Max Waiting Time vs $p_{{\mathrm{{packet}}}}$ "
+                r"Max Waiting Time vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.2f}",
@@ -343,10 +342,10 @@ def build_metric_specs(
         },
         {
             "key": "avg_turnaround_time",
-            "prefix": "avg_turnaround_time",
-            "ylabel": "Average turnaround time (s)",
+            "plot_type": "violin",
+            "ylabel": "Average Turnaround Time (s)",
             "title": (
-                rf"Average Turnaround Time vs $p_{{\mathrm{{packet}}}}$ "
+                r"Average Turnaround Time vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.2f}",
@@ -355,10 +354,10 @@ def build_metric_specs(
         },
         {
             "key": "pga_duration_total",
-            "prefix": "pga_duration_total",
+            "plot_type": "violin",
             "ylabel": "Total PGA duration (s)",
             "title": (
-                rf"Total PGA Duration vs $p_{{\mathrm{{packet}}}}$ "
+                r"Total PGA Duration vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
             "format_str": "{:.2f}",
@@ -368,30 +367,30 @@ def build_metric_specs(
         },
         {
             "key": "avg_link_utilization",
-            "prefix": "avg_link_utilization",
-            "ylabel": "Mean link utilization",
+            "plot_type": "violin",
+            "ylabel": "Average Link Utilization",
             "title": (
-                rf"Mean Link Utilization vs $p_{{\mathrm{{packet}}}}$ "
+                r"Average Link Utilization vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "percentage": True,
             "clip": (None, 1.0),
             "format_str": "{:.2f}",
+            "percentage": True,
             "auto_ylim": True,
             "pad_fraction": 0.1,
             "percentage_format": "{:.2f}%",
         },
         {
             "key": "max_link_utilization",
-            "prefix": "max_link_utilization",
+            "plot_type": "violin",
             "ylabel": "Max link utilization",
             "title": (
-                rf"Max Link Utilization vs $p_{{\mathrm{{packet}}}}$ "
+                r"Max Link Utilization vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "percentage": True,
             "clip": (None, 1.0),
             "format_str": "{:.2f}",
+            "percentage": True,
             "auto_ylim": True,
             "pad_fraction": 0.1,
             "percentage_format": "{:.2f}%",
@@ -399,134 +398,149 @@ def build_metric_specs(
     ]
 
     for metric in metrics:
-        prefix = metric["prefix"]
-        metric["mean_col"] = f"mean_{prefix}"
-        metric["std_col"] = f"std_{prefix}"
-        if metric.get("prefixed_columns", True):
-            metric["sem_col"] = f"sem_{prefix}"
-            metric["ci_col"] = f"ci95_{prefix}"
-            metric["lower_col"] = f"lower_{prefix}"
-            metric["upper_col"] = f"upper_{prefix}"
-        else:
-            metric["sem_col"] = "sem"
-            metric["ci_col"] = "ci95"
-            metric["lower_col"] = "lower"
-            metric["upper_col"] = "upper"
-
-    for metric in metrics:
         if metric["key"] == "admission_rate":
             metric["base_label"] = plot_label
             metric["plot_path"] = save_path
-            metric["csv_path"] = os.path.join(run_dir, f"{plot_label}.csv")
         else:
-            base_label = f"{metric['key']}_vs_ppacket_n_tasks_{n_tasks}"
+            base_label = (
+                f"{metric['key']}_vs_ppacket_n_tasks_{n_tasks}"
+            )
             metric["base_label"] = base_label
-            metric["plot_path"] = os.path.join(run_dir, f"{base_label}.png")
-            metric["csv_path"] = os.path.join(run_dir, f"{base_label}.csv")
+            metric["plot_path"] = os.path.join(
+                run_dir,
+                f"{base_label}.png",
+            )
 
     return metrics
 
 
 def render_plot(
-    summary_df: pd.DataFrame,
-    spec: dict,
+    spec: dict[str, Any],
+    raw_data: pd.DataFrame,
     color,
     figsize: tuple[float, float],
     dpi: int,
     simulations_per_point: int,
-    raw_data: Optional[pd.DataFrame] = None,
-    show_runs: bool = False,
-) -> None:
-    if summary_df.empty:
-        return
-    plot_df = summary_df.dropna(subset=[spec["mean_col"]]).copy()
-    if plot_df.empty:
-        return
+) -> Optional[pd.DataFrame]:
+
+    metric = spec["key"]
+    if metric not in raw_data.columns:
+        return None
+
+    data = raw_data[["p_packet", metric]].copy()
+    data["p_packet"] = pd.to_numeric(data["p_packet"], errors="coerce")
+    data[metric] = pd.to_numeric(data[metric], errors="coerce")
+    data = data.replace([np.inf, -np.inf], np.nan)
+
+    clip_bounds = spec.get("clip")
+    if clip_bounds is not None:
+        lo, hi = clip_bounds
+        data[metric] = data[metric].clip(lower=lo, upper=hi)
+
+    data = data.dropna().reset_index(drop=True)
+
+    summary_df: Optional[pd.DataFrame] = None
+    if spec["plot_type"] == "line":
+        summary_df = (
+            data.groupby("p_packet", as_index=False)[metric].mean()
+        )
+        if summary_df.empty:
+            return summary_df
+        summary_df = summary_df.sort_values("p_packet").reset_index(drop=True)
+    else:
+        if data.empty:
+            return None
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-    sns.lineplot(
-        data=plot_df,
-        x="p_packet",
-        y=spec["mean_col"],
-        marker="o",
-        linewidth=2.0,
-        markersize=5.5,
-        ax=ax,
-        color=color,
-        label="Mean",
+    if spec["plot_type"] == "line":
+        sns.lineplot(
+            data=summary_df,
+            x="p_packet",
+            y=metric,
+            marker="o",
+            linewidth=2.0,
+            markersize=5.0,
+            color=color,
+            ax=ax,
+        )
+        ax.margins(x=0.02)
+    else:
+        labelled = data.assign(
+            p_packet_label=data["p_packet"].map(lambda val: f"{val:g}")
+        )
+        order = [f"{val:g}" for val in sorted(data["p_packet"].unique())]
+        sns.violinplot(
+            data=labelled,
+            x="p_packet_label",
+            y=metric,
+            order=order,
+            cut=0,
+            inner="stick",
+            density_norm="count",
+            color=color,
+            linewidth=0.8,
+            ax=ax,
+        )
+
+    series = (
+        summary_df[metric].to_numpy()
+        if summary_df is not None
+        else data[metric].to_numpy()
     )
+    values = np.asarray(series, dtype=float)
 
-    x_vals = plot_df["p_packet"].to_numpy()
-    lower_vals = plot_df[spec["lower_col"]].to_numpy()
-    upper_vals = plot_df[spec["upper_col"]].to_numpy()
+    y_min = spec.get("ymin")
+    y_max = spec.get("ymax")
 
-    if show_runs and raw_data is not None and not raw_data.empty:
-        if spec["key"] in raw_data.columns:
-            scatter_df = raw_data[["p_packet", spec["key"]]].dropna()
-            if not scatter_df.empty:
-                ax.scatter(
-                    scatter_df["p_packet"],
-                    scatter_df[spec["key"]],
-                    s=18,
-                    color=color,
-                    linewidth=0.0,
-                    alpha=0.3,
-                    label="Runs",
-                )
+    auto_ylim = spec.get("auto_ylim", True)
+    if auto_ylim and values.size:
+        finite = values[np.isfinite(values)]
+        if finite.size:
+            data_min = float(finite.min())
+            data_max = float(finite.max())
+            if data_min == data_max:
+                pad = max(abs(data_min) * 0.05, 1e-6)
+                data_min -= pad
+                data_max += pad
+            else:
+                pad = spec.get("pad_fraction", 0.05)
+                span = data_max - data_min
+                data_min -= span * pad
+                data_max += span * pad
+            if y_min is None:
+                y_min = data_min
+            else:
+                y_min = max(y_min, data_min)
+            if y_max is None:
+                y_max = data_max
+            else:
+                y_max = min(y_max, data_max)
 
-    ax.fill_between(
-        x_vals,
-        lower_vals,
-        upper_vals,
-        alpha=0.18,
-        color=color,
-        label="95% CI",
-        linewidth=0,
-        zorder=0,
-    )
+    if clip_bounds is not None:
+        lo, hi = clip_bounds
+        if lo is not None:
+            y_min = lo if y_min is None else max(y_min, lo)
+        if hi is not None:
+            y_max = hi if y_max is None else min(y_max, hi)
 
-    if plot_df["p_packet"].nunique() > 1:
-        ax.set_xlim(plot_df["p_packet"].min(), plot_df["p_packet"].max())
-
-    y_min, y_max = spec.get("ymin"), spec.get("ymax")
-    if spec.get("auto_ylim"):
-        data_min, data_max = np.nanmin(lower_vals), np.nanmax(upper_vals)
-        if np.isfinite(data_min) and np.isfinite(data_max):
-            pad_frac = spec.get("pad_fraction", 0.05)
-            span = data_max - data_min
-            pad = (
-                (max(abs(data_max), 1.0) * pad_frac)
-                if span <= 1e-9
-                else (span * pad_frac)
-            )
-            y_min, y_max = data_min - pad, data_max + pad
-            low_clip, high_clip = spec.get("clip", (None, None))
-            if low_clip is not None:
-                y_min = max(y_min, low_clip)
-            if high_clip is not None:
-                y_max = min(y_max, high_clip)
-
-    bottom, top = ax.get_ylim()
-    bottom = y_min if y_min is not None else bottom
-    top = y_max if y_max is not None else top
-    if not spec.get("auto_ylim") and y_min is None and y_max is None:
-        bottom = 0.0
-    if top <= bottom:
-        top = bottom + max(abs(bottom) * 0.05, 1e-6)
-    ax.set_ylim(bottom, top)
+    if y_min is not None or y_max is not None:
+        ax.set_ylim(y_min, y_max)
 
     if spec.get("percentage"):
         pct_fmt = spec.get("percentage_format", "{:.1f}%")
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda y, _: pct_fmt.format(y * 100.0))
+            FuncFormatter(lambda val, _: pct_fmt.format(val * 100.0))
         )
     else:
         fmt = spec.get("format_str", "{:.2f}")
-        ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: fmt.format(y)))
+        ax.yaxis.set_major_formatter(
+            FuncFormatter(lambda val, _: fmt.format(val))
+        )
 
+    if spec["plot_type"] == "line":
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
     ax.yaxis.set_minor_locator(AutoMinorLocator())
-    ax.xaxis.set_minor_locator(AutoMinorLocator())
     ax.grid(True, which="major", linewidth=0.6)
     ax.grid(True, which="minor", linewidth=0.3, alpha=0.2)
     sns.despine(ax=ax)
@@ -534,26 +548,6 @@ def render_plot(
     ax.set_xlabel(r"$p_{\mathrm{packet}}$")
     ax.set_ylabel(spec["ylabel"])
     ax.set_title(spec["title"], pad=6)
-
-    handles, labels = ax.get_legend_handles_labels()
-    uniq_handles = []
-    uniq_labels = []
-    for handle, label in zip(handles, labels, strict=False):
-        if label in uniq_labels:
-            continue
-        uniq_handles.append(handle)
-        uniq_labels.append(label)
-
-    legend = ax.legend(
-        uniq_handles,
-        uniq_labels,
-        frameon=False,
-        loc="best",
-        ncols=1,
-    )
-    if legend is not None:
-        for handle in legend.legend_handles:
-            handle.set_alpha(1.0)
 
     ax.text(
         0.99,
@@ -566,12 +560,14 @@ def render_plot(
         color="#444",
     )
 
-    fig.tight_layout()
     directory = os.path.dirname(spec["plot_path"])
     if directory:
         os.makedirs(directory, exist_ok=True)
+    fig.tight_layout()
     fig.savefig(spec["plot_path"], bbox_inches="tight")
     plt.close(fig)
+
+    return summary_df
 
 
 def plot_metrics_vs_ppacket(
@@ -586,7 +582,6 @@ def plot_metrics_vs_ppacket(
     dpi: int = 300,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
-    show_runs: bool = False,
 ) -> pd.DataFrame:
     """Run multiple simulations varying the packet generation probability.
 
@@ -608,11 +603,6 @@ def plot_metrics_vs_ppacket(
         parallel processing.
         show_progress (bool, optional): Whether to show progress bars during
         simulations.
-        show_runs (bool, optional): Plot individual simulation points when
-            True.
-
-    Raises:
-        RuntimeError: If no valid simulation data is generated.
 
     Returns:
         pd.DataFrame: DataFrame containing the aggregated simulation results.
@@ -623,7 +613,7 @@ def plot_metrics_vs_ppacket(
 
     run_dir, timestamp = prepare_run_dir(output_dir, ppacket_values)
     save_path = save_path or os.path.join(run_dir, f"{plot_label}.png")
-    raw_csv_path = os.path.join(run_dir, f"{plot_label}_raw.csv")
+    raw_csv_path = os.path.join(run_dir, f"{timestamp}_raw.csv")
 
     metrics_to_plot = build_metric_specs(
         n_tasks=n_apps_value,
@@ -666,35 +656,26 @@ def plot_metrics_vs_ppacket(
     results_df.to_csv(raw_csv_path, index=False)
 
     set_plot_theme(dpi)
-    palette = sns.color_palette("colorblind", len(metrics_to_plot))
-    aggregated_results = {}
+    palette = sns.color_palette("Set2", len(metrics_to_plot))
 
+    admission_summary = pd.DataFrame()
     for idx, spec in enumerate(metrics_to_plot):
-        metric_data = results_df
-        if spec.get("requires_summary", False):
-            metric_data = results_df[results_df["has_summary"]]
-
-        summary_df = aggregate_metric(
-            data=metric_data,
-            column=spec["key"],
-            prefix=spec["prefix"],
-            clip=spec.get("clip"),
-            prefixed_columns=spec.get("prefixed_columns", True),
-        )
-        aggregated_results[spec["key"]] = summary_df
-        summary_df.to_csv(spec["csv_path"], index=False)
-        render_plot(
-            summary_df=summary_df,
+        summary_df = render_plot(
             spec=spec,
+            raw_data=results_df,
             color=palette[idx % len(palette)],
             figsize=figsize,
             dpi=dpi,
             simulations_per_point=simulations_per_point,
-            raw_data=metric_data if show_runs else None,
-            show_runs=show_runs,
         )
+        if (
+            spec["key"] == "admission_rate"
+            and summary_df is not None
+            and not summary_df.empty
+        ):
+            admission_summary = summary_df
 
-    return aggregated_results.get("admission_rate", pd.DataFrame())
+    return admission_summary
 
 
 """
@@ -714,6 +695,5 @@ if __name__ == "__main__":
             "p_swap": 0.95,
         },
         config="configurations/network/Garr201201.gml",
-        show_runs=True,
     )
 """

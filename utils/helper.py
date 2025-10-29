@@ -173,8 +173,8 @@ def save_results(
             - policy: Scheduling policy used for the PGA
         pga_names (List): List of all PGA names that should be present in the
         results.
-    pga_release_times (Dict): Dictionary mapping PGA names to their
-    relative release times, used to fill in missing PGAs.
+        pga_release_times (Dict): Dictionary mapping PGA names to their
+        relative release times, used to fill in missing PGAs.
         apps (Dict): Dictionary mapping application names to their source and
         destination nodes.
         instances (Dict): Dictionary mapping application names to the number of
@@ -672,18 +672,17 @@ def generate_metadata(
     default_kwargs: dict,
     metrics_to_plot: list[dict[str, Any]],
 ) -> None:
-    metrics_metadata = {
-        spec["key"]: {
+    metrics_metadata = {}
+    for spec in metrics_to_plot:
+        metrics_metadata[spec["key"]] = {
             "base_label": spec.get("base_label"),
             "plot": (
                 os.path.basename(spec.get("plot_path", ""))
                 if spec.get("plot_path")
                 else None
             ),
-            "summary_csv": os.path.basename(spec["csv_path"]),
+            "plot_type": spec.get("plot_type"),
         }
-        for spec in metrics_to_plot
-    }
     metadata = {
         "timestamp": timestamp,
         "output_dir": run_dir,

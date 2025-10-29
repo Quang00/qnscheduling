@@ -234,10 +234,10 @@ def simulate_periodicity(
         pga_rel_times (Dict[str, float]): Relative release times for each PGA.
         pga_periods (Dict[str, float]): Periods for each PGA, indicating the
         time interval between successive releases of the PGA.
-    pga_network_paths (Dict[str, list[str]]): List of nodes for each PGA's
-    path in the network.
-    policies (Dict[str, str]): Scheduling policy for each PGA. This can be
-    "best_effort" or "deadline".
+        pga_network_paths (Dict[str, list[str]]): List of nodes for each PGA's
+        path in the network.
+        policies (Dict[str, str]): Scheduling policy for each PGA. This can be
+        "best_effort" or "deadline".
         rng (np.random.Generator): Random number generator for probabilistic
         events.
 
