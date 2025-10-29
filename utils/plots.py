@@ -354,7 +354,7 @@ def build_metric_specs(
         },
         {
             "key": "pga_duration_total",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Total PGA duration (s)",
             "title": (
                 r"Total PGA Duration vs $p_{\mathrm{packet}}$ "
@@ -476,7 +476,7 @@ def render_plot(
             y=metric,
             order=order,
             cut=0,
-            inner="stick",
+            inner="quartile",
             density_norm="count",
             color=color,
             linewidth=0.8,
@@ -656,7 +656,7 @@ def plot_metrics_vs_ppacket(
     results_df.to_csv(raw_csv_path, index=False)
 
     set_plot_theme(dpi)
-    palette = sns.color_palette("Set2", len(metrics_to_plot))
+    palette = sns.color_palette("colorblind", len(metrics_to_plot))
 
     admission_summary = pd.DataFrame()
     for idx, spec in enumerate(metrics_to_plot):
