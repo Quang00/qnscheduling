@@ -272,7 +272,6 @@ def build_metric_specs(
                 r"Admission Rate vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "clip": (0.0, 1.0),
             "ymin": 0.0,
             "ymax": 1.0,
             "format_str": "{:.2f}",
@@ -309,7 +308,6 @@ def build_metric_specs(
                 r"Completed Ratio vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "clip": (0.0, 1.0),
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": False,
@@ -352,7 +350,7 @@ def build_metric_specs(
         },
         {
             "key": "pga_duration_total",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Total PGA duration (s)",
             "title": (
                 r"Total PGA Duration vs $p_{\mathrm{packet}}$ "
@@ -361,7 +359,6 @@ def build_metric_specs(
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
-            "clip": (0.0, None),
         },
         {
             "key": "avg_link_utilization",
@@ -371,7 +368,6 @@ def build_metric_specs(
                 r"Average Link Utilization vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "clip": (None, 1.0),
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": True,
@@ -386,7 +382,6 @@ def build_metric_specs(
                 r"Max Link Utilization vs $p_{\mathrm{packet}}$ "
                 f"(n_tasks={n_tasks})"
             ),
-            "clip": (None, 1.0),
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": True,
@@ -427,12 +422,6 @@ def render_plot(
     data["p_packet"] = pd.to_numeric(data["p_packet"], errors="coerce")
     data[metric] = pd.to_numeric(data[metric], errors="coerce")
     data = data.replace([np.inf, -np.inf], np.nan)
-
-    clip_bounds = spec.get("clip")
-    if clip_bounds is not None:
-        lo, hi = clip_bounds
-        data[metric] = data[metric].clip(lower=lo, upper=hi)
-
     data = data.dropna().reset_index(drop=True)
 
     summary_df = None
@@ -539,13 +528,6 @@ def render_plot(
                 y_max = data_max
             else:
                 y_max = min(y_max, data_max)
-
-    if clip_bounds is not None:
-        lo, hi = clip_bounds
-        if lo is not None:
-            y_min = lo if y_min is None else max(y_min, lo)
-        if hi is not None:
-            y_max = hi if y_max is None else min(y_max, hi)
 
     if y_min is not None or y_max is not None:
         ax.set_ylim(y_min, y_max)
