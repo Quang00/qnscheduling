@@ -192,6 +192,7 @@ def run_simulation(
         epr_pairs,
         policies,
         durations=durations,
+        length_edges=len(edges),
         link_utilization=link_utilization,
         output_dir=output_dir,
     )

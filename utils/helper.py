@@ -148,6 +148,7 @@ def save_results(
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
     policies: Dict[str, str],
+    length_edges: int,
     durations: Dict[str, float] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
     output_dir: str = "results",
@@ -183,6 +184,7 @@ def save_results(
         EPR pairs.
         policies (Dict): Dictionary mapping application names to their
         scheduling policies.
+        length_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
         durations per application.
         link_utilization (Dict): Dictionary mapping links to busy time and
@@ -235,7 +237,7 @@ def save_results(
     print("\n=== Preview PGA Results ===")
     print(df.head(20).to_string(index=False))
 
-    total_link_utilization = float("nan")
+    avg_link_utilization = float("nan")
     if link_utilization:
         link_util_rows = [
             {
@@ -256,7 +258,7 @@ def save_results(
             ).replace([np.inf, -np.inf], np.nan)
             valid_sum = util_series.dropna().sum()
             if not np.isnan(valid_sum):
-                total_link_utilization = float(valid_sum)
+                avg_link_utilization = float(valid_sum) / length_edges
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
         link_util_df.to_csv(link_util_path, index=False)
 
@@ -326,8 +328,8 @@ def save_results(
     print(f"Max turnaround   : {max_turnaround:.4f}")
     if pga_durations.size:
         print(f"Total PGA duration : {total_pga_duration:.4f}")
-    if np.isfinite(total_link_utilization):
-        print(f"Total link utilization : {total_link_utilization:.4f}")
+    if np.isfinite(avg_link_utilization):
+        print(f"Total link utilization : {avg_link_utilization:.4f}")
 
     overall_df = pd.DataFrame(
         [
@@ -340,7 +342,7 @@ def save_results(
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
                 "total_pga_duration": float(total_pga_duration),
-                "total_link_utilization": float(total_link_utilization),
+                "avg_link_utilization": float(avg_link_utilization),
             }
         ]
     )
@@ -674,7 +676,7 @@ def generate_metadata(
 ) -> None:
     metrics_metadata = {}
     for spec in metrics_to_plot:
-        metrics_metadata[spec["key"]] = {
+        entry = {
             "base_label": spec.get("base_label"),
             "plot": (
                 os.path.basename(spec.get("plot_path", ""))
@@ -683,6 +685,7 @@ def generate_metadata(
             ),
             "plot_type": spec.get("plot_type"),
         }
+        metrics_metadata[spec["key"]] = entry
     metadata = {
         "timestamp": timestamp,
         "output_dir": run_dir,

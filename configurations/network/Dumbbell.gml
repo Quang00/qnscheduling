@@ -3,7 +3,7 @@ graph [
   directed 0
   stats [
     nodes 8
-    links 9
+    links 7
     min_degree 1
     max_degree 4
   ]
