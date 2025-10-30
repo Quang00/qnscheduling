@@ -1,8 +1,9 @@
+import math
 import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import redirect_stdout
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -13,6 +14,7 @@ from matplotlib.ticker import (
     AutoMinorLocator,
     FuncFormatter,
     LogFormatterMathtext,
+    PercentFormatter,
 )
 from tqdm.auto import tqdm
 
@@ -301,7 +303,7 @@ def build_metric_specs(
         },
         {
             "key": "throughput",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Throughput (jobs/s)",
             "title": (
                 r"Throughput vs $p_{\mathrm{packet}}$ "
@@ -311,7 +313,7 @@ def build_metric_specs(
         },
         {
             "key": "completed_ratio",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Completed ratio",
             "title": (
                 r"Completed Ratio vs $p_{\mathrm{packet}}$ "
@@ -584,6 +586,244 @@ def render_plot(
     return summary_df
 
 
+def render_histogram(
+    spec: dict[str, Any],
+    raw_data: pd.DataFrame,
+    p_packet: float | Sequence[float],
+    save_path: str,
+    bins: int,
+    figsize: tuple[float, float],
+    dpi: int,
+    color,
+) -> str:
+    metric = spec["key"]
+    if "p_packet" not in raw_data.columns or metric not in raw_data.columns:
+        raise ValueError(
+            f"Columns 'p_packet' and '{metric}' must be present."
+        )
+
+    if isinstance(p_packet, (list, tuple, set, np.ndarray)):
+        requested_p = [float(val) for val in p_packet]
+    else:
+        requested_p = [float(p_packet)]
+
+    seen = set()
+    ordered_p = []
+    for value in requested_p:
+        if value not in seen:
+            ordered_p.append(value)
+            seen.add(value)
+    requested_p = ordered_p
+
+    p_series = pd.to_numeric(raw_data["p_packet"], errors="coerce")
+    mtrc_series = pd.to_numeric(raw_data[metric], errors="coerce")
+
+    frames = []
+    labels = []
+    for p_val in requested_p:
+        mask = np.isfinite(p_series) & np.isclose(
+            p_series.to_numpy(dtype=float),
+            p_val,
+            rtol=1e-9,
+            atol=1e-12,
+        )
+        subset = mtrc_series[mask].replace([np.inf, -np.inf], np.nan).dropna()
+
+        subset = subset[np.isfinite(subset.to_numpy(dtype=float))]
+        if subset.empty:
+            continue
+        label = f"{p_val:g}"
+        labels.append(label)
+        frames.append(
+            pd.DataFrame(
+                {
+                    "value": subset.to_numpy(dtype=float),
+                    "p_packet_label": label,
+                }
+            )
+        )
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined_values = combined["value"].to_numpy(dtype=float)
+    bin_edges = np.histogram_bin_edges(combined_values, bins=bins)
+
+    palette = sns.color_palette("tab10", max(len(labels), 1))
+    palette = list(palette[: len(labels)])
+    if color is not None and palette:
+        palette[0] = color
+
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    if len(labels) > 1:
+        line_styles = ["-", "--", "-.", ":"]
+        alpha_values = np.linspace(0.65, 0.35, len(labels))
+        for idx, label in enumerate(labels):
+            values = combined.loc[combined["p_packet_label"] == label, "value"]
+            sns.histplot(
+                values,
+                bins=bin_edges,
+                stat="probability",
+                color=palette[idx],
+                element="poly",
+                fill=True,
+                alpha=float(alpha_values[idx]),
+                linewidth=1.6,
+                line_kws={"linestyle": line_styles[idx % len(line_styles)]},
+                ax=ax,
+                label=label,
+            )
+        ax.legend(
+            title=r"$p_{\mathrm{packet}}$",
+            frameon=False,
+            loc="upper right",
+        )
+    else:
+        sns.histplot(
+            combined["value"],
+            bins=bin_edges,
+            stat="probability",
+            color=palette[0],
+            edgecolor="#ffffff",
+            linewidth=0.6,
+            ax=ax,
+        )
+
+    x_label = spec.get("ylabel") or metric.replace("_", " ").title()
+    ax.set_xlabel(x_label)
+    ax.set_ylabel("Frequency (%)")
+
+    title_base = spec.get("title") or metric.replace("_", " ").title()
+    if len(labels) == 1:
+        subtitle = r"$p_{\mathrm{packet}}$ = " + labels[0]
+    else:
+        subtitle = r"$p_{\mathrm{packet}}$ = " + ", ".join(labels)
+    ax.set_title(f"{title_base}\n{subtitle}")
+
+    if len(labels) == 1:
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+
+    if spec.get("percentage"):
+        pct_fmt = spec.get("percentage_format", "{:.1f}%")
+        ax.xaxis.set_major_formatter(
+            FuncFormatter(lambda val, _: pct_fmt.format(val * 100.0))
+        )
+    else:
+        fmt = spec.get("format_str", "{:.2f}")
+
+        def format_small(val: float, _pos: int) -> str:
+            if val == 0.0:
+                return ""
+            magnitude = abs(val)
+            if magnitude < 1e-4 or magnitude >= 1e4:
+                return f"{val:.2e}"
+            if magnitude < 1.0:
+                raw_decimals = int(math.ceil(-math.log10(magnitude))) + 2
+                decimals = min(5, max(2, raw_decimals))
+                pattern = "{:." + str(decimals) + "f}"
+                return pattern.format(val)
+            return fmt.format(val)
+
+        ax.xaxis.set_major_locator(plt.MaxNLocator(5, prune="upper"))
+        ax.xaxis.set_major_formatter(FuncFormatter(format_small))
+
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=1))
+    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.35)
+    sns.despine(ax=ax)
+
+    directory = os.path.dirname(save_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(save_path, bbox_inches="tight")
+    plt.close(fig)
+
+    return save_path
+
+
+def plot_metric_histogram(
+    raw_data: pd.DataFrame | str,
+    metric: str,
+    p_packet: float | Sequence[float],
+    output_dir: str | None = None,
+    bins: int = 40,
+    figsize: tuple[float, float] = (7.5, 4.5),
+    dpi: int = 300,
+    metrics: list[dict[str, Any]] | None = None,
+    color=None,
+    filename: str | None = None,
+) -> str:
+    source_path: str | None = None
+    if not isinstance(raw_data, pd.DataFrame):
+        source_path = raw_data
+        results_df = pd.read_csv(raw_data)
+    else:
+        results_df = raw_data.copy()
+
+    spec: dict[str, Any] | None = None
+    if metrics is not None:
+        spec = next(
+            (entry for entry in metrics if entry.get("key") == metric),
+            None,
+        )
+        if spec is not None:
+            spec = spec.copy()
+
+    if spec is None:
+        label = metric.replace("_", " ").title()
+        spec = {
+            "key": metric,
+            "ylabel": label,
+            "title": label,
+            "percentage": False,
+            "format_str": "{:.2f}",
+        }
+
+    if metric == "pga_duration_total":
+        spec["title"] = "Total PGA Duration"
+        spec["ylabel"] = "Total PGA Duration (s)"
+
+    target_color = color or sns.color_palette("colorblind", 1)[0]
+    set_plot_theme(dpi)
+
+    if isinstance(p_packet, (list, tuple, set, np.ndarray)):
+        p_values = [float(val) for val in p_packet]
+    else:
+        p_values = [float(p_packet)]
+
+    if source_path:
+        base_dir = os.path.dirname(os.path.abspath(source_path))
+    elif output_dir:
+        base_dir = output_dir
+    else:
+        base_dir = os.getcwd()
+
+    if len(p_values) == 1:
+        suffix = ppacket_dirname(p_values[0])
+    else:
+        compact_labels = [
+            ppacket_dirname(val).replace("ppacket_", "") for val in p_values
+        ]
+        suffix = "ppacket_" + "_".join(compact_labels)
+
+    hist_filename = filename or f"hist_{metric}_{suffix}.png"
+    hist_path = os.path.join(base_dir, hist_filename)
+
+    render_histogram(
+        spec=spec,
+        raw_data=results_df,
+        p_packet=p_values,
+        save_path=hist_path,
+        bins=bins,
+        figsize=figsize,
+        dpi=dpi,
+        color=target_color,
+    )
+
+    return hist_path
+
+
 def plot_metrics_vs_ppacket(
     ppacket_values: list[float],
     simulations_per_point: int = 100,
@@ -689,18 +929,26 @@ def plot_metrics_vs_ppacket(
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
     sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
+
     df, raw_csv_path = plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
-        simulations_per_point=5000,
+        simulations_per_point=500,
         simulation_kwargs={
             "n_apps": 1,
             "inst_range": (100, 100),
             "epr_range": (10, 10),
             "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 2,
+            "hyperperiod_cycles": 100,
             "memory_lifetime": 2000,
             "p_swap": 0.95,
         },
         config="configurations/network/Garr201201.gml",
+    )
+
+    plot_metric_histogram(
+        raw_data=df,
+        metric="pga_duration_total",
+        p_packet=sweep_values,
+        output_dir=os.path.dirname(raw_csv_path),
     )
 """
