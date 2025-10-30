@@ -176,17 +176,30 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "avg_turnaround_time": float("nan"),
         "max_turnaround_time": float("nan"),
     }
+    summary_row = None
     summary_path = os.path.join(sd_dir, "summary.csv")
     if os.path.exists(summary_path):
         summary_df = pd.read_csv(summary_path)
         if not summary_df.empty:
-            row = summary_df.iloc[0]
+            row = pd.to_numeric(summary_df.iloc[0], errors="coerce")
+            summary_row = row
             for key in summary_metrics:
-                if key in row:
+                if key in row and np.isfinite(row[key]):
                     summary_metrics[key] = float(row[key])
 
+    avg_link_utilization = float("nan")
+    if summary_row is not None and "avg_link_utilization" in summary_row:
+        avg_candidate = summary_row.get("avg_link_utilization")
+        if pd.notna(avg_candidate) and np.isfinite(float(avg_candidate)):
+            avg_link_utilization = float(avg_candidate)
+
+    pga_duration_total = float("nan")
+    if summary_row is not None and "total_pga_duration" in summary_row:
+        total_candidate = summary_row.get("total_pga_duration")
+        if pd.notna(total_candidate) and np.isfinite(float(total_candidate)):
+            pga_duration_total = float(total_candidate)
+
     link_metrics = {
-        "avg_link_utilization": float("nan"),
         "max_link_utilization": float("nan"),
     }
     link_util_path = os.path.join(sd_dir, "link_utilization.csv")
@@ -202,17 +215,12 @@ def simulate_one_ppacket(args: tuple) -> dict:
             util_mask = np.isfinite(util_array)
             if np.any(util_mask):
                 util_finite = util_array[util_mask]
-                link_metrics["avg_link_utilization"] = float(
-                    np.nanmean(util_finite)
-                )
-                link_metrics["max_link_utilization"] = float(
-                    np.nanmax(util_finite)
-                )
+                mean_util = float(np.nanmean(util_finite))
+                max_util = float(np.nanmax(util_finite))
+                if not np.isfinite(avg_link_utilization):
+                    avg_link_utilization = mean_util
+                link_metrics["max_link_utilization"] = max_util
 
-    pga_duration_total = summary_metrics.get(
-        "total_pga_duration",
-        float("nan"),
-    )
     if (not np.isfinite(pga_duration_total)) and durations:
         duration_vals = np.array(list(durations.values()), dtype=float)
         duration_vals = duration_vals[np.isfinite(duration_vals)]
@@ -228,6 +236,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "total_jobs": total,
         "n_apps": n_apps_value,
         "pga_duration_total": pga_duration_total,
+        "avg_link_utilization": avg_link_utilization,
         **summary_metrics,
         **link_metrics,
     }
@@ -292,7 +301,7 @@ def build_metric_specs(
         },
         {
             "key": "throughput",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Throughput (jobs/s)",
             "title": (
                 r"Throughput vs $p_{\mathrm{packet}}$ "
@@ -302,7 +311,7 @@ def build_metric_specs(
         },
         {
             "key": "completed_ratio",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Completed ratio",
             "title": (
                 r"Completed Ratio vs $p_{\mathrm{packet}}$ "
@@ -663,9 +672,8 @@ def plot_metrics_vs_ppacket(
     set_plot_theme(dpi)
     palette = sns.color_palette("colorblind", len(metrics_to_plot))
 
-    admission_summary = pd.DataFrame()
     for idx, spec in enumerate(metrics_to_plot):
-        summary_df = render_plot(
+        render_plot(
             spec=spec,
             raw_data=results_df,
             color=palette[idx % len(palette)],
@@ -673,30 +681,24 @@ def plot_metrics_vs_ppacket(
             dpi=dpi,
             simulations_per_point=simulations_per_point,
         )
-        if (
-            spec["key"] == "admission_rate"
-            and summary_df is not None
-            and not summary_df.empty
-        ):
-            admission_summary = summary_df
 
-    return admission_summary
+    return results_df, raw_csv_path
 
 
 """
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
     sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
-    plot_metrics_vs_ppacket(
+    df, raw_csv_path = plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
         simulations_per_point=5000,
         simulation_kwargs={
             "n_apps": 1,
             "inst_range": (100, 100),
-            "epr_range": (2, 2),
-            "period_range": (1, 1),
-            "hyperperiod_cycles": 100,
-            "memory_lifetime": 200,
+            "epr_range": (10, 10),
+            "period_range": (0.05, 0.05),
+            "hyperperiod_cycles": 2,
+            "memory_lifetime": 2000,
             "p_swap": 0.95,
         },
         config="configurations/network/Garr201201.gml",
