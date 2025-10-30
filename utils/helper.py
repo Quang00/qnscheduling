@@ -326,10 +326,8 @@ def save_results(
     print(f"Max waiting time : {max_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
-    if pga_durations.size:
-        print(f"Total PGA duration : {total_pga_duration:.4f}")
-    if np.isfinite(avg_link_utilization):
-        print(f"Total link utilization : {avg_link_utilization:.4f}")
+    print(f"Total PGA duration : {total_pga_duration:.4f}")
+    print(f"Avg link utilization : {avg_link_utilization:.4f}")
 
     overall_df = pd.DataFrame(
         [
