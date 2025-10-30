@@ -134,6 +134,7 @@ def test_save_results_basic(tmp_path):
     pga_names = ["A0", "B0"]
     release_times = {"A0": 0.0, "B0": 5.0}
     apps = {"A": ("srcA", "dstA"), "B": ("srcB", "dstB")}
+    length_edges = 2
     instances = {"A": 2, "B": 1}
     epr_pairs = {"A": 3, "B": 1}
     policies = {"A": "deadline", "B": "deadline"}
@@ -146,6 +147,7 @@ def test_save_results_basic(tmp_path):
         instances,
         epr_pairs,
         policies,
+        length_edges=length_edges,
         output_dir=str(tmp_path),
     )
 
