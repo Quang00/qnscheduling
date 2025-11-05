@@ -148,7 +148,7 @@ def save_results(
     instances: Dict[str, int],
     epr_pairs: Dict[str, int],
     policies: Dict[str, str],
-    length_edges: int,
+    n_edges: int,
     durations: Dict[str, float] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
     output_dir: str = "results",
@@ -184,7 +184,7 @@ def save_results(
         EPR pairs.
         policies (Dict): Dictionary mapping application names to their
         scheduling policies.
-        length_edges (int): Number of edges in the network graph.
+        n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
         durations per application.
         link_utilization (Dict): Dictionary mapping links to busy time and
@@ -257,8 +257,8 @@ def save_results(
                 link_util_df["utilization"], errors="coerce"
             ).replace([np.inf, -np.inf], np.nan)
             valid_sum = util_series.dropna().sum()
-            if not np.isnan(valid_sum):
-                avg_link_utilization = float(valid_sum) / length_edges
+            if not np.isnan(valid_sum) and n_edges > 0:
+                avg_link_utilization = float(valid_sum) / n_edges
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
         link_util_df.to_csv(link_util_path, index=False)
 
@@ -574,15 +574,21 @@ def build_tasks(
     seed_start: int,
     run_dir: str,
     default_kwargs: dict,
-    n_apps: int,
+    n_apps_values: Iterable[int],
 ) -> list[tuple[Any, ...]]:
     tasks = []
     seed_pool = [
         seed_start + offset for offset in range(simulations_per_point)
     ]
-    for p_packet in ppacket_values:
-        for run_seed in seed_pool:
-            tasks.append((p_packet, run_seed, run_dir, default_kwargs, n_apps))
+    n_apps_list = list(n_apps_values)
+    if not n_apps_list:
+        raise ValueError("n_apps_values must contain at least one value")
+    for n_apps in n_apps_list:
+        for p_packet in ppacket_values:
+            for run_seed in seed_pool:
+                tasks.append(
+                    (p_packet, run_seed, run_dir, default_kwargs, int(n_apps))
+                )
     return tasks
 
 
@@ -671,6 +677,7 @@ def generate_metadata(
     raw_csv_path: str,
     default_kwargs: dict,
     metrics_to_plot: list[dict[str, Any]],
+    n_apps_values: Iterable[int] | None = None,
 ) -> None:
     metrics_metadata = {}
     for spec in metrics_to_plot:
@@ -696,5 +703,7 @@ def generate_metadata(
         "metrics": metrics_metadata,
         "parameters": {k: default_kwargs[k] for k in default_kwargs},
     }
+    if n_apps_values is not None:
+        metadata["n_apps_values"] = [int(val) for val in n_apps_values]
     with open(os.path.join(run_dir, "params.json"), "w") as f:
         json.dump(metadata, f, indent=2, sort_keys=True)

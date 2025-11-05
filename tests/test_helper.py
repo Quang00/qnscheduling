@@ -147,7 +147,7 @@ def test_save_results_basic(tmp_path):
         instances,
         epr_pairs,
         policies,
-        length_edges=length_edges,
+        n_edges=length_edges,
         output_dir=str(tmp_path),
     )
 
