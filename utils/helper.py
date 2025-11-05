@@ -575,6 +575,7 @@ def build_tasks(
     run_dir: str,
     default_kwargs: dict,
     n_apps_values: Iterable[int],
+    keep_seed_outputs: bool = True,
 ) -> list[tuple[Any, ...]]:
     tasks = []
     seed_pool = [
@@ -587,7 +588,14 @@ def build_tasks(
         for p_packet in ppacket_values:
             for run_seed in seed_pool:
                 tasks.append(
-                    (p_packet, run_seed, run_dir, default_kwargs, int(n_apps))
+                    (
+                        p_packet,
+                        run_seed,
+                        run_dir,
+                        default_kwargs,
+                        int(n_apps),
+                        keep_seed_outputs,
+                    )
                 )
     return tasks
 
@@ -678,6 +686,7 @@ def generate_metadata(
     default_kwargs: dict,
     metrics_to_plot: list[dict[str, Any]],
     n_apps_values: Iterable[int] | None = None,
+    keep_seed_outputs: bool = True,
 ) -> None:
     metrics_metadata = {}
     for spec in metrics_to_plot:
@@ -702,6 +711,7 @@ def generate_metadata(
         "raw_csv": os.path.basename(raw_csv_path),
         "metrics": metrics_metadata,
         "parameters": {k: default_kwargs[k] for k in default_kwargs},
+        "keep_seed_outputs": bool(keep_seed_outputs),
     }
     if n_apps_values is not None:
         metadata["n_apps_values"] = [int(val) for val in n_apps_values]
