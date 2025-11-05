@@ -538,15 +538,18 @@ def ppacket_dirname(value: float) -> str:
 
 
 def prepare_run_dir(
-    output_dir: str, ppacket_values: Iterable[float]
+    output_dir: str,
+    ppacket_values: Iterable[float],
+    keep_seed_outputs: bool = True,
 ) -> tuple[str, str]:
     base_output = output_dir or "results"
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = os.path.join(base_output, timestamp)
     os.makedirs(run_dir, exist_ok=True)
-    for p_val in ppacket_values:
-        subdir = os.path.join(run_dir, ppacket_dirname(p_val))
-        os.makedirs(subdir, exist_ok=True)
+    if keep_seed_outputs:
+        for p_val in ppacket_values:
+            subdir = os.path.join(run_dir, ppacket_dirname(p_val))
+            os.makedirs(subdir, exist_ok=True)
     return run_dir, timestamp
 
 
