@@ -1,6 +1,7 @@
-import math
 import multiprocessing as mp
 import os
+import shutil
+import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import redirect_stdout
 from typing import Any, Optional, Sequence
@@ -14,7 +15,6 @@ from matplotlib.ticker import (
     AutoMinorLocator,
     FuncFormatter,
     LogFormatterMathtext,
-    PercentFormatter,
 )
 from tqdm.auto import tqdm
 
@@ -88,7 +88,7 @@ def plot_pga_vs_memory(
             )
 
     df = pd.DataFrame(data)
-    palette = sns.color_palette("colorblind", n_colors=len(n_swaps))
+    palette = sns.color_palette("tab10", n_colors=len(n_swaps))
 
     fig, ax = plt.subplots(figsize=(6, 4.5), dpi=300)
     for idx, n in enumerate(n_swaps):
@@ -148,100 +148,110 @@ def simulate_one_ppacket(args: tuple) -> dict:
         run_dir,
         default_kwargs,
         n_apps_value,
+        keep_seed_outputs,
     ) = args
 
-    ppacket_dir = os.path.join(run_dir, ppacket_dirname(p_packet))
-    sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
-    os.makedirs(sd_dir, exist_ok=True)
+    n_apps_int = int(n_apps_value) if n_apps_value is not None else None
+
+    tmp_dir = None
+    if keep_seed_outputs:
+        base_dir = run_dir
+        if n_apps_int is not None:
+            base_dir = os.path.join(run_dir, f"napps_{n_apps_int}")
+        os.makedirs(base_dir, exist_ok=True)
+        ppacket_dir = os.path.join(base_dir, ppacket_dirname(p_packet))
+        os.makedirs(ppacket_dir, exist_ok=True)
+        sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
+        os.makedirs(sd_dir, exist_ok=True)
+    else:
+        sd_dir = tempfile.mkdtemp(prefix=f"seed_{run_seed}_")
+        tmp_dir = sd_dir
 
     args = default_kwargs.copy()
     args.update({"p_packet": p_packet, "seed": run_seed, "output_dir": sd_dir})
+    if n_apps_int is not None:
+        args["n_apps"] = n_apps_int
 
-    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-        feasible, df, durations = run_simulation(**args)
+    try:
+        with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
+            feasible, df, durations = run_simulation(**args)
 
-    admission_rate = 1.0 if feasible else 0.0
-    completed = 0
-    total = 0
-    if feasible and df is not None and not df.empty:
-        status_series = df["status"].astype(str)
-        completed = int((status_series == "completed").sum())
-        total = int(len(status_series))
-    durations = durations or {}
+        admission_rate = 1.0 if feasible else 0.0
+        completed = 0
+        total = 0
+        if feasible and df is not None and not df.empty:
+            status_series = df["status"].astype(str)
+            completed = int((status_series == "completed").sum())
+            total = int(len(status_series))
+        durations = durations or {}
 
-    summary_metrics = {
-        "makespan": float("nan"),
-        "throughput": float("nan"),
-        "completed_ratio": float("nan"),
-        "avg_waiting_time": float("nan"),
-        "max_waiting_time": float("nan"),
-        "avg_turnaround_time": float("nan"),
-        "max_turnaround_time": float("nan"),
-    }
-    summary_row = None
-    summary_path = os.path.join(sd_dir, "summary.csv")
-    if os.path.exists(summary_path):
-        summary_df = pd.read_csv(summary_path)
-        if not summary_df.empty:
-            row = pd.to_numeric(summary_df.iloc[0], errors="coerce")
-            summary_row = row
-            for key in summary_metrics:
-                if key in row and np.isfinite(row[key]):
-                    summary_metrics[key] = float(row[key])
+        summary_metrics = {
+            "makespan": float("nan"),
+            "throughput": float("nan"),
+            "completed_ratio": float("nan"),
+            "avg_waiting_time": float("nan"),
+            "max_waiting_time": float("nan"),
+            "avg_turnaround_time": float("nan"),
+            "max_turnaround_time": float("nan"),
+        }
+        summary_row = None
+        summary_path = os.path.join(sd_dir, "summary.csv")
+        if os.path.exists(summary_path):
+            summary_df = pd.read_csv(summary_path)
+            if not summary_df.empty:
+                row = summary_df.iloc[0]
+                summary_row = row
+                for key in summary_metrics:
+                    if key in row:
+                        summary_metrics[key] = float(row[key])
 
-    avg_link_utilization = float("nan")
-    if summary_row is not None and "avg_link_utilization" in summary_row:
-        avg_candidate = summary_row.get("avg_link_utilization")
-        if pd.notna(avg_candidate) and np.isfinite(float(avg_candidate)):
-            avg_link_utilization = float(avg_candidate)
-
-    pga_duration_total = float("nan")
-    if summary_row is not None and "total_pga_duration" in summary_row:
-        total_candidate = summary_row.get("total_pga_duration")
-        if pd.notna(total_candidate) and np.isfinite(float(total_candidate)):
-            pga_duration_total = float(total_candidate)
-
-    link_metrics = {
-        "max_link_utilization": float("nan"),
-    }
-    link_util_path = os.path.join(sd_dir, "link_utilization.csv")
-    if os.path.exists(link_util_path):
-        util_df = pd.read_csv(link_util_path)
-        if not util_df.empty and "utilization" in util_df.columns:
-            util_values = (
-                util_df["utilization"]
-                .astype(float)
-                .replace([np.inf, -np.inf], np.nan)
+        avg_link_utilization = float("nan")
+        if summary_row is not None:
+            avg_link_utilization = float(
+                summary_row.get("avg_link_utilization", avg_link_utilization)
             )
-            util_array = util_values.to_numpy()
-            util_mask = np.isfinite(util_array)
-            if np.any(util_mask):
-                util_finite = util_array[util_mask]
-                mean_util = float(np.nanmean(util_finite))
-                max_util = float(np.nanmax(util_finite))
-                if not np.isfinite(avg_link_utilization):
-                    avg_link_utilization = mean_util
-                link_metrics["max_link_utilization"] = max_util
 
-    if (not np.isfinite(pga_duration_total)) and durations:
-        duration_vals = np.array(list(durations.values()), dtype=float)
-        duration_vals = duration_vals[np.isfinite(duration_vals)]
-        if duration_vals.size:
-            pga_duration_total = float(duration_vals.sum())
+        pga_duration_total = float("nan")
+        if summary_row is not None:
+            pga_duration_total = float(
+                summary_row.get("total_pga_duration", pga_duration_total)
+            )
 
-    return {
-        "p_packet": p_packet,
-        "seed": run_seed,
-        "feasible": feasible,
-        "admission_rate": admission_rate,
-        "completed": completed,
-        "total_jobs": total,
-        "n_apps": n_apps_value,
-        "pga_duration_total": pga_duration_total,
-        "avg_link_utilization": avg_link_utilization,
-        **summary_metrics,
-        **link_metrics,
-    }
+        link_metrics = {
+            "max_link_utilization": float("nan"),
+        }
+        link_util_path = os.path.join(sd_dir, "link_utilization.csv")
+        if os.path.exists(link_util_path):
+            util_df = pd.read_csv(link_util_path)
+            if not util_df.empty and "utilization" in util_df.columns:
+                util_values = util_df["utilization"].astype(float)
+                avg_link_utilization = float(util_values.mean())
+                link_metrics["max_link_utilization"] = float(
+                    util_values.max()
+                )
+
+        if durations:
+            duration_vals = np.array(list(durations.values()), dtype=float)
+            if duration_vals.size:
+                pga_duration_total = float(duration_vals.sum())
+
+        result = {
+            "p_packet": p_packet,
+            "seed": run_seed,
+            "feasible": feasible,
+            "admission_rate": admission_rate,
+            "completed": completed,
+            "total_jobs": total,
+            "n_apps": n_apps_int,
+            "pga_duration_total": pga_duration_total,
+            "avg_link_utilization": avg_link_utilization,
+            **summary_metrics,
+            **link_metrics,
+        }
+        return result
+    finally:
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def run_parallel_sims(
@@ -269,20 +279,23 @@ def run_parallel_sims(
 
 
 def build_metric_specs(
-    n_tasks: int,
+    n_tasks_label: str,
+    n_tasks_display: str,
     save_path: str,
     run_dir: str,
     plot_label: str,
+    group_column: str | None = None,
+    group_labels: dict | None = None,
+    group_palette: Sequence[str] | None = None,
+    group_palette_map: dict[str, Any] | None = None,
+    individual_n_apps: Sequence[int] | None = None,
 ) -> list[dict[str, Any]]:
-    metrics = [
+    metric_templates = [
         {
             "key": "admission_rate",
             "plot_type": "line",
             "ylabel": "Admission rate",
-            "title": (
-                r"Admission Rate vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
-            ),
+            "title": ("Admission Rate vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
             "ymin": 0.0,
             "ymax": 1.0,
             "format_str": "{:.2f}",
@@ -293,22 +306,16 @@ def build_metric_specs(
             "key": "makespan",
             "plot_type": "violin",
             "ylabel": "Makespan (s)",
-            "title": (
-                r"Makespan vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
-            ),
+            "title": ("Makespan vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
             "format_str": "{:.1f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
         },
         {
             "key": "throughput",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Throughput (jobs/s)",
-            "title": (
-                r"Throughput vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
-            ),
+            "title": ("Throughput vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
             "format_str": "{:.3f}",
         },
         {
@@ -316,20 +323,30 @@ def build_metric_specs(
             "plot_type": "line",
             "ylabel": "Completed ratio",
             "title": (
-                r"Completed Ratio vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Completed Ratio vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": False,
         },
         {
+            "key": "completed_ratio_delta",
+            "plot_type": "line",
+            "ylabel": "Completed ratio - $p_{\\mathrm{packet}}$",
+            "title": (
+                "Completed Ratio Delta vs $p_{\\mathrm{packet}}$ "
+                "(n_tasks=%s)"
+            ),
+            "format_str": "{:.3f}",
+            "auto_ylim": True,
+            "pad_fraction": 0.1,
+        },
+        {
             "key": "avg_waiting_time",
             "plot_type": "violin",
             "ylabel": "Average Waiting Time (s)",
             "title": (
-                r"Average Waiting Time vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Average Waiting Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "auto_ylim": True,
@@ -340,8 +357,7 @@ def build_metric_specs(
             "plot_type": "violin",
             "ylabel": "Max Waiting Time (s)",
             "title": (
-                r"Max Waiting Time vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Max Waiting Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "auto_ylim": True,
@@ -352,8 +368,8 @@ def build_metric_specs(
             "plot_type": "violin",
             "ylabel": "Average Turnaround Time (s)",
             "title": (
-                r"Average Turnaround Time vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Average Turnaround Time vs $p_{\\mathrm{packet}}$ "
+                "(n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "auto_ylim": True,
@@ -364,8 +380,7 @@ def build_metric_specs(
             "plot_type": "violin",
             "ylabel": "Total PGA duration (s)",
             "title": (
-                r"Total PGA Duration vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Total PGA Duration vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "auto_ylim": True,
@@ -376,8 +391,8 @@ def build_metric_specs(
             "plot_type": "violin",
             "ylabel": "Average Link Utilization",
             "title": (
-                r"Average Link Utilization vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Average Link Utilization vs $p_{\\mathrm{packet}}$ "
+                "(n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "percentage": True,
@@ -390,8 +405,7 @@ def build_metric_specs(
             "plot_type": "violin",
             "ylabel": "Max link utilization",
             "title": (
-                r"Max Link Utilization vs $p_{\mathrm{packet}}$ "
-                f"(n_tasks={n_tasks})"
+                "Max Link Utilization vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "percentage": True,
@@ -401,19 +415,64 @@ def build_metric_specs(
         },
     ]
 
-    for metric in metrics:
-        if metric["key"] == "admission_rate":
-            metric["base_label"] = plot_label
-            metric["plot_path"] = save_path
+    specs = []
+    individual_values = []
+    seen_values = set()
+    for val in individual_n_apps or []:
+        intval = int(val)
+        if intval in seen_values:
+            continue
+        seen_values.add(intval)
+        individual_values.append(intval)
+
+    for template in metric_templates:
+        spec = template.copy()
+        title = spec.pop("title")
+        spec["title"] = title % n_tasks_display
+        if spec["key"] == "admission_rate":
+            spec["base_label"] = plot_label
+            spec["plot_path"] = save_path
         else:
-            base_label = f"{metric['key']}_vs_ppacket_n_tasks_{n_tasks}"
-            metric["base_label"] = base_label
-            metric["plot_path"] = os.path.join(
+            base_label = f"{spec['key']}_vs_ppacket_n_tasks_{n_tasks_label}"
+            spec["base_label"] = base_label
+            spec["plot_path"] = os.path.join(
                 run_dir,
                 f"{base_label}.png",
             )
+        spec["group_column"] = group_column
+        if group_labels is not None:
+            spec["group_labels"] = group_labels.copy()
+        if group_palette is not None:
+            spec["group_palette"] = list(group_palette)
+        if group_palette_map is not None:
+            spec["group_palette_map"] = {
+                str(k): v for k, v in group_palette_map.items()
+            }
+        specs.append(spec)
 
-    return metrics
+        for value in individual_values:
+            indiv = template.copy()
+            title = indiv.pop("title")
+            indiv["title"] = title % str(value)
+            indiv["base_label"] = f"{indiv['key']}_vs_ppacket_n_tasks_{value}"
+            indiv["plot_path"] = os.path.join(
+                run_dir,
+                f"{indiv['base_label']}.png",
+            )
+            indiv["group_column"] = None
+            indiv.pop("group_palette", None)
+            indiv.pop("group_labels", None)
+            indiv.pop("group_palette_map", None)
+            indiv["filter_column"] = "n_apps"
+            indiv["filter_value"] = int(value)
+            if group_palette_map is not None:
+                lookup_key = str(int(value))
+                color = group_palette_map.get(lookup_key)
+                if color is not None:
+                    indiv["color_override"] = color
+            specs.append(indiv)
+
+    return specs
 
 
 def render_plot(
@@ -424,27 +483,43 @@ def render_plot(
     dpi: int,
     simulations_per_point: int,
 ) -> Optional[pd.DataFrame]:
-
     metric = spec["key"]
-    if metric not in raw_data.columns:
-        return None
+    plot_type = spec["plot_type"]
+    group_column = spec.get("group_column")
+    group_labels = spec.get("group_labels") or {}
+    group_palette = spec.get("group_palette")
+    palette_map = spec.get("group_palette_map") or {}
+    color_override = spec.get("color_override")
+    filter_column = spec.get("filter_column")
+    filter_value = spec.get("filter_value")
 
-    data = raw_data[["p_packet", metric]].copy()
-    data["p_packet"] = pd.to_numeric(data["p_packet"], errors="coerce")
-    data[metric] = pd.to_numeric(data[metric], errors="coerce")
-    data = data.replace([np.inf, -np.inf], np.nan)
-    data = data.dropna().reset_index(drop=True)
+    base_color = color_override if color_override is not None else color
+    if base_color is None:
+        base_color = sns.color_palette("tab10", 1)[0]
+
+    cols = ["p_packet", metric]
+    if group_column:
+        cols.append(group_column)
+    if filter_column:
+        cols.append(filter_column)
+    data = raw_data[cols].copy()
+
+    if filter_column and filter_value is not None:
+        data = data[data[filter_column].isin(np.atleast_1d(filter_value))]
+
+    data = data.reset_index(drop=True)
 
     summary_df = None
-    if spec["plot_type"] == "line":
+    if plot_type == "line":
+        keys = ["p_packet"] + ([group_column] if group_column else [])
         summary_df = (
-            data.groupby("p_packet", as_index=False)
+            data.groupby(keys, as_index=False)
             .agg(
                 mean=(metric, "mean"),
                 std=(metric, lambda s: s.std(ddof=1)),
                 count=(metric, "count"),
             )
-            .sort_values("p_packet")
+            .sort_values(keys)
             .reset_index(drop=True)
         )
         if summary_df.empty:
@@ -452,109 +527,191 @@ def render_plot(
 
         summary_df["sem"] = (
             summary_df["std"] / np.sqrt(summary_df["count"])
-        ).where(summary_df["count"] >= 2)
+            ).where(summary_df["count"] >= 2)
         summary_df["ci95"] = 1.96 * summary_df["sem"]
         summary_df["lower"] = summary_df["mean"] - summary_df["ci95"]
         summary_df["upper"] = summary_df["mean"] + summary_df["ci95"]
         summary_df[metric] = summary_df["mean"]
+        if group_column:
+            summary_df["group_display"] = (
+                summary_df[group_column]
+                .map(group_labels)
+                .fillna(summary_df[group_column].astype(str))
+            )
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-    if spec["plot_type"] == "line":
-        sns.lineplot(
-            data=summary_df,
-            x="p_packet",
-            y=metric,
-            marker="o",
-            linewidth=2.0,
-            markersize=5.0,
-            color=color,
-            ax=ax,
-        )
-        if not summary_df[["lower", "upper"]].isnull().values.all():
-            ax.fill_between(
-                summary_df["p_packet"],
-                summary_df["lower"],
-                summary_df["upper"],
-                color=color,
-                alpha=0.18,
-                linewidth=0,
+    if plot_type == "line":
+        if group_column:
+            group_values = summary_df[group_column].dropna().unique().tolist()
+            base_palette = (
+                list(group_palette)
+                if group_palette is not None
+                else sns.color_palette("tab10", max(1, len(group_values)))
             )
+            line_styles = spec.get("line_styles", ["-", "--", "-.", ":"])
+            markers = spec.get("markers", ["o", "s", "D", "^", "v"])
+
+            for i, gv in enumerate(group_values):
+                gdf = summary_df[summary_df[group_column] == gv]
+                if gdf.empty:
+                    continue
+                disp = gdf["group_display"].iloc[0]
+                col = palette_map.get(
+                    str(gv), base_palette[i % len(base_palette)]
+                )
+                ax.plot(
+                    gdf["p_packet"],
+                    gdf[metric],
+                    marker=markers[i % len(markers)],
+                    linestyle=line_styles[i % len(line_styles)],
+                    linewidth=2.0,
+                    markersize=5.0,
+                    color=col,
+                    label=disp,
+                )
+                if not gdf[["lower", "upper"]].isnull().values.all():
+                    ax.fill_between(
+                        gdf["p_packet"],
+                        gdf["lower"],
+                        gdf["upper"],
+                        color=col,
+                        alpha=0.18,
+                        linewidth=0,
+                    )
+
+            ax.legend(frameon=False, loc="best", fontsize=9)
+        else:
+            sns.lineplot(
+                data=summary_df,
+                x="p_packet",
+                y=metric,
+                marker="o",
+                linewidth=2.0,
+                markersize=5.0,
+                color=base_color,
+                ax=ax,
+            )
+            if not summary_df[["lower", "upper"]].isnull().values.all():
+                ax.fill_between(
+                    summary_df["p_packet"],
+                    summary_df["lower"],
+                    summary_df["upper"],
+                    color=base_color,
+                    alpha=0.18,
+                    linewidth=0,
+                )
+
         ax.margins(x=0.02)
+
     else:
         labelled = data.assign(
-            p_packet_label=data["p_packet"].map(lambda val: f"{val:g}")
+            p_packet_label=data["p_packet"].map(lambda v: f"{v:g}")
         )
-        order = [f"{val:g}" for val in sorted(data["p_packet"].unique())]
-        sns.violinplot(
-            data=labelled,
-            x="p_packet_label",
-            y=metric,
-            order=order,
-            cut=0,
-            inner="quartile",
-            density_norm="count",
-            color=color,
-            linewidth=0.8,
-            ax=ax,
-        )
+        order = [f"{v:g}" for v in sorted(data["p_packet"].unique())]
 
-    if summary_df is not None:
-        stacked = [summary_df[metric].to_numpy()]
-        if "lower" in summary_df.columns and "upper" in summary_df.columns:
-            stacked.extend(
+        if group_column:
+            display_col = "group_display"
+            labelled[display_col] = (
+                labelled[group_column]
+                .map(group_labels)
+                .fillna(labelled[group_column].astype(str))
+            )
+            hue_order = labelled[display_col].unique().tolist()
+            base_palette = (
+                list(group_palette)
+                if group_palette is not None
+                else sns.color_palette("tab10", max(1, len(hue_order)))
+            )
+
+            pairs = (
+                labelled[[group_column, display_col]]
+                .dropna(subset=[group_column])
+                .drop_duplicates()
+            )
+            palette = {}
+            for disp in hue_order:
+                raw = (
+                    pairs.loc[pairs[display_col] == disp, group_column].iloc[0]
+                    if not pairs.empty
+                    else disp
+                )
+                palette[disp] = palette_map.get(str(raw))
+            for i, disp in enumerate(hue_order):
+                if palette.get(disp) is None:
+                    palette[disp] = base_palette[i % len(base_palette)]
+
+            sns.violinplot(
+                data=labelled,
+                x="p_packet_label",
+                y=metric,
+                hue=display_col,
+                order=order,
+                hue_order=hue_order,
+                cut=0,
+                inner="quartile",
+                density_norm="count",
+                palette=palette,
+                linewidth=0.8,
+                dodge=True,
+                ax=ax,
+            )
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.remove()
+            ax.legend(frameon=False, loc="best", fontsize=9)
+        else:
+            sns.violinplot(
+                data=labelled,
+                x="p_packet_label",
+                y=metric,
+                order=order,
+                cut=0,
+                inner="quartile",
+                density_norm="count",
+                color=base_color,
+                linewidth=0.8,
+                ax=ax,
+            )
+
+    if plot_type == "line" and summary_df is not None:
+        if {"lower", "upper"}.issubset(summary_df.columns):
+            vals = np.concatenate(
                 [
+                    summary_df[metric].to_numpy(),
                     summary_df["lower"].to_numpy(),
                     summary_df["upper"].to_numpy(),
                 ]
             )
-        series = np.concatenate(stacked)
+        else:
+            vals = summary_df[metric].to_numpy()
     else:
-        series = data[metric].to_numpy()
-    values = np.asarray(series, dtype=float)
+        vals = data[metric].to_numpy()
 
-    y_min = spec.get("ymin")
-    y_max = spec.get("ymax")
-
-    auto_ylim = spec.get("auto_ylim", True)
-    if auto_ylim and values.size:
-        finite = values[np.isfinite(values)]
-        if finite.size:
-            data_min = float(finite.min())
-            data_max = float(finite.max())
-            if data_min == data_max:
-                pad = max(abs(data_min) * 0.05, 1e-6)
-                data_min -= pad
-                data_max += pad
-            else:
-                pad = spec.get("pad_fraction", 0.05)
-                span = data_max - data_min
-                data_min -= span * pad
-                data_max += span * pad
-            if y_min is None:
-                y_min = data_min
-            else:
-                y_min = max(y_min, data_min)
-            if y_max is None:
-                y_max = data_max
-            else:
-                y_max = min(y_max, data_max)
-
-    if y_min is not None or y_max is not None:
+    vals = pd.Series(vals).dropna().to_numpy()
+    if vals.size:
+        pad_frac = float(spec.get("pad_fraction", 0.05))
+        lo, hi = float(vals.min()), float(vals.max())
+        span = hi - lo
+        if span == 0:
+            span = max(abs(lo) * 0.05, 1e-6)
+        lo -= span * pad_frac
+        hi += span * pad_frac
+        y_min = spec.get("ymin", lo)
+        y_max = spec.get("ymax", hi)
         ax.set_ylim(y_min, y_max)
 
     if spec.get("percentage"):
-        pct_fmt = spec.get("percentage_format", "{:.1f}%")
-        ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda val, _: pct_fmt.format(val * 100.0))
-        )
+        fmt = spec.get("percentage_format", "{:.1f}%")
+        ax.yaxis.set_major_formatter(FuncFormatter(
+            lambda v, _: fmt.format(v * 100.0)
+        ))
     else:
-        fmt = spec.get("format_str", "{:.2f}")
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda val, _: fmt.format(val))
+            FuncFormatter(lambda v, _p: "0" if v == 0.0 else f"{v:.4g}")
         )
 
-    if spec["plot_type"] == "line":
+    if plot_type == "line":
         ax.xaxis.set_minor_locator(AutoMinorLocator())
     ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.grid(True, which="major", linewidth=0.6)
@@ -564,7 +721,6 @@ def render_plot(
     ax.set_xlabel(r"$p_{\mathrm{packet}}$")
     ax.set_ylabel(spec["ylabel"])
     ax.set_title(spec["title"], pad=6)
-
     ax.text(
         0.99,
         0.02,
@@ -576,252 +732,15 @@ def render_plot(
         color="#444",
     )
 
-    directory = os.path.dirname(spec["plot_path"])
+    plot_path = spec["plot_path"]
+    directory = os.path.dirname(plot_path)
     if directory:
         os.makedirs(directory, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(spec["plot_path"], bbox_inches="tight")
+    fig.savefig(plot_path, bbox_inches="tight")
     plt.close(fig)
 
     return summary_df
-
-
-def render_histogram(
-    spec: dict[str, Any],
-    raw_data: pd.DataFrame,
-    p_packet: float | Sequence[float],
-    save_path: str,
-    bins: int,
-    figsize: tuple[float, float],
-    dpi: int,
-    color,
-) -> str:
-    metric = spec["key"]
-    if "p_packet" not in raw_data.columns or metric not in raw_data.columns:
-        raise ValueError(
-            f"Columns 'p_packet' and '{metric}' must be present."
-        )
-
-    if isinstance(p_packet, (list, tuple, set, np.ndarray)):
-        requested_p = [float(val) for val in p_packet]
-    else:
-        requested_p = [float(p_packet)]
-
-    seen = set()
-    ordered_p = []
-    for value in requested_p:
-        if value not in seen:
-            ordered_p.append(value)
-            seen.add(value)
-    requested_p = ordered_p
-
-    p_series = pd.to_numeric(raw_data["p_packet"], errors="coerce")
-    mtrc_series = pd.to_numeric(raw_data[metric], errors="coerce")
-
-    frames = []
-    labels = []
-    for p_val in requested_p:
-        mask = np.isfinite(p_series) & np.isclose(
-            p_series.to_numpy(dtype=float),
-            p_val,
-            rtol=1e-9,
-            atol=1e-12,
-        )
-        subset = mtrc_series[mask].replace([np.inf, -np.inf], np.nan).dropna()
-
-        subset = subset[np.isfinite(subset.to_numpy(dtype=float))]
-        if subset.empty:
-            continue
-        label = f"{p_val:g}"
-        labels.append(label)
-        frames.append(
-            pd.DataFrame(
-                {
-                    "value": subset.to_numpy(dtype=float),
-                    "p_packet_label": label,
-                }
-            )
-        )
-
-    combined = pd.concat(frames, ignore_index=True)
-    combined_values = combined["value"].to_numpy(dtype=float)
-    bin_edges = np.histogram_bin_edges(combined_values, bins=bins)
-
-    palette = sns.color_palette("tab10", max(len(labels), 1))
-    palette = list(palette[: len(labels)])
-    if color is not None and palette:
-        palette[0] = color
-
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-    if len(labels) > 1:
-        line_styles = ["-", "--", "-.", ":"]
-        alpha_values = np.linspace(0.65, 0.35, len(labels))
-        for idx, label in enumerate(labels):
-            values = combined.loc[combined["p_packet_label"] == label, "value"]
-            sns.histplot(
-                values,
-                bins=bin_edges,
-                stat="probability",
-                color=palette[idx],
-                element="poly",
-                fill=True,
-                alpha=float(alpha_values[idx]),
-                linewidth=1.6,
-                line_kws={"linestyle": line_styles[idx % len(line_styles)]},
-                ax=ax,
-                label=label,
-            )
-        ax.legend(
-            title=r"$p_{\mathrm{packet}}$",
-            frameon=False,
-            loc="upper right",
-        )
-    else:
-        sns.histplot(
-            combined["value"],
-            bins=bin_edges,
-            stat="probability",
-            color=palette[0],
-            edgecolor="#ffffff",
-            linewidth=0.6,
-            ax=ax,
-        )
-
-    x_label = spec.get("ylabel") or metric.replace("_", " ").title()
-    ax.set_xlabel(x_label)
-    ax.set_ylabel("Frequency (%)")
-
-    title_base = spec.get("title") or metric.replace("_", " ").title()
-    if len(labels) == 1:
-        subtitle = r"$p_{\mathrm{packet}}$ = " + labels[0]
-    else:
-        subtitle = r"$p_{\mathrm{packet}}$ = " + ", ".join(labels)
-    ax.set_title(f"{title_base}\n{subtitle}")
-
-    if len(labels) == 1:
-        legend = ax.get_legend()
-        if legend is not None:
-            legend.remove()
-
-    if spec.get("percentage"):
-        pct_fmt = spec.get("percentage_format", "{:.1f}%")
-        ax.xaxis.set_major_formatter(
-            FuncFormatter(lambda val, _: pct_fmt.format(val * 100.0))
-        )
-    else:
-        fmt = spec.get("format_str", "{:.2f}")
-
-        def format_small(val: float, _pos: int) -> str:
-            if val == 0.0:
-                return ""
-            magnitude = abs(val)
-            if magnitude < 1e-4 or magnitude >= 1e4:
-                return f"{val:.2e}"
-            if magnitude < 1.0:
-                raw_decimals = int(math.ceil(-math.log10(magnitude))) + 2
-                decimals = min(5, max(2, raw_decimals))
-                pattern = "{:." + str(decimals) + "f}"
-                return pattern.format(val)
-            return fmt.format(val)
-
-        ax.xaxis.set_major_locator(plt.MaxNLocator(5, prune="upper"))
-        ax.xaxis.set_major_formatter(FuncFormatter(format_small))
-
-    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=1))
-    ax.yaxis.set_minor_locator(AutoMinorLocator())
-    ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.35)
-    sns.despine(ax=ax)
-
-    directory = os.path.dirname(save_path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    fig.tight_layout()
-    fig.savefig(save_path, bbox_inches="tight")
-    plt.close(fig)
-
-    return save_path
-
-
-def plot_metric_histogram(
-    raw_data: pd.DataFrame | str,
-    metric: str,
-    p_packet: float | Sequence[float],
-    output_dir: str | None = None,
-    bins: int = 40,
-    figsize: tuple[float, float] = (7.5, 4.5),
-    dpi: int = 300,
-    metrics: list[dict[str, Any]] | None = None,
-    color=None,
-    filename: str | None = None,
-) -> str:
-    source_path: str | None = None
-    if not isinstance(raw_data, pd.DataFrame):
-        source_path = raw_data
-        results_df = pd.read_csv(raw_data)
-    else:
-        results_df = raw_data.copy()
-
-    spec: dict[str, Any] | None = None
-    if metrics is not None:
-        spec = next(
-            (entry for entry in metrics if entry.get("key") == metric),
-            None,
-        )
-        if spec is not None:
-            spec = spec.copy()
-
-    if spec is None:
-        label = metric.replace("_", " ").title()
-        spec = {
-            "key": metric,
-            "ylabel": label,
-            "title": label,
-            "percentage": False,
-            "format_str": "{:.2f}",
-        }
-
-    if metric == "pga_duration_total":
-        spec["title"] = "Total PGA Duration"
-        spec["ylabel"] = "Total PGA Duration (s)"
-
-    target_color = color or sns.color_palette("colorblind", 1)[0]
-    set_plot_theme(dpi)
-
-    if isinstance(p_packet, (list, tuple, set, np.ndarray)):
-        p_values = [float(val) for val in p_packet]
-    else:
-        p_values = [float(p_packet)]
-
-    if source_path:
-        base_dir = os.path.dirname(os.path.abspath(source_path))
-    elif output_dir:
-        base_dir = output_dir
-    else:
-        base_dir = os.getcwd()
-
-    if len(p_values) == 1:
-        suffix = ppacket_dirname(p_values[0])
-    else:
-        compact_labels = [
-            ppacket_dirname(val).replace("ppacket_", "") for val in p_values
-        ]
-        suffix = "ppacket_" + "_".join(compact_labels)
-
-    hist_filename = filename or f"hist_{metric}_{suffix}.png"
-    hist_path = os.path.join(base_dir, hist_filename)
-
-    render_histogram(
-        spec=spec,
-        raw_data=results_df,
-        p_packet=p_values,
-        save_path=hist_path,
-        bins=bins,
-        figsize=figsize,
-        dpi=dpi,
-        color=target_color,
-    )
-
-    return hist_path
 
 
 def plot_metrics_vs_ppacket(
@@ -836,6 +755,11 @@ def plot_metrics_vs_ppacket(
     dpi: int = 300,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
+    keep_seed_outputs: bool = False,
+    group_column: str | None = None,
+    group_labels: dict | None = None,
+    group_palette: Sequence[str] | None = None,
+    n_apps_values: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """Run multiple simulations varying the packet generation probability.
 
@@ -857,23 +781,75 @@ def plot_metrics_vs_ppacket(
         parallel processing.
         show_progress (bool, optional): Whether to show progress bars during
         simulations.
+        keep_seed_outputs (bool, optional): When ``False``, delete the
+        per-seed result folders after each simulation finishes.
+        group_column (str | None, optional): Column used to split lines/violins
+        into groups. Defaults to ``"n_apps"`` when multiple ``n_apps`` values
+        are provided.
+        group_labels (dict | None, optional): Mapping from group values to
+        display labels.
+        group_palette (Sequence[str] | None, optional): Custom color palette
+        for grouped plots.
+        n_apps_values (Sequence[int] | None, optional): Specific application
+        counts to sweep. When multiple values are provided, one line/violin
+        will be produced per group.
 
     Returns:
         pd.DataFrame: DataFrame containing the aggregated simulation results.
     """
+    n_apps_list = [int(v) for v in n_apps_values]
     default_kwargs = build_default_sim_args(config, simulation_kwargs)
-    n_apps_value = int(default_kwargs.get("n_apps", 0))
-    plot_label = f"admission_rate_vs_ppacket_n_tasks_{n_apps_value}"
+    default_kwargs["n_apps"] = n_apps_list[0]
 
-    run_dir, timestamp = prepare_run_dir(output_dir, ppacket_values)
+    n_tasks_label = str(n_apps_list[0]) if len(n_apps_list) == 1 else "varied"
+    n_tasks_display = ", ".join(map(str, n_apps_list))
+    plot_label = f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}"
+
+    run_dir, timestamp = prepare_run_dir(
+        output_dir,
+        ppacket_values,
+        keep_seed_outputs=keep_seed_outputs,
+    )
     save_path = save_path or os.path.join(run_dir, f"{plot_label}.png")
     raw_csv_path = os.path.join(run_dir, f"{timestamp}_raw.csv")
 
+    resolved_group_column = group_column or (
+        "n_apps" if len(n_apps_list) > 1 else None
+    )
+    resolved_group_labels = group_labels or (
+        {v: str(v) for v in n_apps_list}
+        if resolved_group_column == "n_apps" else None
+    )
+    resolved_palette_map = None
+    if resolved_group_column:
+        keys = [
+            str(v)
+            for v in (
+                n_apps_list
+                if resolved_group_column == "n_apps"
+                else resolved_group_labels.keys()
+            )
+        ]
+        base = (
+            list(group_palette)
+            if group_palette
+            else sns.color_palette("tab10", len(keys))
+        )
+        resolved_palette_map = {
+            k: base[i % len(base)] for i, k in enumerate(keys)
+        }
+
     metrics_to_plot = build_metric_specs(
-        n_tasks=n_apps_value,
+        n_tasks_label=n_tasks_label,
+        n_tasks_display=n_tasks_display,
         save_path=save_path,
         run_dir=run_dir,
         plot_label=plot_label,
+        group_column=resolved_group_column,
+        group_labels=resolved_group_labels,
+        group_palette=group_palette,
+        group_palette_map=resolved_palette_map,
+        individual_n_apps=(n_apps_list if len(n_apps_list) > 1 else None),
     )
 
     generate_metadata(
@@ -887,6 +863,8 @@ def plot_metrics_vs_ppacket(
         raw_csv_path=raw_csv_path,
         default_kwargs=default_kwargs,
         metrics_to_plot=metrics_to_plot,
+        n_apps_values=n_apps_list,
+        keep_seed_outputs=keep_seed_outputs,
     )
 
     tasks = build_tasks(
@@ -895,7 +873,8 @@ def plot_metrics_vs_ppacket(
         seed_start=seed_start,
         run_dir=run_dir,
         default_kwargs=default_kwargs,
-        n_apps=n_apps_value,
+        n_apps_values=n_apps_list,
+        keep_seed_outputs=keep_seed_outputs,
     )
 
     records = run_parallel_sims(
@@ -905,18 +884,22 @@ def plot_metrics_vs_ppacket(
     )
 
     results_df = pd.DataFrame(records)
-    if results_df.empty:
-        raise RuntimeError("No simulation data was generated.")
+    if not results_df.empty and {"completed_ratio", "p_packet"}.issubset(
+        results_df.columns
+    ):
+        results_df["completed_ratio_delta"] = (
+            results_df["completed_ratio"].astype(float)
+            - results_df["p_packet"].astype(float)
+        )
     results_df.to_csv(raw_csv_path, index=False)
 
     set_plot_theme(dpi)
-    palette = sns.color_palette("colorblind", len(metrics_to_plot))
-
-    for idx, spec in enumerate(metrics_to_plot):
+    palette = sns.color_palette("tab10", len(metrics_to_plot))
+    for i, spec in enumerate(metrics_to_plot):
         render_plot(
             spec=spec,
             raw_data=results_df,
-            color=palette[idx % len(palette)],
+            color=palette[i % len(palette)],
             figsize=figsize,
             dpi=dpi,
             simulations_per_point=simulations_per_point,
@@ -929,26 +912,20 @@ def plot_metrics_vs_ppacket(
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
     sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
+    n_apps_values = [1, 25, 30, 35, 40, 45, 50]
 
-    df, raw_csv_path = plot_metrics_vs_ppacket(
+    plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
-        simulations_per_point=500,
+        simulations_per_point=3000,
         simulation_kwargs={
-            "n_apps": 1,
             "inst_range": (100, 100),
-            "epr_range": (10, 10),
-            "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 100,
-            "memory_lifetime": 2000,
+            "epr_range": (2, 2),
+            "period_range": (0.8, 0.8),
+            "hyperperiod_cycles": 1000,
+            "memory_lifetime": 500,
             "p_swap": 0.95,
         },
         config="configurations/network/Garr201201.gml",
-    )
-
-    plot_metric_histogram(
-        raw_data=df,
-        metric="pga_duration_total",
-        p_packet=sweep_values,
-        output_dir=os.path.dirname(raw_csv_path),
+        n_apps_values=n_apps_values,
     )
 """
