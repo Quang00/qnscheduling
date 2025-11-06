@@ -4,10 +4,10 @@ Simulation Of PGAs Scheduling
 This module provides classes and functions to simulate the scheduling of
 Packet Generation Attempts (PGAs) in a quantum network. Each PGA tries to
 generate entangled EPR pairs over a specified route within a defined time
-window, considering resource availability and link busy times. The main
-function, `simulate_periodicity`, orchestrates the scheduling and execution of
-these PGAs based on a provided static schedule, tracking resource usage, link
-busy times, and performance metrics.
+window, considering resource availability and link busy times. The function,
+`simulate_static`, simulates a static schedule of PGAs and returns performance
+metrics, link utilizations, and other relevant data. While the function
+`simulate_dynamic` implement a dynamic scheduling approach.
 """
 
 import re
