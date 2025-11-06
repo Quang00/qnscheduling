@@ -162,8 +162,7 @@ def run_simulation(
 
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
-    scheduler_mode = scheduler.lower()
-    if scheduler_mode == "dynamic":
+    if scheduler == "dynamic":
         simulate_dynamic()
         feasible = True
     else:
@@ -321,6 +320,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.scheduler == "dynamic":
+        print("Dynamic scheduling is not yet implemented.")
+        return
 
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
     os.makedirs(seed_dir, exist_ok=True)
