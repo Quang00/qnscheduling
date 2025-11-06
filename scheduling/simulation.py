@@ -205,7 +205,7 @@ class PGA:
         return result
 
 
-def simulate_periodicity(
+def simulate_static(
     schedule: List[Tuple[str, float, float, float]],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],

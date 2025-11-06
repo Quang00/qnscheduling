@@ -58,7 +58,7 @@ import pandas as pd
 
 from scheduling.pga import compute_durations
 from scheduling.scheduling import edf_parallel
-from scheduling.simulation import simulate_periodicity
+from scheduling.simulation import simulate_static
 from utils.helper import (
     app_params_sim,
     generate_n_apps,
@@ -172,7 +172,7 @@ def run_simulation(
 
     # Run simulation (probabilistic) with optional seed
     os.makedirs(output_dir, exist_ok=True)
-    df, pga_names, pga_release_times, link_utilization = simulate_periodicity(
+    df, pga_names, pga_release_times, link_utilization = simulate_static(
         schedule=schedule,
         pga_parameters=pga_parameters,
         pga_rel_times=pga_rel_times,

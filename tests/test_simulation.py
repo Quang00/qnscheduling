@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from scheduling.simulation import simulate_periodicity
+from scheduling.simulation import simulate_static
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def test_simulation_completes_basic(base_pga_parameters):
     schedule = [("A0", 0.0, 5.0, 10.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _, _ = simulate_periodicity(
+    df, _, _, _ = simulate_static(
         schedule=schedule,
         pga_parameters=pga_parameters,
         pga_rel_times=pga_rel_times,
@@ -46,7 +46,7 @@ def test_simulation_fails_basic(base_pga_parameters):
     schedule = [("A0", 0.0, 0.01, 5.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _, _ = simulate_periodicity(
+    df, _, _, _ = simulate_static(
         schedule=schedule,
         pga_parameters=pga_parameters,
         pga_rel_times=pga_rel_times,
