@@ -314,3 +314,7 @@ def simulate_static(
         }
 
     return df, pga_names, pga_release_times, link_utilization
+
+
+def simulate_dynamic():
+    pass

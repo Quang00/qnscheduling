@@ -58,7 +58,7 @@ import pandas as pd
 
 from scheduling.pga import compute_durations
 from scheduling.scheduling import edf_parallel
-from scheduling.simulation import simulate_static
+from scheduling.simulation import simulate_dynamic, simulate_static
 from utils.helper import (
     app_params_sim,
     generate_n_apps,
@@ -83,6 +83,7 @@ def run_simulation(
     time_slot_duration: float,
     seed: int,
     output_dir: str,
+    scheduler: str = "static",
 ):
     """Run the quantum network scheduling simulation.
 
@@ -149,17 +150,6 @@ def run_simulation(
 
     print("Hyperperiod cycles:", hyperperiod_cycles)
 
-    # Compute static schedule
-    feasible, schedule = edf_parallel(
-        pga_rel_times, pga_periods, durations, parallel_map, hyperperiod_cycles
-    )
-
-    if not feasible:
-        print("Schedule", schedule)
-        return False, None, durations
-    else:
-        print("Preview Schedule:", schedule[: n_apps * 2])
-
     pga_parameters = app_params_sim(
         paths,
         epr_pairs,
@@ -170,17 +160,36 @@ def run_simulation(
         time_slot_duration
     )
 
-    # Run simulation (probabilistic) with optional seed
+    # Run simulation
     os.makedirs(output_dir, exist_ok=True)
-    df, pga_names, pga_release_times, link_utilization = simulate_static(
-        schedule=schedule,
-        pga_parameters=pga_parameters,
-        pga_rel_times=pga_rel_times,
-        pga_periods=pga_periods,
-        policies=policies,
-        pga_network_paths=paths,
-        rng=rng,
-    )
+    scheduler_mode = scheduler.lower()
+    if scheduler_mode == "dynamic":
+        simulate_dynamic()
+        feasible = True
+    else:
+        feasible, schedule = edf_parallel(
+            pga_rel_times,
+            pga_periods,
+            durations,
+            parallel_map,
+            hyperperiod_cycles,
+        )
+
+        if not feasible:
+            print("Schedule", schedule)
+            return False, None, durations
+
+        print("Preview Schedule:", schedule[: n_apps * 2])
+
+        df, pga_names, pga_release_times, link_utilization = simulate_static(
+            schedule=schedule,
+            pga_parameters=pga_parameters,
+            pga_rel_times=pga_rel_times,
+            pga_periods=pga_periods,
+            policies=policies,
+            pga_network_paths=paths,
+            rng=rng,
+        )
 
     # Save results
     save_results(
@@ -196,7 +205,7 @@ def run_simulation(
         link_utilization=link_utilization,
         output_dir=output_dir,
     )
-    return True, df, durations
+    return feasible, df, durations
 
 
 def main():
@@ -289,6 +298,15 @@ def main():
         help="Duration of a time slot in seconds",
     )
     parser.add_argument(
+        "--scheduler",
+        "-sch",
+        type=str,
+        choices=["static", "dynamic"],
+        default="dynamic",
+        help="Scheduling strategy: 'static' uses the precomputed EDF table,"
+        " 'dynamic' schedules online",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -332,6 +350,7 @@ def main():
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
+        scheduler=args.scheduler,
     )
     t1 = time.perf_counter()
 
