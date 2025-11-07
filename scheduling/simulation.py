@@ -326,6 +326,31 @@ def simulate_dynamic(
     pga_network_paths: Dict[str, List[str]],
     rng: np.random.Generator,
 ):
+    """Simulate dynamic PGA scheduling. The PGAs are scheduled dynamically
+    based on their release times, periods, and deadlines. The simulation
+    continues until all PGAs have completed their required number of
+    instances.
+
+    Args:
+        app_specs (Dict[str, Dict[str, Any]]): Application specifications.
+        durations (Dict[str, float]): Duration of each application.
+        pga_parameters (Dict[str, Dict[str, float]]): Parameters for each PGA.
+        pga_rel_times (Dict[str, float]): Release times for each PGA.
+        pga_network_paths (Dict[str, List[str]]): Network paths for each PGA.
+        rng (np.random.Generator): Random number generator.
+
+    Returns:
+        Tuple[
+            pd.DataFrame,
+            List[str],
+            Dict[str, float],
+            Dict[Tuple[str, str], Dict[str, float]],
+        ]: Contains:
+            - DataFrame with PGA performance metrics.
+            - List of PGA names.
+            - Dictionary mapping PGA names to their release times.
+            - Dictionary mapping undirected links to busy time and utilization.
+    """
     df = pd.DataFrame(
         columns=[
             "pga",
