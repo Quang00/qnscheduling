@@ -321,7 +321,6 @@ def simulate_static(
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
     durations: Dict[str, float],
-    parallel_map: dict[str, set[str]],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[str]],
@@ -352,6 +351,7 @@ def simulate_dynamic(
     max_completion = 0.0
 
     app_idx = defaultdict(int)
+    completed_cpt = {app: 0 for app in app_specs}
     apps_deadlines = {
         app: pga_rel_times.get(app, 0.0) + spec.get("period", 0.0)
         for app, spec in app_specs.items()
@@ -421,14 +421,18 @@ def simulate_dynamic(
         app_idx[app] += 1
 
         status = result.get("status", "")
-        if status == "failed":
-            period = app_specs[app].get("period", 0.0)
-            next_release = release + period
-            pga_rel_times[app] = max(
-                next_release, result["completion_time"] + EPS
-            )
-            next_deadline = pga_rel_times[app] + period
-            heapq.heappush(priority_queue, (next_deadline, app))
+        if status == "completed":
+            completed_cpt[app] += 1
+        if completed_cpt[app] == app_specs[app].get("instances"):
+            continue
+
+        period = app_specs[app].get("period", 0.0)
+        next_release = release + period
+        pga_rel_times[app] = max(
+            next_release, result["completion_time"] + EPS
+        )
+        next_deadline = pga_rel_times[app] + period
+        heapq.heappush(priority_queue, (next_deadline, app))
 
     df = pd.DataFrame(log)
     horizon = max_completion - min_start if log else 0.0

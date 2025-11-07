@@ -170,7 +170,6 @@ def run_simulation(
         df, pga_names, pga_release_times, link_utilization = simulate_dynamic(
             app_specs,
             durations,
-            parallel_map,
             pga_parameters,
             pga_rel_times,
             paths,
