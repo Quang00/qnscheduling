@@ -385,7 +385,7 @@ def simulate_dynamic(
                     "turnaround_time": 0.0,
                     "waiting_time": 0.0,
                     "pairs_generated": 0,
-                    "status": "failed",
+                    "status": "deadline_miss",
                     "deadline": deadline,
                 }
             )
@@ -394,7 +394,6 @@ def simulate_dynamic(
             app_idx[app] += 1
             continue
 
-        print("Priority Queue:", priority_queue)
         pga = PGA(
             name=pga_name,
             arrival=release,
@@ -414,11 +413,19 @@ def simulate_dynamic(
             deadline=deadline,
         )
         result = pga.run()
+
         pga_names.append(pga_name)
         pga_release_times[pga_name] = release
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
         app_idx[app] += 1
+
+        status = result.get("status", "")
+        if status == "failed":
+            next_release = max(result["completion_time"] + EPS, release)
+            pga_rel_times[app] = next_release
+            deadline = next_release + app_specs[app].get("period", 0.0)
+            heapq.heappush(priority_queue, (deadline, app))
 
     df = pd.DataFrame(log)
     horizon = max_completion - min_start if log else 0.0
