@@ -17,7 +17,7 @@ from utils.helper import hyperperiod
 EPS = 1e-12
 
 
-def edf_parallel(
+def edf_parallel_static(
     pga_rel_times: Dict[str, float],
     pga_periods: Dict[str, float],
     durations: Dict[str, float],

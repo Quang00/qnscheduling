@@ -57,7 +57,7 @@ import numpy as np
 import pandas as pd
 
 from scheduling.pga import compute_durations
-from scheduling.scheduling import edf_parallel
+from scheduling.scheduling import edf_parallel_static
 from scheduling.simulation import simulate_dynamic, simulate_static
 from utils.helper import (
     app_params_sim,
@@ -152,8 +152,6 @@ def run_simulation(
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
     print("Periods:", pga_periods)
 
-    print("Hyperperiod cycles:", hyperperiod_cycles)
-
     pga_parameters = app_params_sim(
         paths,
         app_specs,
@@ -172,6 +170,7 @@ def run_simulation(
         df, pga_names, pga_release_times, link_utilization = simulate_dynamic(
             app_specs,
             durations,
+            parallel_map,
             pga_parameters,
             pga_rel_times,
             paths,
@@ -179,13 +178,14 @@ def run_simulation(
         )
         feasible = True
     else:
-        feasible, schedule = edf_parallel(
+        feasible, schedule = edf_parallel_static(
             pga_rel_times,
             pga_periods,
             durations,
             parallel_map,
             hyperperiod_cycles,
         )
+        print("Hyperperiod cycles:", hyperperiod_cycles)
 
         if not feasible:
             print("Schedule", schedule)

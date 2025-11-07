@@ -12,12 +12,11 @@ metrics, link utilizations, and other relevant data. While the function
 
 import heapq
 import re
+from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-
-from utils.helper import parallelizable_tasks
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
@@ -322,6 +321,7 @@ def simulate_static(
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
     durations: Dict[str, List[float]],
+    parallel_map: dict[str, set[str]],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[str]],
@@ -341,18 +341,100 @@ def simulate_dynamic(
             "deadline",
         ]
     )
+    log = []
+    pga_release_times = {}
     pga_names = []
-    link_utilization = {}
+
+    all_nodes = {n for path in pga_network_paths.values() for n in path}
+    resources = {n: 0.0 for n in all_nodes}
+    link_busy = {}
+    min_start = float("inf")
+    max_completion = 0.0
+
+    app_idx = defaultdict(int)
     apps_deadlines = {
         app: pga_rel_times.get(app, 0.0) + spec.get("period", 0.0)
         for app, spec in app_specs.items()
     }
 
-    apps_parallelizable = parallelizable_tasks(app_specs)
-    print("Parallelizable apps:", apps_parallelizable)
-
-    priority_queue = [(deadline, app) for app, deadline in apps_deadlines.items()]
+    priority_queue = [
+        (deadline, app) for app, deadline in apps_deadlines.items()
+    ]
     heapq.heapify(priority_queue)
-    print("Priority queue:", priority_queue)
+
+    while priority_queue:
+        deadline, app = heapq.heappop(priority_queue)
+        route = pga_network_paths[app]
+        release = float(pga_rel_times.get(app, 0.0))
+        latest_available_resource_time = max(
+            (resources.get(n, 0.0) for n in route), default=0.0
+        )
+        earliest_start = max(release, latest_available_resource_time)
+        completion = earliest_start + durations[app]
+        idx = app_idx[app]
+        pga_name = f"{app}{idx}"
+
+        if completion > deadline:
+            log.append(
+                {
+                    "pga": pga_name,
+                    "arrival_time": release,
+                    "start_time": earliest_start,
+                    "burst_time": 0.0,
+                    "completion_time": earliest_start,
+                    "turnaround_time": 0.0,
+                    "waiting_time": 0.0,
+                    "pairs_generated": 0,
+                    "status": "failed",
+                    "deadline": deadline,
+                }
+            )
+            pga_names.append(pga_name)
+            pga_release_times[pga_name] = release
+            app_idx[app] += 1
+            continue
+
+        print("Priority Queue:", priority_queue)
+        pga = PGA(
+            name=pga_name,
+            arrival=release,
+            start=earliest_start,
+            end=earliest_start + durations[app],
+            route=route,
+            resources=resources,
+            link_busy=link_busy,
+            p_gen=pga_parameters[app]["p_gen"],
+            epr_pairs=int(pga_parameters[app]["epr_pairs"]),
+            slot_duration=pga_parameters[app]["slot_duration"],
+            rng=rng,
+            log=log,
+            policy=app_specs[app].get("policy"),
+            p_swap=pga_parameters[app]["p_swap"],
+            memory_lifetime=pga_parameters[app]["memory_lifetime"],
+            deadline=deadline,
+        )
+        result = pga.run()
+        pga_names.append(pga_name)
+        pga_release_times[pga_name] = release
+        min_start = min(min_start, result["start_time"])
+        max_completion = max(max_completion, result["completion_time"])
+        app_idx[app] += 1
+
+    df = pd.DataFrame(log)
+    horizon = max_completion - min_start if log else 0.0
+    link_utilization = {}
+    if horizon > 0:
+        link_utilization = {
+            link: {
+                "busy_time": busy,
+                "utilization": busy / horizon,
+            }
+            for link, busy in link_busy.items()
+        }
+    elif link_busy:
+        link_utilization = {
+            link: {"busy_time": busy, "utilization": 0.0}
+            for link, busy in link_busy.items()
+        }
 
     return df, pga_names, pga_rel_times, link_utilization
