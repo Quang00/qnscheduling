@@ -97,44 +97,39 @@ def parallelizable_tasks(
 
 def app_params_sim(
     paths: dict[str, list[str]],
-    epr_pairs: dict[str, int],
+    app_specs: dict[str, dict[str, Any]],
     p_packet: float,
     memory_lifetime: int,
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-) -> dict[str, dict[str, int], float, int, float, float, float]:
+) -> dict[str, dict[str, float | int]]:
     """Prepare application parameters for simulation.
 
     Args:
         paths (dict[str, list[str]]): Paths for each application in the
         network.
-        epr_pairs (dict[str, int]): Entanglement generation pairs for each
-        application, indicating how many EPR pairs are to be generated.
+        app_specs (dict[str, dict[str, Any]]): Application metadata produced by
+        ``generate_n_apps`` containing network endpoints and requirements.
         p_packet (float): Probability of a packet being generated.
-        memory_lifetime (int): Memory lifetime in number of time
-        slot units.
-        p_swap (float): Probability of swapping an EPR pair in a
-        single trial.
-        p_gen (float): Probability of generating an EPR pair in a
-        single trial.
-        time_slot_duration (float): Duration of a time slot in
-        seconds.
+        memory_lifetime (int): Memory lifetime in number of time slot units.
+        p_swap (float): Probability of swapping an EPR pair in a single trial.
+        p_gen (float): Probability of generating an EPR pair in a single trial.
+        time_slot_duration (float): Duration of a time slot in seconds.
 
     Returns:
-        dict[str, dict[str, float]]: A dictionary mapping each application to
-        its parameters for simulation, including the probability of generating
-        an EPR pair, the number of EPR pairs to generate, and the time slot
-        duration.
+        dict[str, dict[str, float | int]]: Mapping of application name to the
+        parameters required by the simulator when instantiating PGAs.
     """
     sim_params = {}
     for key in paths.keys():
+        spec = app_specs[key]
         sim_params[key] = {
             "p_packet": p_packet,
             "memory_lifetime": memory_lifetime,
             "p_swap": p_swap,
             "p_gen": p_gen,
-            "epr_pairs": epr_pairs[key],
+            "epr_pairs": int(spec["epr"]),
             "slot_duration": time_slot_duration,
         }
     return sim_params
@@ -144,13 +139,10 @@ def save_results(
     df: pd.DataFrame,
     pga_names: List[str],
     pga_release_times: Dict[str, float],
-    apps: Dict[str, Tuple[str, str]],
-    instances: Dict[str, int],
-    epr_pairs: Dict[str, int],
-    policies: Dict[str, str],
+    app_specs: Dict[str, Dict[str, Any]],
     n_edges: int,
     durations: Dict[str, float] | None = None,
-    link_utilization: Dict[Tuple[str, str], Dict[str, float]] = None,
+    link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
     output_dir: str = "results",
 ) -> None:
     """Save the results of PGA scheduling and execution to a CSV file and print
@@ -176,14 +168,8 @@ def save_results(
         results.
         pga_release_times (Dict): Dictionary mapping PGA names to their
         relative release times, used to fill in missing PGAs.
-        apps (Dict): Dictionary mapping application names to their source and
-        destination nodes.
-        instances (Dict): Dictionary mapping application names to the number of
-        instances.
-        epr_pairs (Dict): Dictionary mapping application names to the number of
-        EPR pairs.
-        policies (Dict): Dictionary mapping application names to their
-        scheduling policies.
+        app_specs (Dict): Metadata for each application including endpoints,
+        instances, requested EPR pairs, period, and policy.
         n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
         durations per application.
@@ -213,17 +199,18 @@ def save_results(
         df = pd.concat([df, pd.DataFrame(filler_rows)], ignore_index=True)
 
     df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
+    app_names = list(app_specs.keys())
     params = pd.DataFrame(
         {
-            "task": list(apps.keys()),
-            "src_node": [apps[a][0] for a in apps],
-            "dst_node": [apps[a][1] for a in apps],
-            "instances": [instances[a] for a in apps],
-            "pairs_requested": [epr_pairs[a] for a in apps],
-            "policy": [policies[a] for a in apps],
+            "task": app_names,
+            "src_node": [app_specs[a]["src"] for a in app_names],
+            "dst_node": [app_specs[a]["dst"] for a in app_names],
+            "instances": [int(app_specs[a]["instances"]) for a in app_names],
+            "pairs_requested": [int(app_specs[a]["epr"]) for a in app_names],
+            "policy": [app_specs[a]["policy"] for a in app_names],
             "pga_duration": [
                 float(durations[a]) if durations and a in durations else np.nan
-                for a in apps
+                for a in app_names
             ],
         }
     )
@@ -392,12 +379,7 @@ def generate_n_apps(
     period_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
-) -> Tuple[
-    Dict[str, Tuple[str, str]],
-    Dict[str, int],
-    Dict[str, int],
-    Dict[str, int],
-]:
+) -> Dict[str, Dict[str, Any]]:
     """Generates a specified number of applications with random parameters.
 
     Args:
@@ -414,29 +396,30 @@ def generate_n_apps(
         rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
-        A tuple containing the generated applications and their parameters.
+        Dict[str, Dict[str, Any]]: Mapping of application name to its metadata,
+        including endpoints, number of instances, requested EPR pairs, period,
+        and policy.
     """
     apps = {}
-    instances = {}
-    epr_pairs = {}
-    policies = {}
-    periods = {}
 
     for i in range(n_apps):
         name_app = get_column_letter(i + 1)
-        rand_app = tuple(rng.choice(nodes, 2, replace=False).tolist())
-        rand_instance = rng.integers(inst_range[0], inst_range[1] + 1)
-        rand_epr_pairs = rng.integers(epr_range[0], epr_range[1] + 1)
-        rand_period = rng.uniform(period_range[0], period_range[1])
+        src, dst = rng.choice(nodes, 2, replace=False).tolist()
+        rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
+        rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
+        rand_period = float(rng.uniform(period_range[0], period_range[1]))
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
-        apps[name_app] = rand_app
-        instances[name_app] = rand_instance
-        epr_pairs[name_app] = rand_epr_pairs
-        periods[name_app] = rand_period
-        policies[name_app] = rand_policy
+        apps[name_app] = {
+            "src": src,
+            "dst": dst,
+            "instances": rand_instance,
+            "epr": rand_epr_pairs,
+            "period": rand_period,
+            "policy": rand_policy,
+        }
 
-    return apps, instances, epr_pairs, periods, policies
+    return apps
 
 
 def edges_delay(

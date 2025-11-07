@@ -114,7 +114,7 @@ def run_simulation(
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
         nodes, edges, distances = gml_data(config)
-        apps, instances, epr_pairs, periods, policies = generate_n_apps(
+        app_specs = generate_n_apps(
             nodes,
             n_apps=n_apps,
             inst_range=inst_range,
@@ -125,10 +125,15 @@ def run_simulation(
         )
 
     # Compute shortest paths and parallelizable tasks
-    paths = shortest_paths(edges, apps)
+    app_requests = {
+        name: (spec["src"], spec["dst"]) for name, spec in app_specs.items()
+    }
+    paths = shortest_paths(edges, app_requests)
     print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable tasks:", parallel_map)
+
+    epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
     durations = compute_durations(
@@ -142,23 +147,25 @@ def run_simulation(
     )
     print("Durations:", durations)
 
-    pga_rel_times = {app: 0.0 for app in apps}
+    pga_rel_times = {app: 0.0 for app in app_specs}
     print("Release times:", pga_rel_times)
 
-    pga_periods = periods
+    pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
     print("Periods:", pga_periods)
 
     print("Hyperperiod cycles:", hyperperiod_cycles)
 
     pga_parameters = app_params_sim(
         paths,
-        epr_pairs,
+        app_specs,
         p_packet,
         memory_lifetime,
         p_swap,
         p_gen,
         time_slot_duration
     )
+
+    policies = {name: spec["policy"] for name, spec in app_specs.items()}
 
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
@@ -195,10 +202,7 @@ def run_simulation(
         df,
         pga_names,
         pga_release_times,
-        apps,
-        instances,
-        epr_pairs,
-        policies,
+        app_specs,
         durations=durations,
         n_edges=len(edges),
         link_utilization=link_utilization,

@@ -133,20 +133,31 @@ def test_save_results_basic(tmp_path):
 
     pga_names = ["A0", "B0"]
     release_times = {"A0": 0.0, "B0": 5.0}
-    apps = {"A": ("srcA", "dstA"), "B": ("srcB", "dstB")}
     length_edges = 2
-    instances = {"A": 2, "B": 1}
-    epr_pairs = {"A": 3, "B": 1}
-    policies = {"A": "deadline", "B": "deadline"}
+    app_specs = {
+        "A": {
+            "src": "srcA",
+            "dst": "dstA",
+            "instances": 2,
+            "epr": 3,
+            "period": 10.0,
+            "policy": "deadline",
+        },
+        "B": {
+            "src": "srcB",
+            "dst": "dstB",
+            "instances": 1,
+            "epr": 1,
+            "period": 12.0,
+            "policy": "deadline",
+        },
+    }
 
     save_results(
         df,
         pga_names,
         release_times,
-        apps,
-        instances,
-        epr_pairs,
-        policies,
+        app_specs,
         n_edges=length_edges,
         output_dir=str(tmp_path),
     )
