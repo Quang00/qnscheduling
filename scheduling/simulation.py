@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from utils.helper import compute_link_utilization
+
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
 
@@ -299,21 +301,11 @@ def simulate_static(
         max_completion = max(max_completion, result["completion_time"])
 
     df = pd.DataFrame(log)
-    horizon = max_completion - min_start if log else 0.0
-    link_utilization = {}
-    if horizon > 0:
-        link_utilization = {
-            link: {
-                "busy_time": busy,
-                "utilization": busy / horizon,
-            }
-            for link, busy in link_busy.items()
-        }
-    elif link_busy:
-        link_utilization = {
-            link: {"busy_time": busy, "utilization": 0.0}
-            for link, busy in link_busy.items()
-        }
+    link_utilization = compute_link_utilization(
+        link_busy,
+        min_start,
+        max_completion,
+    )
 
     return df, pga_names, pga_release_times, link_utilization
 
@@ -439,27 +431,15 @@ def simulate_dynamic(
 
         period = app_specs[app].get("period", 0.0)
         next_release = release + period
-        pga_rel_times[app] = max(
-            next_release, result["completion_time"] + EPS
-        )
+        pga_rel_times[app] = max(next_release, result["completion_time"] + EPS)
         next_deadline = pga_rel_times[app] + period
         heapq.heappush(priority_queue, (next_deadline, app))
 
     df = pd.DataFrame(log)
-    horizon = max_completion - min_start if log else 0.0
-    link_utilization = {}
-    if horizon > 0:
-        link_utilization = {
-            link: {
-                "busy_time": busy,
-                "utilization": busy / horizon,
-            }
-            for link, busy in link_busy.items()
-        }
-    elif link_busy:
-        link_utilization = {
-            link: {"busy_time": busy, "utilization": 0.0}
-            for link, busy in link_busy.items()
-        }
+    link_utilization = compute_link_utilization(
+        link_busy,
+        min_start,
+        max_completion,
+    )
 
-    return df, pga_names, pga_rel_times, link_utilization
+    return df, pga_names, pga_release_times, link_utilization

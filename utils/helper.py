@@ -703,3 +703,34 @@ def generate_metadata(
         metadata["n_apps_values"] = [int(val) for val in n_apps_values]
     with open(os.path.join(run_dir, "params.json"), "w") as f:
         json.dump(metadata, f, indent=2, sort_keys=True)
+
+
+def compute_link_utilization(
+    link_busy: Dict[Tuple[str, str], float],
+    min_start: float,
+    max_completion: float,
+) -> Dict[Tuple[str, str], Dict[str, float]]:
+    if not link_busy:
+        return {}
+
+    horizon = 0.0
+    if (
+        np.isfinite(min_start)
+        and np.isfinite(max_completion)
+        and max_completion > min_start
+    ):
+        horizon = max_completion - min_start
+
+    if horizon > 0.0:
+        return {
+            link: {
+                "busy_time": busy,
+                "utilization": busy / horizon,
+            }
+            for link, busy in link_busy.items()
+        }
+
+    return {
+        link: {"busy_time": busy, "utilization": 0.0}
+        for link, busy in link_busy.items()
+    }
