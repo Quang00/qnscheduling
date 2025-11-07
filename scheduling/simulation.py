@@ -320,7 +320,7 @@ def simulate_static(
 
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
-    durations: Dict[str, List[float]],
+    durations: Dict[str, float],
     parallel_map: dict[str, set[str]],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],
@@ -422,10 +422,13 @@ def simulate_dynamic(
 
         status = result.get("status", "")
         if status == "failed":
-            next_release = max(result["completion_time"] + EPS, release)
-            pga_rel_times[app] = next_release
-            deadline = next_release + app_specs[app].get("period", 0.0)
-            heapq.heappush(priority_queue, (deadline, app))
+            period = app_specs[app].get("period", 0.0)
+            next_release = release + period
+            pga_rel_times[app] = max(
+                next_release, result["completion_time"] + EPS
+            )
+            next_deadline = pga_rel_times[app] + period
+            heapq.heappush(priority_queue, (next_deadline, app))
 
     df = pd.DataFrame(log)
     horizon = max_completion - min_start if log else 0.0
