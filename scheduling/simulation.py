@@ -351,20 +351,6 @@ def simulate_dynamic(
             - Dictionary mapping PGA names to their release times.
             - Dictionary mapping undirected links to busy time and utilization.
     """
-    df = pd.DataFrame(
-        columns=[
-            "pga",
-            "arrival_time",
-            "start_time",
-            "burst_time",
-            "completion_time",
-            "turnaround_time",
-            "waiting_time",
-            "pairs_generated",
-            "status",
-            "deadline",
-        ]
-    )
     log = []
     pga_release_times = {}
     pga_names = []
