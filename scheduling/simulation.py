@@ -10,11 +10,14 @@ metrics, link utilizations, and other relevant data. While the function
 `simulate_dynamic` implement a dynamic scheduling approach.
 """
 
+import heapq
 import re
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+
+from utils.helper import parallelizable_tasks
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
@@ -316,5 +319,40 @@ def simulate_static(
     return df, pga_names, pga_release_times, link_utilization
 
 
-def simulate_dynamic():
-    pass
+def simulate_dynamic(
+    app_specs: Dict[str, Dict[str, Any]],
+    durations: Dict[str, List[float]],
+    pga_parameters: Dict[str, Dict[str, float]],
+    pga_rel_times: Dict[str, float],
+    pga_network_paths: Dict[str, List[str]],
+    rng: np.random.Generator,
+):
+    df = pd.DataFrame(
+        columns=[
+            "pga",
+            "arrival_time",
+            "start_time",
+            "burst_time",
+            "completion_time",
+            "turnaround_time",
+            "waiting_time",
+            "pairs_generated",
+            "status",
+            "deadline",
+        ]
+    )
+    pga_names = []
+    link_utilization = {}
+    apps_deadlines = {
+        app: pga_rel_times.get(app, 0.0) + spec.get("period", 0.0)
+        for app, spec in app_specs.items()
+    }
+
+    apps_parallelizable = parallelizable_tasks(app_specs)
+    print("Parallelizable apps:", apps_parallelizable)
+
+    priority_queue = [(deadline, app) for app, deadline in apps_deadlines.items()]
+    heapq.heapify(priority_queue)
+    print("Priority queue:", priority_queue)
+
+    return df, pga_names, pga_rel_times, link_utilization

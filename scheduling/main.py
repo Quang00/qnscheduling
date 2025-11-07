@@ -132,7 +132,6 @@ def run_simulation(
     print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable tasks:", parallel_map)
-
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
@@ -170,7 +169,14 @@ def run_simulation(
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
     if scheduler == "dynamic":
-        simulate_dynamic()
+        df, pga_names, pga_release_times, link_utilization = simulate_dynamic(
+            app_specs,
+            durations,
+            pga_parameters,
+            pga_rel_times,
+            paths,
+            rng,
+        )
         feasible = True
     else:
         feasible, schedule = edf_parallel(
@@ -262,7 +268,7 @@ def main():
         "--hyperperiod",
         "-hp",
         type=float,
-        default=10,
+        default=100,
         help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
     )
     parser.add_argument(
@@ -324,11 +330,6 @@ def main():
     )
 
     args = parser.parse_args()
-
-    if args.scheduler == "dynamic":
-        print("Dynamic scheduling is not yet implemented.")
-        return
-
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
     os.makedirs(seed_dir, exist_ok=True)
 
