@@ -385,7 +385,7 @@ def simulate_dynamic(
                     "turnaround_time": 0.0,
                     "waiting_time": 0.0,
                     "pairs_generated": 0,
-                    "status": "deadline_miss",
+                    "status": "failed",
                     "deadline": deadline,
                 }
             )
