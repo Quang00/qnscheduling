@@ -116,11 +116,9 @@ class PGA:
         succ = (candidate < t_mem) & (last_valid >= candidate)
 
         if self.n_swap > 0:
-            p_swap = float(np.clip(self.p_swap, 0.0, 1.0))
-            if p_swap <= 0.0:
-                return np.zeros_like(succ, dtype=bool)
-            elif p_swap < 1.0:
-                swap_ok = self.rng.random(max_attempts) < (p_swap**self.n_swap)
+            if self.p_swap < 1.0:
+                p_bsms = self.p_swap**self.n_swap
+                swap_ok = self.rng.random(max_attempts) < p_bsms
                 succ &= swap_ok
 
         return succ
@@ -143,36 +141,26 @@ class PGA:
         status = "failed"
 
         if t_budget > EPS and self.policy == "deadline":
-            if self.slot_duration <= 0.0:
-                max_attempts = 0
-                succ = np.zeros(0, dtype=bool)
-            else:
-                max_attempts = int((t_budget + EPS) // self.slot_duration)
-                succ = self._simulate_e2e_attempts(max_attempts)
+            max_attempts = int((t_budget + EPS) // self.slot_duration)
+            succ = self._simulate_e2e_attempts(max_attempts)
+            csum = (
+                np.cumsum(succ, dtype=int)
+                if len(succ)
+                else np.array([], dtype=int)
+            )
+            hit = (
+                np.searchsorted(csum, self.epr_pairs, side="left")
+                if len(csum)
+                else len(csum)
+            )
 
-            if self.epr_pairs <= 0:
-                attempts_run = 0
-                pairs_generated = 0
+            if len(csum) and hit < len(csum):
+                attempts_run = int(hit + 1)
+                pairs_generated = int(csum[attempts_run - 1])
                 status = "completed"
             else:
-                csum = (
-                    np.cumsum(succ, dtype=int)
-                    if len(succ)
-                    else np.array([], dtype=int)
-                )
-                hit = (
-                    np.searchsorted(csum, self.epr_pairs, side="left")
-                    if len(csum)
-                    else len(csum)
-                )
-
-                if len(csum) and hit < len(csum):
-                    attempts_run = int(hit + 1)
-                    pairs_generated = int(csum[attempts_run - 1])
-                    status = "completed"
-                else:
-                    attempts_run = max_attempts
-                    pairs_generated = int(csum[-1]) if len(csum) else 0
+                attempts_run = max_attempts
+                pairs_generated = int(csum[-1]) if len(csum) else 0
 
             current_time = self.start + attempts_run * self.slot_duration
             completion = min(self.end, current_time)
