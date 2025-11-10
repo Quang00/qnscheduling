@@ -313,14 +313,10 @@ def simulate_static(
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
 
-        required = instances_required.get(app, 0)
-        if required <= 0:
-            continue
-
         if result.get("status") == "completed":
             completed_instances[app] += 1
             completed_total += 1
-            if completed_total >= total_required:
+            if completed_total == total_required:
                 break
 
     df = pd.DataFrame(log)
@@ -376,55 +372,68 @@ def simulate_dynamic(
     min_start = float("inf")
     max_completion = 0.0
 
-    app_idx = defaultdict(int)
-    completed_cpt = {app: 0 for app in app_specs}
-    apps_deadlines = {
-        app: pga_rel_times.get(app, 0.0) + spec.get("period", 0.0)
-        for app, spec in app_specs.items()
-    }
+    periods = {app: app_specs[app].get("period", 0.0) for app in app_specs}
+    inst_req = {app: app_specs[app].get("instances", 0) for app in app_specs}
+    base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
+    completed_instances = {app: 0 for app in app_specs}
+    retry_counters = defaultdict(int)
 
-    priority_queue = [
-        (deadline, app) for app, deadline in apps_deadlines.items()
-    ]
-    heapq.heapify(priority_queue)
+    priority_queue = []
+    for app in app_specs:
+        release = base_release[app]
+        deadline = release + periods[app]
+        heapq.heappush(priority_queue, (deadline, release, release, app, 0))
 
     while priority_queue:
-        deadline, app = heapq.heappop(priority_queue)
-        route = pga_network_paths[app]
-        release = float(pga_rel_times.get(app, 0.0))
-        latest_available_resource_time = max(
-            (resources.get(n, 0.0) for n in route), default=0.0
+        deadline, ready_time, arrival_time, app, i = heapq.heappop(
+            priority_queue
         )
-        earliest_start = max(release, latest_available_resource_time)
+        route = pga_network_paths[app]
+        latest_available_resource = max(resources.get(n, 0.0) for n in route)
+        earliest_start = max(ready_time, latest_available_resource)
         completion = earliest_start + durations[app]
-        idx = app_idx[app]
-        pga_name = f"{app}{idx}"
 
-        if completion > deadline:
+        attempt_id = retry_counters[(app, i)]
+        suffix = f"_retry{attempt_id}" if attempt_id else ""
+        pga_name = f"{app}{i}{suffix}"
+
+        if completion > deadline + EPS:
             log.append(
                 {
                     "pga": pga_name,
-                    "arrival_time": release,
+                    "arrival_time": arrival_time,
                     "start_time": earliest_start,
                     "burst_time": 0.0,
                     "completion_time": earliest_start,
-                    "turnaround_time": 0.0,
-                    "waiting_time": 0.0,
+                    "turnaround_time": earliest_start - arrival_time,
+                    "waiting_time": earliest_start - arrival_time,
                     "pairs_generated": 0,
                     "status": "failed",
                     "deadline": deadline,
                 }
             )
             pga_names.append(pga_name)
-            pga_release_times[pga_name] = release
-            app_idx[app] += 1
+            pga_release_times[pga_name] = arrival_time
+            completed_instances[app] += 1
+            retry_counters.pop((app, i), None)
+
+            if completed_instances[app] < inst_req[app]:
+                next_i = completed_instances[app]
+                attempts_key = (app, next_i)
+                retry_counters.pop(attempts_key, None)
+                next_arrival = base_release[app] + periods[app] * next_i
+                next_deadline = next_arrival + periods[app]
+                heapq.heappush(
+                    priority_queue,
+                    (next_deadline, next_arrival, next_arrival, app, next_i),
+                )
             continue
 
         pga = PGA(
             name=pga_name,
-            arrival=release,
+            arrival=arrival_time,
             start=earliest_start,
-            end=earliest_start + durations[app],
+            end=completion,
             route=route,
             resources=resources,
             link_busy=link_busy,
@@ -441,22 +450,44 @@ def simulate_dynamic(
         result = pga.run()
 
         pga_names.append(pga_name)
-        pga_release_times[pga_name] = release
+        pga_release_times[pga_name] = arrival_time
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
-        app_idx[app] += 1
 
         status = result.get("status", "")
         if status == "completed":
-            completed_cpt[app] += 1
-        if completed_cpt[app] == app_specs[app].get("instances"):
+            retry_counters.pop((app, i), None)
+            completed_instances[app] += 1
+
+            if completed_instances[app] < inst_req[app]:
+                next_i = completed_instances[app]
+                next_arrival = base_release[app] + periods[app] * next_i
+                next_deadline = next_arrival + periods[app]
+                heapq.heappush(
+                    priority_queue,
+                    (next_deadline, next_arrival, next_arrival, app, next_i),
+                )
             continue
 
-        period = app_specs[app].get("period", 0.0)
-        next_release = release + period
-        pga_rel_times[app] = max(next_release, result["completion_time"] + EPS)
-        next_deadline = pga_rel_times[app] + period
-        heapq.heappush(priority_queue, (next_deadline, app))
+        time_left = deadline - result["completion_time"]
+        if time_left > EPS:
+            retry_counters[(app, i)] = attempt_id + 1
+            next_ready_time = result["completion_time"] + EPS
+            heapq.heappush(
+                priority_queue,
+                (deadline, next_ready_time, arrival_time, app, i),
+            )
+        else:
+            retry_counters.pop((app, i), None)
+            completed_instances[app] += 1
+            if completed_instances[app] < inst_req[app]:
+                next_i = completed_instances[app]
+                next_arrival = base_release[app] + periods[app] * next_i
+                next_deadline = next_arrival + periods[app]
+                heapq.heappush(
+                    priority_queue,
+                    (next_deadline, next_arrival, next_arrival, app, next_i),
+                )
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
