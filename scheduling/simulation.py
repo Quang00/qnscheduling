@@ -280,6 +280,10 @@ def simulate_static(
         m = INIT_PGA_RE.match(pga_name)
         app, idx = (m.group(1), int(m.group(2))) if m else (pga_name, 0)
 
+        required = instances_required.get(app, 0)
+        if required > 0 and completed_instances[app] >= required:
+            continue
+
         r0 = float(pga_rel_times.get(app, 0.0))
         T = float(pga_periods.get(app, 0.0))
         arrival = r0 + idx * T
@@ -309,14 +313,14 @@ def simulate_static(
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
 
-        if instances_required.get(app, 0) > 0:
-            if (
-                result.get("status") == "completed"
-                and completed_instances[app] < instances_required[app]
-            ):
-                completed_instances[app] += 1
-                completed_total += 1
-            if completed_total >= total_required > 0:
+        required = instances_required.get(app, 0)
+        if required <= 0:
+            continue
+
+        if result.get("status") == "completed":
+            completed_instances[app] += 1
+            completed_total += 1
+            if completed_total >= total_required:
                 break
 
     df = pd.DataFrame(log)
