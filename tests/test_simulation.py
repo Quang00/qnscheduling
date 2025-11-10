@@ -26,6 +26,7 @@ def test_simulation_completes_basic(base_pga_parameters):
 
     df, _, _, _ = simulate_static(
         schedule=schedule,
+        app_specs={"A": {"instances": 1}},
         pga_parameters=pga_parameters,
         pga_rel_times=pga_rel_times,
         pga_periods=pga_periods,
@@ -48,6 +49,7 @@ def test_simulation_fails_basic(base_pga_parameters):
 
     df, _, _, _ = simulate_static(
         schedule=schedule,
+        app_specs={"A": {"instances": 1}},
         pga_parameters=pga_parameters,
         pga_rel_times=pga_rel_times,
         pga_periods=pga_periods,
