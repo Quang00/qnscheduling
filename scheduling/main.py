@@ -194,6 +194,7 @@ def run_simulation(
 
         df, pga_names, pga_release_times, link_utilization = simulate_static(
             schedule=schedule,
+            app_specs=app_specs,
             pga_parameters=pga_parameters,
             pga_rel_times=pga_rel_times,
             pga_periods=pga_periods,

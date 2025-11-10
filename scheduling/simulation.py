@@ -211,6 +211,7 @@ class PGA:
 
 def simulate_static(
     schedule: List[Tuple[str, float, float, float]],
+    app_specs: Dict[str, Dict[str, Any]],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],
     pga_periods: Dict[str, float],
@@ -261,6 +262,14 @@ def simulate_static(
     pga_release_times = {}
     pga_names = []
 
+    instances_required = {
+        app: max(0, int(app_specs.get(app, {}).get("instances", 0)))
+        for app in pga_network_paths
+    }
+    total_required = sum(instances_required.values())
+    completed_instances = {app: 0 for app in instances_required}
+    completed_total = 0
+
     all_nodes = {n for path in pga_network_paths.values() for n in path}
     resources = {n: 0.0 for n in all_nodes}
     link_busy = {}
@@ -299,6 +308,16 @@ def simulate_static(
         pga_release_times[pga_name] = sched_start
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
+
+        if instances_required.get(app, 0) > 0:
+            if (
+                result.get("status") == "completed"
+                and completed_instances[app] < instances_required[app]
+            ):
+                completed_instances[app] += 1
+                completed_total += 1
+            if completed_total >= total_required > 0:
+                break
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
