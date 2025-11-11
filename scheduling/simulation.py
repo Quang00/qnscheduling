@@ -12,7 +12,6 @@ metrics, link utilizations, and other relevant data. While the function
 
 import heapq
 import re
-from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -365,8 +364,6 @@ def simulate_dynamic(
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     completed_instances = {app: 0 for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
-    retry_counters = defaultdict(int)
-    base_entries = {}
 
     priority_queue = []
 
@@ -391,12 +388,32 @@ def simulate_dynamic(
         latest_available_resource = max(resources.get(n, 0.0) for n in route)
         earliest_start = max(ready_time, latest_available_resource)
         completion = earliest_start + durations[app]
+        duration = durations.get(app, 0.0)
+        period = periods[app]
+        pga_name = (f"{app}{i}")
 
-        attempt_id = retry_counters[(app, i)]
-        pga_name = f"{app}{i}"
+        if period <= 0.0 or duration > period + EPS:
+            failure_entry = {
+                "pga": pga_name,
+                "arrival_time": arrival_time,
+                "start_time": earliest_start,
+                "burst_time": 0.0,
+                "completion_time": earliest_start,
+                "turnaround_time": earliest_start - arrival_time,
+                "waiting_time": earliest_start - arrival_time,
+                "pairs_generated": 0,
+                "status": "failed",
+                "deadline": deadline,
+            }
+            log.append(failure_entry)
+            pga_names.append(pga_name)
+            pga_release_times[pga_name] = arrival_time
+            completed_instances[app] += 1
+            if inst_req[app] > completed_instances[app]:
+                enqueue_release(app)
+            continue
 
         if completion > deadline + EPS:
-            status = "retry_failed" if attempt_id > 0 else "failed"
             log.append(
                 {
                     "pga": pga_name,
@@ -407,15 +424,12 @@ def simulate_dynamic(
                     "turnaround_time": earliest_start - arrival_time,
                     "waiting_time": earliest_start - arrival_time,
                     "pairs_generated": 0,
-                    "status": status,
+                    "status": "failed",
                     "deadline": deadline,
                 }
             )
-            if attempt_id == 0:
-                base_entries[(app, i)] = len(log) - 1
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
-            retry_counters.pop((app, i), None)
 
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
@@ -445,33 +459,10 @@ def simulate_dynamic(
         pga_release_times[pga_name] = arrival_time
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
-        if attempt_id == 0 and (app, i) not in base_entries:
-            base_entries[(app, i)] = len(log) - 1
 
         status = result.get("status", "")
-        if attempt_id > 0 and status == "failed":
-            status = result["status"] = "retry_failed"
         if status == "completed":
-            if attempt_id > 0:
-                status = result["status"] = "retry_completed"
-            retry_counters.pop((app, i), None)
             completed_instances[app] += 1
-
-            base_idx = base_entries.get((app, i))
-            if base_idx is not None:
-                base_entry = log[base_idx]
-                for key in (
-                    "start_time",
-                    "burst_time",
-                    "completion_time",
-                    "turnaround_time",
-                    "waiting_time",
-                    "pairs_generated",
-                ):
-                    base_entry[key] = result[key]
-                base_entry["status"] = (
-                    "completed" if attempt_id > 0 else result["status"]
-                )
 
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
@@ -479,29 +470,14 @@ def simulate_dynamic(
 
         time_left = deadline - result["completion_time"]
         if time_left > EPS:
-            retry_counters[(app, i)] = attempt_id + 1
             next_ready_time = result["completion_time"] + EPS
             heapq.heappush(
                 priority_queue,
                 (deadline, next_ready_time, arrival_time, app, i),
             )
         else:
-            retry_counters.pop((app, i), None)
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
-            base_idx = base_entries.get((app, i))
-            if base_idx is not None:
-                base_entry = log[base_idx]
-                for key in (
-                    "start_time",
-                    "burst_time",
-                    "completion_time",
-                    "turnaround_time",
-                    "waiting_time",
-                    "pairs_generated",
-                ):
-                    base_entry[key] = result[key]
-                base_entry["status"] = result["status"]
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
