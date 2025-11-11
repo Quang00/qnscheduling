@@ -919,11 +919,12 @@ if __name__ == "__main__":
         simulations_per_point=3000,
         simulation_kwargs={
             "inst_range": (100, 100),
-            "epr_range": (2, 2),
-            "period_range": (0.8, 0.8),
-            "hyperperiod_cycles": 1000,
-            "memory_lifetime": 500,
+            "epr_range": (10, 10),
+            "period_range": (0.05, 0.05),
+            "hyperperiod_cycles": 10e6,
+            "memory_lifetime": 2000,
             "p_swap": 0.95,
+            "scheduler": "dynamic"
         },
         config="configurations/network/Garr201201.gml",
         n_apps_values=n_apps_values,
