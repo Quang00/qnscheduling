@@ -392,28 +392,7 @@ def simulate_dynamic(
         period = periods[app]
         pga_name = (f"{app}{i}")
 
-        if period <= 0.0 or duration > period + EPS:
-            failure_entry = {
-                "pga": pga_name,
-                "arrival_time": arrival_time,
-                "start_time": earliest_start,
-                "burst_time": 0.0,
-                "completion_time": earliest_start,
-                "turnaround_time": earliest_start - arrival_time,
-                "waiting_time": earliest_start - arrival_time,
-                "pairs_generated": 0,
-                "status": "failed",
-                "deadline": deadline,
-            }
-            log.append(failure_entry)
-            pga_names.append(pga_name)
-            pga_release_times[pga_name] = arrival_time
-            completed_instances[app] += 1
-            if inst_req[app] > completed_instances[app]:
-                enqueue_release(app)
-            continue
-
-        if completion > deadline + EPS:
+        if completion > deadline + EPS or duration > period + EPS:
             log.append(
                 {
                     "pga": pga_name,
@@ -430,6 +409,9 @@ def simulate_dynamic(
             )
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
+
+            if duration > period + EPS:
+                completed_instances[app] += 1
 
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
