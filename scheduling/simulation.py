@@ -364,13 +364,23 @@ def simulate_dynamic(
     inst_req = {app: app_specs[app].get("instances", 0) for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     completed_instances = {app: 0 for app in app_specs}
+    release_indices = {app: 0 for app in app_specs}
     retry_counters = defaultdict(int)
 
     priority_queue = []
+
+    def enqueue_release(app: str) -> None:
+        if inst_req[app] <= completed_instances[app]:
+            return
+        idx = release_indices[app]
+        period = periods[app]
+        release = base_release[app] + period * idx
+        deadline = release + period
+        heapq.heappush(priority_queue, (deadline, release, release, app, idx))
+        release_indices[app] += 1
+
     for app in app_specs:
-        release = base_release[app]
-        deadline = release + periods[app]
-        heapq.heappush(priority_queue, (deadline, release, release, app, 0))
+        enqueue_release(app)
 
     while priority_queue:
         deadline, ready_time, arrival_time, app, i = heapq.heappop(
@@ -382,8 +392,7 @@ def simulate_dynamic(
         completion = earliest_start + durations[app]
 
         attempt_id = retry_counters[(app, i)]
-        suffix = f"_retry{attempt_id}" if attempt_id else ""
-        pga_name = f"{app}{i}{suffix}"
+        pga_name = f"{app}{i}"
 
         if completion > deadline + EPS:
             log.append(
@@ -402,19 +411,10 @@ def simulate_dynamic(
             )
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
-            completed_instances[app] += 1
             retry_counters.pop((app, i), None)
 
-            if completed_instances[app] < inst_req[app]:
-                next_i = completed_instances[app]
-                attempts_key = (app, next_i)
-                retry_counters.pop(attempts_key, None)
-                next_arrival = base_release[app] + periods[app] * next_i
-                next_deadline = next_arrival + periods[app]
-                heapq.heappush(
-                    priority_queue,
-                    (next_deadline, next_arrival, next_arrival, app, next_i),
-                )
+            if inst_req[app] > completed_instances[app]:
+                enqueue_release(app)
             continue
 
         pga = PGA(
@@ -447,14 +447,8 @@ def simulate_dynamic(
             retry_counters.pop((app, i), None)
             completed_instances[app] += 1
 
-            if completed_instances[app] < inst_req[app]:
-                next_i = completed_instances[app]
-                next_arrival = base_release[app] + periods[app] * next_i
-                next_deadline = next_arrival + periods[app]
-                heapq.heappush(
-                    priority_queue,
-                    (next_deadline, next_arrival, next_arrival, app, next_i),
-                )
+            if inst_req[app] > completed_instances[app]:
+                enqueue_release(app)
             continue
 
         time_left = deadline - result["completion_time"]
@@ -467,15 +461,8 @@ def simulate_dynamic(
             )
         else:
             retry_counters.pop((app, i), None)
-            completed_instances[app] += 1
-            if completed_instances[app] < inst_req[app]:
-                next_i = completed_instances[app]
-                next_arrival = base_release[app] + periods[app] * next_i
-                next_deadline = next_arrival + periods[app]
-                heapq.heappush(
-                    priority_queue,
-                    (next_deadline, next_arrival, next_arrival, app, next_i),
-                )
+            if inst_req[app] > completed_instances[app]:
+                enqueue_release(app)
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
