@@ -366,6 +366,7 @@ def simulate_dynamic(
     completed_instances = {app: 0 for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
     retry_counters = defaultdict(int)
+    base_entries = {}
 
     priority_queue = []
 
@@ -395,6 +396,7 @@ def simulate_dynamic(
         pga_name = f"{app}{i}"
 
         if completion > deadline + EPS:
+            status = "retry_failed" if attempt_id > 0 else "failed"
             log.append(
                 {
                     "pga": pga_name,
@@ -405,10 +407,12 @@ def simulate_dynamic(
                     "turnaround_time": earliest_start - arrival_time,
                     "waiting_time": earliest_start - arrival_time,
                     "pairs_generated": 0,
-                    "status": "failed",
+                    "status": status,
                     "deadline": deadline,
                 }
             )
+            if attempt_id == 0:
+                base_entries[(app, i)] = len(log) - 1
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
             retry_counters.pop((app, i), None)
@@ -441,11 +445,33 @@ def simulate_dynamic(
         pga_release_times[pga_name] = arrival_time
         min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
+        if attempt_id == 0 and (app, i) not in base_entries:
+            base_entries[(app, i)] = len(log) - 1
 
         status = result.get("status", "")
+        if attempt_id > 0 and status == "failed":
+            status = result["status"] = "retry_failed"
         if status == "completed":
+            if attempt_id > 0:
+                status = result["status"] = "retry_completed"
             retry_counters.pop((app, i), None)
             completed_instances[app] += 1
+
+            base_idx = base_entries.get((app, i))
+            if base_idx is not None:
+                base_entry = log[base_idx]
+                for key in (
+                    "start_time",
+                    "burst_time",
+                    "completion_time",
+                    "turnaround_time",
+                    "waiting_time",
+                    "pairs_generated",
+                ):
+                    base_entry[key] = result[key]
+                base_entry["status"] = (
+                    "completed" if attempt_id > 0 else result["status"]
+                )
 
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
@@ -463,6 +489,19 @@ def simulate_dynamic(
             retry_counters.pop((app, i), None)
             if inst_req[app] > completed_instances[app]:
                 enqueue_release(app)
+            base_idx = base_entries.get((app, i))
+            if base_idx is not None:
+                base_entry = log[base_idx]
+                for key in (
+                    "start_time",
+                    "burst_time",
+                    "completion_time",
+                    "turnaround_time",
+                    "waiting_time",
+                    "pairs_generated",
+                ):
+                    base_entry[key] = result[key]
+                base_entry["status"] = result["status"]
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
