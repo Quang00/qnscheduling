@@ -1,6 +1,5 @@
 import multiprocessing as mp
 import os
-import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import redirect_stdout
@@ -153,7 +152,6 @@ def simulate_one_ppacket(args: tuple) -> dict:
 
     n_apps_int = int(n_apps_value) if n_apps_value is not None else None
 
-    tmp_dir = None
     if keep_seed_outputs:
         base_dir = run_dir
         if n_apps_int is not None:
@@ -165,93 +163,64 @@ def simulate_one_ppacket(args: tuple) -> dict:
         os.makedirs(sd_dir, exist_ok=True)
     else:
         sd_dir = tempfile.mkdtemp(prefix=f"seed_{run_seed}_")
-        tmp_dir = sd_dir
 
     args = default_kwargs.copy()
     args.update({"p_packet": p_packet, "seed": run_seed, "output_dir": sd_dir})
-    if n_apps_int is not None:
-        args["n_apps"] = n_apps_int
+    args["n_apps"] = n_apps_int
 
-    try:
-        with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-            feasible, df, durations = run_simulation(**args)
+    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
+        feasible, df, durations = run_simulation(**args)
 
-        admission_rate = 1.0 if feasible else 0.0
-        completed = 0
-        total = 0
-        if feasible and df is not None and not df.empty:
-            status_series = df["status"].astype(str)
-            completed = int((status_series == "completed").sum())
-            total = int(len(status_series))
-        durations = durations or {}
+    admission_rate = 1.0 if feasible else 0.0
+    completed = 0
+    total = 0
+    if feasible and df is not None and not df.empty:
+        status_series = df["status"].astype(str)
+        completed = int((status_series == "completed").sum())
+        total = int(len(status_series))
+    durations = durations or {}
 
-        summary_metrics = {
-            "makespan": float("nan"),
-            "throughput": float("nan"),
-            "completed_ratio": float("nan"),
-            "avg_waiting_time": float("nan"),
-            "max_waiting_time": float("nan"),
-            "avg_turnaround_time": float("nan"),
-            "max_turnaround_time": float("nan"),
-        }
-        summary_row = None
-        summary_path = os.path.join(sd_dir, "summary.csv")
-        if os.path.exists(summary_path):
-            summary_df = pd.read_csv(summary_path)
-            if not summary_df.empty:
-                row = summary_df.iloc[0]
-                summary_row = row
-                for key in summary_metrics:
-                    if key in row:
-                        summary_metrics[key] = float(row[key])
+    summary_metrics = {
+        "makespan": float("nan"),
+        "throughput": float("nan"),
+        "completed_ratio": float("nan"),
+        "avg_waiting_time": float("nan"),
+        "avg_link_utilization": float("nan"),
+    }
+    summary_row = None
+    summary_path = os.path.join(sd_dir, "summary.csv")
+    if os.path.exists(summary_path):
+        summary_df = pd.read_csv(summary_path)
+        if not summary_df.empty:
+            row = summary_df.iloc[0]
+            summary_row = row
+            for key in summary_metrics:
+                if key in row:
+                    summary_metrics[key] = float(row[key])
 
-        avg_link_utilization = float("nan")
-        if summary_row is not None:
-            avg_link_utilization = float(
-                summary_row.get("avg_link_utilization", avg_link_utilization)
-            )
+    pga_duration_total = float("nan")
+    if summary_row is not None:
+        pga_duration_total = float(
+            summary_row.get("total_pga_duration", pga_duration_total)
+        )
 
-        pga_duration_total = float("nan")
-        if summary_row is not None:
-            pga_duration_total = float(
-                summary_row.get("total_pga_duration", pga_duration_total)
-            )
+    if durations:
+        duration_vals = np.array(list(durations.values()), dtype=float)
+        if duration_vals.size:
+            pga_duration_total = float(duration_vals.sum())
 
-        link_metrics = {
-            "max_link_utilization": float("nan"),
-        }
-        link_util_path = os.path.join(sd_dir, "link_utilization.csv")
-        if os.path.exists(link_util_path):
-            util_df = pd.read_csv(link_util_path)
-            if not util_df.empty and "utilization" in util_df.columns:
-                util_values = util_df["utilization"].astype(float)
-                avg_link_utilization = float(util_values.mean())
-                link_metrics["max_link_utilization"] = float(
-                    util_values.max()
-                )
-
-        if durations:
-            duration_vals = np.array(list(durations.values()), dtype=float)
-            if duration_vals.size:
-                pga_duration_total = float(duration_vals.sum())
-
-        result = {
-            "p_packet": p_packet,
-            "seed": run_seed,
-            "feasible": feasible,
-            "admission_rate": admission_rate,
-            "completed": completed,
-            "total_jobs": total,
-            "n_apps": n_apps_int,
-            "pga_duration_total": pga_duration_total,
-            "avg_link_utilization": avg_link_utilization,
-            **summary_metrics,
-            **link_metrics,
-        }
-        return result
-    finally:
-        if tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+    result = {
+        "p_packet": p_packet,
+        "seed": run_seed,
+        "feasible": feasible,
+        "admission_rate": admission_rate,
+        "completed": completed,
+        "total_jobs": total,
+        "n_apps": n_apps_int,
+        "pga_duration_total": pga_duration_total,
+        **summary_metrics,
+    }
+    return result
 
 
 def run_parallel_sims(
@@ -343,29 +312,6 @@ def build_metric_specs(
             "pad_fraction": 0.1,
         },
         {
-            "key": "max_waiting_time",
-            "plot_type": "violin",
-            "ylabel": "Max Waiting Time (s)",
-            "title": (
-                "Max Waiting Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
-            "format_str": "{:.2f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-        },
-        {
-            "key": "avg_turnaround_time",
-            "plot_type": "violin",
-            "ylabel": "Average Turnaround Time (s)",
-            "title": (
-                "Average Turnaround Time vs $p_{\\mathrm{packet}}$ "
-                "(n_tasks=%s)"
-            ),
-            "format_str": "{:.2f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-        },
-        {
             "key": "pga_duration_total",
             "plot_type": "violin",
             "ylabel": "Total PGA duration (s)",
@@ -378,24 +324,11 @@ def build_metric_specs(
         },
         {
             "key": "avg_link_utilization",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Average Link Utilization",
             "title": (
                 "Average Link Utilization vs $p_{\\mathrm{packet}}$ "
                 "(n_tasks=%s)"
-            ),
-            "format_str": "{:.2f}",
-            "percentage": True,
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-            "percentage_format": "{:.2f}%",
-        },
-        {
-            "key": "max_link_utilization",
-            "plot_type": "violin",
-            "ylabel": "Max link utilization",
-            "title": (
-                "Max Link Utilization vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
             ),
             "format_str": "{:.2f}",
             "percentage": True,
@@ -921,6 +854,7 @@ def plot_metrics_vs_ppacket(
 
     return results_df, raw_csv_path
 
+
 """
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
@@ -934,7 +868,7 @@ if __name__ == "__main__":
             "inst_range": (50, 50),
             "epr_range": (10, 10),
             "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 1000,
+            "hyperperiod_cycles": 1,
             "memory_lifetime": 2000,
             "p_swap": 0.95,
             "scheduler": "dynamic"
