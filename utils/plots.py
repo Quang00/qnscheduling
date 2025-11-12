@@ -284,6 +284,8 @@ def build_metric_specs(
     save_path: str,
     run_dir: str,
     plot_label: str,
+    scheduler_display: str,
+    scheduler_suffix: str,
     group_column: str | None = None,
     group_labels: dict | None = None,
     group_palette: Sequence[str] | None = None,
@@ -416,12 +418,17 @@ def build_metric_specs(
     for template in metric_templates:
         spec = template.copy()
         title = spec.pop("title")
-        spec["title"] = title % n_tasks_display
+        spec["title"] = (
+            f"{scheduler_display}: {title % n_tasks_display}"
+        )
         if spec["key"] == "admission_rate":
             spec["base_label"] = plot_label
             spec["plot_path"] = save_path
         else:
-            base_label = f"{spec['key']}_vs_ppacket_n_tasks_{n_tasks_label}"
+            base_label = (
+                f"{spec['key']}_vs_ppacket_n_tasks_{n_tasks_label}_"
+                f"{scheduler_suffix}"
+            )
             spec["base_label"] = base_label
             spec["plot_path"] = os.path.join(
                 run_dir,
@@ -441,8 +448,13 @@ def build_metric_specs(
         for value in individual_values:
             indiv = template.copy()
             title = indiv.pop("title")
-            indiv["title"] = title % str(value)
-            indiv["base_label"] = f"{indiv['key']}_vs_ppacket_n_tasks_{value}"
+            indiv["title"] = (
+                f"{scheduler_display}: {title % str(value)}"
+            )
+            indiv["base_label"] = (
+                f"{indiv['key']}_vs_ppacket_n_tasks_{value}_"
+                f"{scheduler_suffix}"
+            )
             indiv["plot_path"] = os.path.join(
                 run_dir,
                 f"{indiv['base_label']}.png",
@@ -789,16 +801,34 @@ def plot_metrics_vs_ppacket(
     default_kwargs = build_default_sim_args(config, simulation_kwargs)
     default_kwargs["n_apps"] = n_apps_list[0]
 
+    scheduler_option = default_kwargs.get("scheduler")
+    scheduler_value = str(scheduler_option).strip() or "dynamic"
+    scheduler_display = scheduler_value.replace("_", " ").title()
+    scheduler_suffix = "".join(
+        sch for sch in scheduler_display if sch.isalnum()
+    ) or "Dynamic"
+
     n_tasks_label = str(n_apps_list[0]) if len(n_apps_list) == 1 else "varied"
     n_tasks_display = ", ".join(map(str, n_apps_list))
-    plot_label = f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}"
+    plot_label = (
+        f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}_"
+        f"{scheduler_suffix}"
+    )
 
     run_dir, timestamp = prepare_run_dir(
         output_dir,
         ppacket_values,
         keep_seed_outputs=keep_seed_outputs,
     )
-    save_path = save_path or os.path.join(run_dir, f"{plot_label}.png")
+    if save_path:
+        base, ext = os.path.splitext(save_path)
+        ext = ext or ".png"
+        suffix = f"_{scheduler_suffix}"
+        if not base.lower().endswith(suffix.lower()):
+            base = f"{base}{suffix}"
+        save_path = f"{base}{ext}"
+    else:
+        save_path = os.path.join(run_dir, f"{plot_label}.png")
     raw_csv_path = os.path.join(run_dir, f"{timestamp}_raw.csv")
 
     resolved_group_column = group_column or (
@@ -833,6 +863,8 @@ def plot_metrics_vs_ppacket(
         save_path=save_path,
         run_dir=run_dir,
         plot_label=plot_label,
+        scheduler_display=scheduler_display,
+        scheduler_suffix=scheduler_suffix,
         group_column=resolved_group_column,
         group_labels=resolved_group_labels,
         group_palette=group_palette,
@@ -853,6 +885,7 @@ def plot_metrics_vs_ppacket(
         metrics_to_plot=metrics_to_plot,
         n_apps_values=n_apps_list,
         keep_seed_outputs=keep_seed_outputs,
+        scheduler=scheduler_value,
     )
 
     tasks = build_tasks(
@@ -888,7 +921,6 @@ def plot_metrics_vs_ppacket(
 
     return results_df, raw_csv_path
 
-
 """
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
@@ -899,10 +931,10 @@ if __name__ == "__main__":
         ppacket_values=sweep_values,
         simulations_per_point=3000,
         simulation_kwargs={
-            "inst_range": (100, 100),
+            "inst_range": (50, 50),
             "epr_range": (10, 10),
             "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 2000,
+            "hyperperiod_cycles": 1000,
             "memory_lifetime": 2000,
             "p_swap": 0.95,
             "scheduler": "dynamic"

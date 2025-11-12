@@ -673,6 +673,7 @@ def generate_metadata(
     metrics_to_plot: list[dict[str, Any]],
     n_apps_values: Iterable[int] | None = None,
     keep_seed_outputs: bool = True,
+    scheduler: str | None = None,
 ) -> None:
     metrics_metadata = {}
     for spec in metrics_to_plot:
@@ -701,6 +702,8 @@ def generate_metadata(
     }
     if n_apps_values is not None:
         metadata["n_apps_values"] = [int(val) for val in n_apps_values]
+    if scheduler is not None:
+        metadata["scheduler"] = str(scheduler)
     with open(os.path.join(run_dir, "params.json"), "w") as f:
         json.dump(metadata, f, indent=2, sort_keys=True)
 
