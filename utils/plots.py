@@ -185,6 +185,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "throughput": float("nan"),
         "completed_ratio": float("nan"),
         "avg_waiting_time": float("nan"),
+        "total_busy_time": float("nan"),
         "avg_link_utilization": float("nan"),
     }
     summary_row = None
@@ -324,7 +325,7 @@ def build_metric_specs(
         },
         {
             "key": "avg_link_utilization",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Average Link Utilization",
             "title": (
                 "Average Link Utilization vs $p_{\\mathrm{packet}}$ "
@@ -335,6 +336,17 @@ def build_metric_specs(
             "auto_ylim": True,
             "pad_fraction": 0.1,
             "percentage_format": "{:.2f}%",
+        },
+        {
+            "key": "total_busy_time",
+            "plot_type": "violin",
+            "ylabel": "Total Busy Time (s)",
+            "title": (
+                "Total Busy Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
+            ),
+            "format_str": "{:.2f}",
+            "auto_ylim": True,
+            "pad_fraction": 0.1,
         },
     ]
 

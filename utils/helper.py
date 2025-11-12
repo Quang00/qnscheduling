@@ -226,6 +226,7 @@ def save_results(
     print(df.head(20).to_string(index=False))
 
     avg_link_utilization = float("nan")
+    total_busy_time = float("nan")
     if link_utilization:
         link_util_rows = [
             {
@@ -244,6 +245,7 @@ def save_results(
         busy_time_sum = link_util_df["busy_time"].sum()
         makespan = df["completion_time"].max() - df["arrival_time"].min()
         avg_link_utilization = busy_time_sum / makespan / n_edges
+        total_busy_time = busy_time_sum
 
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
         link_util_df.to_csv(link_util_path, index=False)
@@ -315,6 +317,7 @@ def save_results(
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
     print(f"Total PGA duration : {total_pga_duration:.4f}")
+    print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
 
     overall_df = pd.DataFrame(
@@ -328,6 +331,7 @@ def save_results(
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
                 "total_pga_duration": float(total_pga_duration),
+                "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),
             }
         ]
