@@ -240,13 +240,11 @@ def save_results(
             .sort_values("utilization", ascending=False)
             .reset_index(drop=True)
         )
-        if not link_util_df.empty and "utilization" in link_util_df.columns:
-            util_series = pd.to_numeric(
-                link_util_df["utilization"], errors="coerce"
-            ).replace([np.inf, -np.inf], np.nan)
-            valid_sum = util_series.dropna().sum()
-            if not np.isnan(valid_sum) and n_edges > 0:
-                avg_link_utilization = float(valid_sum) / n_edges
+
+        busy_time_sum = link_util_df["busy_time"].sum()
+        makespan = df["completion_time"].max() - df["arrival_time"].min()
+        avg_link_utilization = busy_time_sum / makespan / n_edges
+
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
         link_util_df.to_csv(link_util_path, index=False)
 
