@@ -320,7 +320,7 @@ def build_metric_specs(
         },
         {
             "key": "completed_ratio",
-            "plot_type": "line",
+            "plot_type": "violin",
             "ylabel": "Completed ratio",
             "title": (
                 "Completed Ratio vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
@@ -328,18 +328,6 @@ def build_metric_specs(
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": False,
-        },
-        {
-            "key": "completed_ratio_delta",
-            "plot_type": "line",
-            "ylabel": "Completed ratio - $p_{\\mathrm{packet}}$",
-            "title": (
-                "Completed Ratio Delta vs $p_{\\mathrm{packet}}$ "
-                "(n_tasks=%s)"
-            ),
-            "format_str": "{:.3f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
         },
         {
             "key": "avg_waiting_time",
@@ -884,13 +872,6 @@ def plot_metrics_vs_ppacket(
     )
 
     results_df = pd.DataFrame(records)
-    if not results_df.empty and {"completed_ratio", "p_packet"}.issubset(
-        results_df.columns
-    ):
-        results_df["completed_ratio_delta"] = (
-            results_df["completed_ratio"].astype(float)
-            - results_df["p_packet"].astype(float)
-        )
     results_df.to_csv(raw_csv_path, index=False)
 
     set_plot_theme(dpi)
@@ -921,7 +902,7 @@ if __name__ == "__main__":
             "inst_range": (100, 100),
             "epr_range": (10, 10),
             "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 10e6,
+            "hyperperiod_cycles": 2000,
             "memory_lifetime": 2000,
             "p_swap": 0.95,
             "scheduler": "dynamic"
