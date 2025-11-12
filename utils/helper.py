@@ -143,6 +143,7 @@ def save_results(
     n_edges: int,
     durations: Dict[str, float] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
+    scheduler: str = 'dynamic',
     output_dir: str = "results",
 ) -> None:
     """Save the results of PGA scheduling and execution to a CSV file and print
@@ -280,6 +281,8 @@ def save_results(
     total_pga_duration = (
         float(np.sum(pga_durations)) if pga_durations.size else float("nan")
     )
+    if scheduler == 'dynamic':
+        total = df['pga'].nunique()
     completed_ratio = (completed / total) if total > 0 else float("nan")
 
     print("\n=== Summary ===")
