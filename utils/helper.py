@@ -254,8 +254,12 @@ def save_results(
         print(link_util_df.to_string(index=False))
 
     makespan = df["completion_time"].max() - df["arrival_time"].min()
+    completed_burst = df.loc[df["status"] == "completed", "burst_time"].sum()
+    useful_utilization = completed_burst / makespan
+
     total = len(df)
     completed = (df["status"] == "completed").sum()
+    deadline_miss_total = (df["status"] == "deadline_miss").sum()
     throughput = completed / makespan if makespan > 0 else float("inf")
     waits = df.loc[
         (df["status"] == "completed") | (df["status"] == "failed"),
@@ -284,6 +288,7 @@ def save_results(
     if scheduler == 'dynamic':
         total = df['pga'].nunique()
     completed_ratio = (completed / total) if total > 0 else float("nan")
+    deadline_miss_ratio = deadline_miss_total / total
 
     print("\n=== Summary ===")
     print(f"Total PGAs       : {total}")
@@ -312,6 +317,7 @@ def save_results(
     print(f"Makespan         : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completed ratio  : {completed_ratio:.4f}")
+    print(f"Deadline miss ratio : {deadline_miss_ratio:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
@@ -319,6 +325,7 @@ def save_results(
     print(f"Total PGA duration : {total_pga_duration:.4f}")
     print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
+    print(f"Useful utilization : {useful_utilization:.4f}")
 
     overall_df = pd.DataFrame(
         [
@@ -326,6 +333,7 @@ def save_results(
                 "makespan": float(makespan),
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),
+                "deadline_miss_ratio": float(deadline_miss_ratio),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),
                 "avg_turnaround_time": float(avg_turnaround),
@@ -333,6 +341,7 @@ def save_results(
                 "total_pga_duration": float(total_pga_duration),
                 "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),
+                "useful_utilization": float(useful_utilization),
             }
         ]
     )

@@ -184,9 +184,11 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "makespan": float("nan"),
         "throughput": float("nan"),
         "completed_ratio": float("nan"),
+        "deadline_miss_ratio": float("nan"),
         "avg_waiting_time": float("nan"),
         "total_busy_time": float("nan"),
         "avg_link_utilization": float("nan"),
+        "useful_utilization": float("nan"),
     }
     summary_row = None
     summary_path = os.path.join(sd_dir, "summary.csv")
@@ -302,6 +304,17 @@ def build_metric_specs(
             "auto_ylim": False,
         },
         {
+            "key": "deadline_miss_ratio",
+            "plot_type": "violin",
+            "ylabel": "Deadline Miss Ratio",
+            "title": (
+                "Deadline Miss Ratio vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
+            ),
+            "format_str": "{:.2f}",
+            "percentage": True,
+            "auto_ylim": False,
+        },
+        {
             "key": "avg_waiting_time",
             "plot_type": "violin",
             "ylabel": "Average Waiting Time (s)",
@@ -347,6 +360,17 @@ def build_metric_specs(
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
+        },
+        {
+            "key": "useful_utilization",
+            "plot_type": "line",
+            "ylabel": "Useful Utilization",
+            "title": (
+                "Useful Utilization vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
+            ),
+            "format_str": "{:.2f}",
+            "percentage": True,
+            "auto_ylim": False,
         },
     ]
 

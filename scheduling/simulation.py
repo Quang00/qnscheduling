@@ -403,7 +403,7 @@ def simulate_dynamic(
                     "turnaround_time": earliest_start - arrival_time,
                     "waiting_time": earliest_start - arrival_time,
                     "pairs_generated": 0,
-                    "status": "failed",
+                    "status": "deadline_miss",
                     "deadline": deadline,
                 }
             )
