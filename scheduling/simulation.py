@@ -122,6 +122,22 @@ class PGA:
 
         return succ
 
+    def _update_resources_and_links(
+        self,
+        completion: float,
+        attempts_run: int,
+    ) -> None:
+        """Mark nodes and links busy through ``completion``."""
+        for node in self.route:
+            self.resources[node] = max(
+                self.resources.get(node, 0.0), completion
+            )
+
+        if attempts_run > 0 and self.links:
+            busy = attempts_run * self.slot_duration
+            for link in self.links:
+                self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
+
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
         pairs_generated = 0
@@ -163,16 +179,18 @@ class PGA:
 
             current_time = self.start + attempts_run * self.slot_duration
             completion = min(self.end, current_time)
+            self._update_resources_and_links(completion, attempts_run)
+        elif self.policy == "best_effort":
+            while pairs_generated < self.epr_pairs:
+                succ = self._simulate_e2e_attempts(1)
+                pairs_generated += int(succ.sum())
+                attempts_run += 1
 
-            for node in self.route:
-                self.resources[node] = max(
-                    self.resources.get(node, 0.0), completion
-                )
-
-            if attempts_run > 0 and self.links:
-                busy = attempts_run * self.slot_duration
-                for link in self.links:
-                    self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
+            completion = self.start + attempts_run * self.slot_duration
+            status = (
+                "completed" if pairs_generated >= self.epr_pairs else "failed"
+            )
+            self._update_resources_and_links(completion, attempts_run)
         else:
             completion = self.start
 
@@ -190,7 +208,7 @@ class PGA:
             "waiting_time": waiting,
             "pairs_generated": pairs_generated,
             "status": status,
-            "deadline": self.deadline,
+            "deadline": self.deadline if self.policy == "deadline" else None,
         }
         self.log.append(result)
         return result
