@@ -178,7 +178,7 @@ class PGA:
 
         burst = completion - self.start
         turnaround = completion - self.arrival
-        waiting = turnaround - burst
+        waiting = self.start - self.arrival
 
         result = {
             "pga": self.name,
@@ -436,6 +436,11 @@ def simulate_dynamic(
             deadline=deadline,
         )
         result = pga.run()
+
+        # A retry has no waiting time
+        is_retry = (ready_time - arrival_time) > EPS
+        if is_retry:
+            result["waiting_time"] = 0.0
 
         pga_names.append(pga_name)
         pga_release_times[pga_name] = arrival_time
