@@ -258,18 +258,21 @@ def build_metric_specs(
     plot_label: str,
     scheduler_display: str,
     scheduler_suffix: str,
+    scheduler_key: str | None = None,
     group_column: str | None = None,
     group_labels: dict | None = None,
     group_palette: Sequence[str] | None = None,
     group_palette_map: dict[str, Any] | None = None,
     individual_n_apps: Sequence[int] | None = None,
+    individual_keep_group: bool = False,
+    group_line_styles: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
             "key": "admission_rate",
             "plot_type": "line",
-            "ylabel": "Admission rate",
-            "title": ("Admission Rate vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
+            "ylabel": "Admission rate (%)",
+            "metric_name": "Admission Rate",
             "ymin": 0.0,
             "ymax": 1.0,
             "format_str": "{:.2f}",
@@ -278,72 +281,53 @@ def build_metric_specs(
         },
         {
             "key": "makespan",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Makespan (s)",
-            "title": ("Makespan vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
+            "metric_name": "Makespan",
             "format_str": "{:.1f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
+            "yscale": "log",
         },
         {
             "key": "throughput",
-            "plot_type": "violin",
-            "ylabel": "Throughput (jobs/s)",
-            "title": ("Throughput vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"),
+            "plot_type": "line",
+            "ylabel": "Throughput (completed PGAs/s)",
+            "metric_name": "Throughput",
             "format_str": "{:.3f}",
         },
         {
             "key": "completed_ratio",
-            "plot_type": "violin",
-            "ylabel": "Completed ratio",
-            "title": (
-                "Completed Ratio vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
-            "format_str": "{:.2f}",
-            "percentage": True,
-            "auto_ylim": False,
-        },
-        {
-            "key": "deadline_miss_ratio",
-            "plot_type": "violin",
-            "ylabel": "Deadline Miss Ratio",
-            "title": (
-                "Deadline Miss Ratio vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
+            "plot_type": "line",
+            "ylabel": "Completed ratio (%)",
+            "metric_name": "Completed Ratio",
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": False,
         },
         {
             "key": "avg_waiting_time",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Average Waiting Time (s)",
-            "title": (
-                "Average Waiting Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
+            "metric_name": "Average Waiting Time",
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
         },
         {
             "key": "pga_duration_total",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Total PGA duration (s)",
-            "title": (
-                "Total PGA Duration vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
+            "metric_name": "Total PGA Duration",
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
         },
         {
             "key": "avg_link_utilization",
-            "plot_type": "violin",
-            "ylabel": "Average Link Utilization",
-            "title": (
-                "Average Link Utilization vs $p_{\\mathrm{packet}}$ "
-                "(n_tasks=%s)"
-            ),
+            "plot_type": "line",
+            "ylabel": "Average Link Utilization (%)",
+            "metric_name": "Average Link Utilization",
             "format_str": "{:.2f}",
             "percentage": True,
             "auto_ylim": True,
@@ -352,11 +336,9 @@ def build_metric_specs(
         },
         {
             "key": "total_busy_time",
-            "plot_type": "violin",
+            "plot_type": "line",
             "ylabel": "Total Busy Time (s)",
-            "title": (
-                "Total Busy Time vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
+            "metric_name": "Total Busy Time",
             "format_str": "{:.2f}",
             "auto_ylim": True,
             "pad_fraction": 0.1,
@@ -364,14 +346,25 @@ def build_metric_specs(
         {
             "key": "useful_utilization",
             "plot_type": "line",
-            "ylabel": "Useful Utilization",
-            "title": (
-                "Useful Utilization vs $p_{\\mathrm{packet}}$ (n_tasks=%s)"
-            ),
+            "ylabel": "Useful Utilization (%)",
+            "metric_name": "Useful Utilization",
             "format_str": "{:.2f}",
             "percentage": True,
-            "auto_ylim": False,
+            "auto_ylim": True,
+            "pad_fraction": 0.1,
+            "percentage_format": "{:.2f}%",
         },
+        {
+            "key": "deadline_miss_ratio",
+            "plot_type": "line",
+            "ylabel": "Deadline Miss Ratio (%)",
+            "metric_name": "Deadline Miss Ratio",
+            "format_str": "{:.2f}",
+            "percentage": True,
+            "auto_ylim": True,
+            "pad_fraction": 0.1,
+            "percentage_format": "{:.2f}%",
+        }
     ]
 
     specs = []
@@ -386,10 +379,9 @@ def build_metric_specs(
 
     for template in metric_templates:
         spec = template.copy()
-        title = spec.pop("title")
-        spec["title"] = (
-            f"{scheduler_display}: {title % n_tasks_display}"
-        )
+        metric_name = spec.pop("metric_name", spec["key"])
+        spec["title"] = f"{metric_name} (n_tasks={n_tasks_display})"
+        spec["scheduler_label"] = (scheduler_key or scheduler_suffix).lower()
         if spec["key"] == "admission_rate":
             spec["base_label"] = plot_label
             spec["plot_path"] = save_path
@@ -412,26 +404,32 @@ def build_metric_specs(
             spec["group_palette_map"] = {
                 str(k): v for k, v in group_palette_map.items()
             }
+        if group_line_styles is not None:
+            spec["group_line_styles"] = {
+                str(k): v for k, v in group_line_styles.items()
+            }
         specs.append(spec)
 
         for value in individual_values:
             indiv = template.copy()
-            title = indiv.pop("title")
-            indiv["title"] = (
-                f"{scheduler_display}: {title % str(value)}"
-            )
+            metric_name = indiv.pop("metric_name", indiv["key"])
+            indiv["title"] = f"{metric_name} (n_apps={value})"
             indiv["base_label"] = (
-                f"{indiv['key']}_vs_ppacket_n_tasks_{value}_"
+                f"{indiv['key']}_vs_ppacket_n_apps_{value}_"
                 f"{scheduler_suffix}"
             )
             indiv["plot_path"] = os.path.join(
                 run_dir,
                 f"{indiv['base_label']}.png",
             )
-            indiv["group_column"] = None
-            indiv.pop("group_palette", None)
-            indiv.pop("group_labels", None)
-            indiv.pop("group_palette_map", None)
+            indiv["scheduler_label"] = (
+                scheduler_key or scheduler_suffix).lower()
+            if not individual_keep_group:
+                indiv["group_column"] = None
+                indiv.pop("group_palette", None)
+                indiv.pop("group_labels", None)
+                indiv.pop("group_palette_map", None)
+                indiv.pop("group_line_styles", None)
             indiv["filter_column"] = "n_apps"
             indiv["filter_value"] = int(value)
             if group_palette_map is not None:
@@ -458,6 +456,7 @@ def render_plot(
     group_labels = spec.get("group_labels") or {}
     group_palette = spec.get("group_palette")
     palette_map = spec.get("group_palette_map") or {}
+    group_line_styles = spec.get("group_line_styles") or {}
     color_override = spec.get("color_override")
     filter_column = spec.get("filter_column")
     filter_value = spec.get("filter_value")
@@ -509,6 +508,11 @@ def render_plot(
             )
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    yscale = spec.get("yscale")
+    if yscale:
+        ax.set_yscale(yscale)
+
+    scheduler_style = spec.get("scheduler_style")
 
     if plot_type == "line":
         if group_column:
@@ -518,7 +522,7 @@ def render_plot(
                 if group_palette is not None
                 else sns.color_palette("tab10", max(1, len(group_values)))
             )
-            line_styles = spec.get("line_styles", ["-", "--", "-.", ":"])
+            line_styles = spec.get("line_styles", [])
             markers = spec.get("markers", ["o", "s", "D", "^", "v"])
 
             for i, gv in enumerate(group_values):
@@ -529,11 +533,20 @@ def render_plot(
                 col = palette_map.get(
                     str(gv), base_palette[i % len(base_palette)]
                 )
+                custom_style = group_line_styles.get(str(gv))
+                style = (
+                    custom_style
+                    if custom_style is not None
+                    else (
+                        line_styles[i % len(line_styles)]
+                        if line_styles else "-"
+                    )
+                )
                 ax.plot(
                     gdf["p_packet"],
                     gdf[metric],
                     marker=markers[i % len(markers)],
-                    linestyle=line_styles[i % len(line_styles)],
+                    linestyle=style,
                     linewidth=2.0,
                     markersize=5.0,
                     color=col,
@@ -551,6 +564,7 @@ def render_plot(
 
             ax.legend(frameon=False, loc="best", fontsize=9)
         else:
+            linestyle = scheduler_style or "-"
             sns.lineplot(
                 data=summary_df,
                 x="p_packet",
@@ -560,6 +574,7 @@ def render_plot(
                 markersize=5.0,
                 color=base_color,
                 ax=ax,
+                linestyle=linestyle,
             )
             if not summary_df[["lower", "upper"]].isnull().values.all():
                 ax.fill_between(
@@ -658,6 +673,8 @@ def render_plot(
         vals = data[metric].to_numpy()
 
     vals = pd.Series(vals).dropna().to_numpy()
+    if yscale == "log":
+        vals = vals[vals > 0]
     if vals.size:
         pad_frac = float(spec.get("pad_fraction", 0.05))
         lo, hi = float(vals.min()), float(vals.max())
@@ -668,6 +685,11 @@ def render_plot(
         hi += span * pad_frac
         y_min = spec.get("ymin", lo)
         y_max = spec.get("ymax", hi)
+        if yscale == "log":
+            min_positive = max(1e-9, float(vals.min()) * 0.5)
+            y_min = max(y_min, min_positive)
+            if y_max <= y_min:
+                y_max = y_min * 10.0
         ax.set_ylim(y_min, y_max)
 
     if spec.get("percentage"):
@@ -682,14 +704,15 @@ def render_plot(
 
     if plot_type == "line":
         ax.xaxis.set_minor_locator(AutoMinorLocator())
-    ax.yaxis.set_minor_locator(AutoMinorLocator())
+    if yscale != "log":
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
     ax.grid(True, which="major", linewidth=0.6)
     ax.grid(True, which="minor", linewidth=0.3, alpha=0.2)
     sns.despine(ax=ax)
 
     ax.set_xlabel(r"$p_{\mathrm{packet}}$")
     ax.set_ylabel(spec["ylabel"])
-    ax.set_title(spec["title"], pad=6)
+    # ax.set_title(spec["title"], pad=6)
     ax.text(
         0.99,
         0.02,
@@ -729,7 +752,9 @@ def plot_metrics_vs_ppacket(
     group_labels: dict | None = None,
     group_palette: Sequence[str] | None = None,
     n_apps_values: Sequence[int] | None = None,
-) -> pd.DataFrame:
+    compare_schedulers: bool = False,
+    schedulers: Sequence[str] | None = None,
+) -> tuple[pd.DataFrame, str]:
     """Run multiple simulations varying the packet generation probability.
 
     Args:
@@ -762,25 +787,152 @@ def plot_metrics_vs_ppacket(
         n_apps_values (Sequence[int] | None, optional): Specific application
         counts to sweep. When multiple values are provided, one line/violin
         will be produced per group.
+        compare_schedulers (bool, optional): When ``True``, sweep multiple
+        schedulers and also create combined plots.
+        schedulers (Sequence[str] | None, optional): Ordered scheduler names
+        to compare when ``compare_schedulers`` is enabled.
 
     Returns:
-        pd.DataFrame: DataFrame containing the aggregated simulation results.
+        tuple[pd.DataFrame, str]: Aggregated simulation results and the path to
+        the CSV file containing the raw records.
     """
     n_apps_list = [int(v) for v in n_apps_values]
+    n_tasks_label = str(n_apps_list[0]) if len(n_apps_list) == 1 else "varied"
+    n_tasks_display = ", ".join(map(str, n_apps_list))
+
+    if compare_schedulers:
+        scheduler_order: list[str] = []
+        desired = schedulers or ("dynamic", "static")
+        for name in desired:
+            normalized = str(name).strip().lower()
+            if not normalized or normalized in scheduler_order:
+                continue
+            scheduler_order.append(normalized)
+
+        combined_records = []
+        for sched in scheduler_order:
+            nested_kwargs = dict(simulation_kwargs or {})
+            nested_kwargs["scheduler"] = sched
+            out = os.path.join(output_dir, sched) if output_dir else sched
+            df, _ = plot_metrics_vs_ppacket(
+                ppacket_values=ppacket_values,
+                simulations_per_point=simulations_per_point,
+                seed_start=seed_start,
+                config=config,
+                save_path=save_path,
+                output_dir=out,
+                simulation_kwargs=nested_kwargs,
+                figsize=figsize,
+                dpi=dpi,
+                max_workers=max_workers,
+                show_progress=show_progress,
+                keep_seed_outputs=keep_seed_outputs,
+                group_column=group_column,
+                group_labels=group_labels,
+                group_palette=group_palette,
+                n_apps_values=n_apps_values,
+                compare_schedulers=False,
+            )
+            temp = df.copy()
+            temp["scheduler"] = sched
+            combined_records.append(temp)
+
+        combined_df = pd.concat(combined_records, ignore_index=True)
+        comparison_root = os.path.join(output_dir, "comparison")
+        comparison_dir, comparison_ts = prepare_run_dir(
+            comparison_root,
+            ppacket_values,
+            keep_seed_outputs=keep_seed_outputs,
+        )
+        combined_csv_path = os.path.join(
+            comparison_dir,
+            f"{comparison_ts}_combined_raw.csv",
+        )
+        combined_df.to_csv(combined_csv_path, index=False)
+
+        scheduler_labels = {
+            sched: sched.replace("_", " ").title() for sched in scheduler_order
+        }
+        scheduler_palette = sns.color_palette("tab10", len(scheduler_order))
+        palette_map = {
+            sched: scheduler_palette[idx % len(scheduler_palette)]
+            for idx, sched in enumerate(scheduler_order)
+        }
+        scheduler_styles = {
+            "static": "-",
+            "dynamic": "--",
+        }
+        comparison_plot_label = (
+            f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}_comparison"
+        )
+        comparison_save_path = os.path.join(
+            comparison_dir,
+            f"{comparison_plot_label}.png",
+        )
+        comparison_specs = build_metric_specs(
+            n_tasks_label=n_tasks_label,
+            n_tasks_display=n_tasks_display,
+            save_path=comparison_save_path,
+            run_dir=comparison_dir,
+            plot_label=comparison_plot_label,
+            scheduler_display="Scheduler Comparison",
+            scheduler_suffix="Comparison",
+            scheduler_key="comparison",
+            group_column="scheduler",
+            group_labels=scheduler_labels,
+            group_palette=scheduler_palette,
+            group_palette_map=palette_map,
+            individual_n_apps=(n_apps_list if len(n_apps_list) > 1 else None),
+            individual_keep_group=True,
+            group_line_styles=scheduler_styles,
+        )
+
+        comparison_kwargs = build_default_sim_args(config, simulation_kwargs)
+        comparison_kwargs["n_apps"] = n_apps_list[0]
+        comparison_kwargs["scheduler"] = ",".join(scheduler_order)
+
+        generate_metadata(
+            run_dir=comparison_dir,
+            timestamp=comparison_ts,
+            ppacket_values=ppacket_values,
+            simulations_per_point=simulations_per_point,
+            seed_start=seed_start,
+            config=config,
+            save_path=comparison_save_path,
+            raw_csv_path=combined_csv_path,
+            default_kwargs=comparison_kwargs,
+            metrics_to_plot=comparison_specs,
+            n_apps_values=n_apps_list,
+            keep_seed_outputs=keep_seed_outputs,
+            scheduler=",".join(scheduler_order),
+        )
+
+        set_plot_theme(dpi)
+        palette = sns.color_palette("tab10", len(comparison_specs))
+        for i, spec in enumerate(comparison_specs):
+            render_plot(
+                spec=spec,
+                raw_data=combined_df,
+                color=palette[i % len(palette)],
+                figsize=figsize,
+                dpi=dpi,
+                simulations_per_point=simulations_per_point,
+            )
+
+        return combined_df, combined_csv_path
+
     default_kwargs = build_default_sim_args(config, simulation_kwargs)
     default_kwargs["n_apps"] = n_apps_list[0]
 
     scheduler_option = default_kwargs.get("scheduler")
     scheduler_value = str(scheduler_option).strip() or "dynamic"
     scheduler_display = scheduler_value.replace("_", " ").title()
-    scheduler_suffix = "".join(
-        sch for sch in scheduler_display if sch.isalnum()
-    ) or "Dynamic"
+    scheduler_suffix = (
+        "".join(sch for sch in scheduler_display if sch.isalnum()) or "Dynamic"
+    )
 
-    n_tasks_label = str(n_apps_list[0]) if len(n_apps_list) == 1 else "varied"
-    n_tasks_display = ", ".join(map(str, n_apps_list))
     plot_label = (
-        f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}_"
+        f"admission_rate_vs_ppacket_n_apps_{n_tasks_label}_"
         f"{scheduler_suffix}"
     )
 
@@ -804,8 +956,9 @@ def plot_metrics_vs_ppacket(
         "n_apps" if len(n_apps_list) > 1 else None
     )
     resolved_group_labels = group_labels or (
-        {v: str(v) for v in n_apps_list}
-        if resolved_group_column == "n_apps" else None
+        {v: f"{v} apps" for v in n_apps_list}
+        if resolved_group_column == "n_apps"
+        else None
     )
     resolved_palette_map = None
     if resolved_group_column:
@@ -834,6 +987,7 @@ def plot_metrics_vs_ppacket(
         plot_label=plot_label,
         scheduler_display=scheduler_display,
         scheduler_suffix=scheduler_suffix,
+        scheduler_key=scheduler_value,
         group_column=resolved_group_column,
         group_labels=resolved_group_labels,
         group_palette=group_palette,
@@ -879,6 +1033,12 @@ def plot_metrics_vs_ppacket(
     set_plot_theme(dpi)
     palette = sns.color_palette("tab10", len(metrics_to_plot))
     for i, spec in enumerate(metrics_to_plot):
+        if spec.get("group_column") is None:
+            scheduler_val = spec.get("scheduler_label")
+            if scheduler_val == "dynamic":
+                spec.setdefault("scheduler_style", "--")
+            elif scheduler_val == "static":
+                spec.setdefault("scheduler_style", "-")
         render_plot(
             spec=spec,
             raw_data=results_df,
@@ -895,21 +1055,22 @@ def plot_metrics_vs_ppacket(
 # Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
     sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
-    n_apps_values = [1, 25, 30, 35, 40, 45, 50]
+    n_apps_values = [100, 120, 140, 160, 180, 200]
 
     plot_metrics_vs_ppacket(
         ppacket_values=sweep_values,
-        simulations_per_point=3000,
+        simulations_per_point=1000,
         simulation_kwargs={
-            "inst_range": (50, 50),
+            "inst_range": (100, 100),
             "epr_range": (10, 10),
-            "period_range": (0.05, 0.05),
-            "hyperperiod_cycles": 1,
-            "memory_lifetime": 2000,
+            "period_range": (1, 1),
+            "hyperperiod_cycles": 2000,
+            "memory_lifetime": 1000,
             "p_swap": 0.95,
-            "scheduler": "dynamic"
+            "scheduler": "dynamic",
         },
         config="configurations/network/Garr201201.gml",
-        n_apps_values=n_apps_values,
+        n_apps_values=n_apps_values[:1],
+        compare_schedulers=True,
     )
 """
