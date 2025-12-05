@@ -105,9 +105,10 @@ def run_simulation(
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
     Returns:
-    tuple[bool, pd.DataFrame | None, dict[str, float]]: A tuple indicating
-    whether the schedule is feasible, the resulting PGA DataFrame when
-    feasible, and the PGA durations per application.
+    tuple[bool, pd.DataFrame | None, dict[str, float], dict]: A tuple
+    indicating whether the schedule is feasible, the resulting PGA DataFrame
+    when feasible, the PGA durations per application, and the per-link
+    utilization metrics.
     """
     rng = np.random.default_rng(seed)
 
@@ -188,7 +189,7 @@ def run_simulation(
 
         if not feasible:
             print("Schedule", schedule)
-            return False, None, durations
+            return False, None, durations, {}
 
         print("Preview Schedule:", schedule[: n_apps * 2])
 
@@ -215,7 +216,7 @@ def run_simulation(
         scheduler=scheduler,
         output_dir=output_dir,
     )
-    return feasible, df, durations
+    return feasible, df, durations, link_utilization
 
 
 def main():
@@ -345,7 +346,7 @@ def main():
     os.makedirs(run_dir, exist_ok=False)
 
     t0 = time.perf_counter()
-    feasible, _, _ = run_simulation(
+    feasible, _, _, _ = run_simulation(
         config=args.config,
         n_apps=args.apps,
         inst_range=args.inst,
