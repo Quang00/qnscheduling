@@ -61,6 +61,7 @@ from scheduling.scheduling import edf_parallel_static
 from scheduling.simulation import simulate_dynamic, simulate_static
 from utils.helper import (
     app_params_sim,
+    generate_arrivals,
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
@@ -148,11 +149,12 @@ def run_simulation(
     )
     print("Durations:", durations)
 
-    lamb = arrival_rate
-    apps = list(app_specs)
-    inter_arrivals = rng.exponential(scale=1/lamb, size=len(apps))
-    arrival_t = np.cumsum(inter_arrivals)
-    pga_rel_times = {app: t for app, t in zip(apps, arrival_t, strict=False)}
+    pga_rel_times = generate_arrivals(
+        app_specs,
+        arrival_rate,
+        time_slot_duration,
+        rng,
+    )
     print("Release times:", pga_rel_times)
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
