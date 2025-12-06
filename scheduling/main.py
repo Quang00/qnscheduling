@@ -329,7 +329,7 @@ def main():
         "-ar",
         type=float,
         default=1,
-        help="Mean arrival rate (lambda) for Poisson process",
+        help="Mean arrival rate (lambda) for Poisson process per time slot",
     )
     parser.add_argument(
         "--seed",

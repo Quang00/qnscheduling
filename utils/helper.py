@@ -447,7 +447,8 @@ def generate_arrivals(
 
     Args:
         app_specs (Iterable): Application specifications.
-        arrival_rate (float): Arrival rate in jobs per second.
+        arrival_rate (float): Mean arrival rate (lambda) for the Poisson
+        process per time slot.
         time_slot_duration (float): Duration of a time slot in seconds.
         rng (np.random.Generator): Random number generator instance.
 
@@ -457,7 +458,6 @@ def generate_arrivals(
     """
     apps = list(app_specs)
     n_apps = len(apps)
-    lambda_slot = arrival_rate * time_slot_duration
     pga_rel_times = {}
     i = 0
     slot = 0
@@ -465,7 +465,7 @@ def generate_arrivals(
     rng.shuffle(apps)
 
     while i < n_apps:
-        arrivals_this_slot = rng.poisson(lambda_slot)
+        arrivals_this_slot = rng.poisson(arrival_rate)
         for _ in range(arrivals_this_slot):
             if i >= n_apps:
                 break
