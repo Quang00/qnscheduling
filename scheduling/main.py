@@ -84,6 +84,7 @@ def run_simulation(
     seed: int,
     output_dir: str,
     scheduler: str = "static",
+    arrival_rate: float = 1,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -147,7 +148,11 @@ def run_simulation(
     )
     print("Durations:", durations)
 
-    pga_rel_times = {app: 0.0 for app in app_specs}
+    lamb = arrival_rate
+    apps = list(app_specs)
+    inter_arrivals = rng.exponential(scale=1/lamb, size=len(apps))
+    arrival_t = np.cumsum(inter_arrivals)
+    pga_rel_times = {app: t for app, t in zip(apps, arrival_t, strict=False)}
     print("Release times:", pga_rel_times)
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
@@ -318,6 +323,13 @@ def main():
         " 'dynamic' schedules online",
     )
     parser.add_argument(
+        "--arrival-rate",
+        "-ar",
+        type=float,
+        default=1,
+        help="Mean arrival rate (lambda) for Poisson process",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -361,6 +373,7 @@ def main():
         seed=args.seed,
         output_dir=run_dir,
         scheduler=args.scheduler,
+        arrival_rate=args.arrival_rate,
     )
     t1 = time.perf_counter()
 
