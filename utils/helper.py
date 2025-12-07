@@ -51,41 +51,42 @@ def shortest_paths(
 def parallelizable_tasks(
     paths_for_each_apps: dict[str, List[str]],
 ) -> dict[str, set[str]]:
-    """Find parallelizable applications based on shared resources (nodes) of a
+    """Find parallelizable applications based on shared links of a
     quantum network.
 
     Args:
         paths_for_each_apps (dict[str, List[str]]): A dictionary where keys are
-        application names and values are lists of resources (network nodes)
-        used to run the applications, e.g.:
+        application names and values are lists of nodes describing the route
+        used to run the applications, e.g. on a linar chain Alice-Rob-Bob:
             {
-                'A': ['Alice', 'Bob', 'David'],
-                'B': ['Alice', 'Bob'],
-                'C': ['Charlie', 'Alice', 'Bob'],
-                'D': ['Charlie', 'David']
+                'A': ['Alice', 'Rob'],
+                'B': ['Rob', 'Bob'],
             }
 
     Returns:
         dict[str, set[str]]: A dictionary where keys are application names and
         values are sets of applications that can run in parallel with the key
-        application, based on shared resources. For example:
+        application, based on shared links. From the example above, the output
+        would be A and B can run in parallel since they do not share any links:
             {
-                'A': set(),
-                'B': {'D'},
-                'C': set(),
-                'D': {'B'}
+                'A': {'B'},
+                'B': {'A'},
             }
     """
     G = nx.Graph()
     conflicts = defaultdict(set)
 
-    # Build conflict graph
-    for app, resources in paths_for_each_apps.items():
+    # Build conflict graph using undirected links along each path
+    for app, nodes in paths_for_each_apps.items():
         G.add_node(app)
-        for r in resources:
-            for other_app in conflicts[r]:
+        edges_on_path = {
+            tuple(sorted((u, v)))
+            for u, v in zip(nodes[:-1], nodes[1:], strict=False)
+        }
+        for edge in edges_on_path:
+            for other_app in conflicts[edge]:
                 G.add_edge(app, other_app)
-            conflicts[r].add(app)
+            conflicts[edge].add(app)
 
     g_complement = nx.complement(G)
     parallelizable_applications = {
