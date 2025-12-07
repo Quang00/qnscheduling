@@ -74,10 +74,10 @@ def test_parallelizable_tasks_basic():
     }
     res = parallelizable_tasks(paths)
     assert res == {
-        "A": set(),
+        "A": {"D"},
         "B": {"D"},
-        "C": set(),
-        "D": {"B"},
+        "C": {"D"},
+        "D": {"A", "B", "C"},
     }
     assert_equal_set(res)
     assert set(res.keys()) == set(paths.keys())
@@ -98,8 +98,12 @@ def test_everyone_parallel():
     assert_equal_set(res)
 
 
-def test_none_parallel():
-    paths = {"A": ["Alice"], "B": ["Alice"], "C": ["Alice"]}
+def test_shared_link_conflict():
+    paths = {
+        "A": ["Alice", "Bob"],
+        "B": ["Bob", "Alice"],
+        "C": ["Alice", "Bob"],
+    }
     res = parallelizable_tasks(paths)
     assert res == {"A": set(), "B": set(), "C": set()}
     assert_equal_set(res)
@@ -109,8 +113,18 @@ def test_two_parallel():
     paths = {"A": ["Alice"], "B": ["Bob", "David"], "C": ["Charlie", "David"]}
     res = parallelizable_tasks(paths)
     assert res["A"] == {"B", "C"}
-    assert res["B"] == {"A"}
-    assert res["C"] == {"A"}
+    assert res["B"] == {"A", "C"}
+    assert res["C"] == {"A", "B"}
+    assert_equal_set(res)
+
+
+def test_shared_node_but_distinct_links():
+    paths = {
+        "A": ["Alice", "Bob"],
+        "B": ["Bob", "Charlie"],
+    }
+    res = parallelizable_tasks(paths)
+    assert res == {"A": {"B"}, "B": {"A"}}
     assert_equal_set(res)
 
 
