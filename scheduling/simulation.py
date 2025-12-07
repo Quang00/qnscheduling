@@ -31,7 +31,7 @@ class PGA:
         start: float,
         end: float,
         route: List[str],
-        resources: Dict[str, float],
+        resources: Dict[Tuple[str, str], float],
         link_busy: Dict[Tuple[str, str], float],
         p_gen: float,
         epr_pairs: int,
@@ -42,6 +42,7 @@ class PGA:
         p_swap: float,
         memory_lifetime: int,
         deadline: float | None = None,
+        route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
         """Packet Generation Attempt (PGA) simulation. The goal is to
         simulate end-to-end EPR pairs generation in a quantum network.
@@ -55,8 +56,8 @@ class PGA:
             start (float): Start time of the PGA in the simulation.
             end (float): End time of the PGA in the simulation.
             route (List[str]): List of nodes in the PGA's route.
-            resources (Dict[str, float]): Dictionary of resources indexed by
-            node names.
+            resources (Dict[Tuple[str, str], float]): Dictionary tracking
+            when undirected links become free.
             link_busy (Dict[Tuple[str, str], float]): Dictionary to track busy
             time of links.
             p_gen (float): Probability of generating an EPR pair in a single
@@ -89,10 +90,7 @@ class PGA:
         self.log = log
         self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
-        self.links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(route[:-1], route[1:], strict=False)
-        ]
+        self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
         self.memory_lifetime = max(0, int(memory_lifetime))
@@ -128,9 +126,9 @@ class PGA:
         attempts_run: int,
     ) -> None:
         """Mark nodes and links busy through ``completion``."""
-        for node in self.route:
-            self.resources[node] = max(
-                self.resources.get(node, 0.0), completion
+        for link in self.links:
+            self.resources[link] = max(
+                self.resources.get(link, 0.0), completion
             )
 
         if attempts_run > 0 and self.links:
@@ -143,56 +141,56 @@ class PGA:
         pairs_generated = 0
         wait_until = 0.0
 
-        for node in self.route:
-            wait_until = max(wait_until, self.resources.get(node, 0.0))
+        for link in self.links:
+            wait_until = max(wait_until, self.resources.get(link, 0.0))
 
         if wait_until > self.start + EPS:
             completion = wait_until
-            status = "conflict"
-            return
-
-        current_time = self.start
-        t_budget = max(0.0, self.end - self.start)
-        status = "failed"
-
-        if t_budget > EPS and self.policy == "deadline":
-            max_attempts = int((t_budget + EPS) // self.slot_duration)
-            succ = self._simulate_e2e_attempts(max_attempts)
-            csum = (
-                np.cumsum(succ, dtype=int)
-                if len(succ)
-                else np.array([], dtype=int)
-            )
-            hit = (
-                np.searchsorted(csum, self.epr_pairs, side="left")
-                if len(csum)
-                else len(csum)
-            )
-
-            if len(csum) and hit < len(csum):
-                attempts_run = int(hit + 1)
-                pairs_generated = int(csum[attempts_run - 1])
-                status = "completed"
-            else:
-                attempts_run = max_attempts
-                pairs_generated = int(csum[-1]) if len(csum) else 0
-
-            current_time = self.start + attempts_run * self.slot_duration
-            completion = min(self.end, current_time)
-            self._update_resources_and_links(completion, attempts_run)
-        elif self.policy == "best_effort":
-            while pairs_generated < self.epr_pairs:
-                succ = self._simulate_e2e_attempts(1)
-                pairs_generated += int(succ.sum())
-                attempts_run += 1
-
-            completion = self.start + attempts_run * self.slot_duration
-            status = (
-                "completed" if pairs_generated >= self.epr_pairs else "failed"
-            )
-            self._update_resources_and_links(completion, attempts_run)
+            status = "deadlline_miss"
         else:
-            completion = self.start
+            current_time = self.start
+            t_budget = max(0.0, self.end - self.start)
+            status = "failed"
+
+            if t_budget > EPS and self.policy == "deadline":
+                max_attempts = int((t_budget + EPS) // self.slot_duration)
+                succ = self._simulate_e2e_attempts(max_attempts)
+                csum = (
+                    np.cumsum(succ, dtype=int)
+                    if len(succ)
+                    else np.array([], dtype=int)
+                )
+                hit = (
+                    np.searchsorted(csum, self.epr_pairs, side="left")
+                    if len(csum)
+                    else len(csum)
+                )
+
+                if len(csum) and hit < len(csum):
+                    attempts_run = int(hit + 1)
+                    pairs_generated = int(csum[attempts_run - 1])
+                    status = "completed"
+                else:
+                    attempts_run = max_attempts
+                    pairs_generated = int(csum[-1]) if len(csum) else 0
+
+                current_time = self.start + attempts_run * self.slot_duration
+                completion = min(self.end, current_time)
+                self._update_resources_and_links(completion, attempts_run)
+            elif self.policy == "best_effort":
+                while pairs_generated < self.epr_pairs:
+                    succ = self._simulate_e2e_attempts(1)
+                    pairs_generated += int(succ.sum())
+                    attempts_run += 1
+
+                completion = self.start + attempts_run * self.slot_duration
+                status = (
+                    "completed" if pairs_generated >= self.epr_pairs
+                    else "failed"
+                )
+                self._update_resources_and_links(completion, attempts_run)
+            else:
+                completion = self.start
 
         burst = completion - self.start
         turnaround = completion - self.arrival
@@ -275,8 +273,15 @@ def simulate_static(
     completed_instances = {app: 0 for app in instances_required}
     completed_total = 0
 
-    all_nodes = {n for path in pga_network_paths.values() for n in path}
-    resources = {n: 0.0 for n in all_nodes}
+    pga_route_links = {
+        app: [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        for app, path in pga_network_paths.items()
+    }
+    all_links = {link for links in pga_route_links.values() for link in links}
+    resources = {link: 0.0 for link in all_links}
     link_busy = {}
     min_start = float("inf")
     max_completion = 0.0
@@ -310,6 +315,7 @@ def simulate_static(
             p_swap=pga_parameters[app]["p_swap"],
             memory_lifetime=pga_parameters[app]["memory_lifetime"],
             deadline=sched_deadline,
+            route_links=pga_route_links.get(app),
         )
         result = pga.run()
 
@@ -371,8 +377,15 @@ def simulate_dynamic(
     pga_release_times = {}
     pga_names = []
 
-    all_nodes = {n for path in pga_network_paths.values() for n in path}
-    resources = {n: 0.0 for n in all_nodes}
+    pga_route_links = {
+        app: [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        for app, path in pga_network_paths.items()
+    }
+    all_links = {link for links in pga_route_links.values() for link in links}
+    resources = {link: 0.0 for link in all_links}
     link_busy = {}
     min_start = float("inf")
     max_completion = 0.0
@@ -403,7 +416,13 @@ def simulate_dynamic(
             priority_queue
         )
         route = pga_network_paths[app]
-        latest_available_resource = max(resources.get(n, 0.0) for n in route)
+        route_links = pga_route_links.get(app, [])
+        latest_available_resource = 0.0
+        for link in route_links:
+            latest_available_resource = max(
+                latest_available_resource,
+                resources.get(link, 0.0),
+            )
         earliest_start = max(ready_time, latest_available_resource)
         completion = earliest_start + durations[app]
         duration = durations.get(app, 0.0)
@@ -452,6 +471,7 @@ def simulate_dynamic(
             p_swap=pga_parameters[app]["p_swap"],
             memory_lifetime=pga_parameters[app]["memory_lifetime"],
             deadline=deadline,
+            route_links=route_links,
         )
         result = pga.run()
 
