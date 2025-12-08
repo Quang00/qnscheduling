@@ -24,7 +24,7 @@ def test_simulation_completes_basic(base_pga_parameters):
     schedule = [("A0", 0.0, 5.0, 10.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _, _ = simulate_static(
+    df, _, _, _, _ = simulate_static(
         schedule=schedule,
         app_specs={"A": {"instances": 1}},
         pga_parameters=pga_parameters,
@@ -47,7 +47,7 @@ def test_simulation_fails_basic(base_pga_parameters):
     schedule = [("A0", 0.0, 0.01, 5.0)]
     rng = np.random.default_rng(42)
 
-    df, _, _, _ = simulate_static(
+    df, _, _, _, _ = simulate_static(
         schedule=schedule,
         app_specs={"A": {"instances": 1}},
         pga_parameters=pga_parameters,
