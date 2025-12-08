@@ -175,7 +175,13 @@ def run_simulation(
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
     if scheduler == "dynamic":
-        df, pga_names, pga_release_times, link_utilization = simulate_dynamic(
+        (
+            df,
+            pga_names,
+            pga_release_times,
+            link_utilization,
+            link_waiting,
+        ) = simulate_dynamic(
             app_specs,
             durations,
             pga_parameters,
@@ -200,7 +206,13 @@ def run_simulation(
 
         print("Preview Schedule:", schedule[: n_apps * 2])
 
-        df, pga_names, pga_release_times, link_utilization = simulate_static(
+        (
+            df,
+            pga_names,
+            pga_release_times,
+            link_utilization,
+            link_waiting,
+        ) = simulate_static(
             schedule=schedule,
             app_specs=app_specs,
             pga_parameters=pga_parameters,
@@ -220,6 +232,7 @@ def run_simulation(
         durations=durations,
         n_edges=len(edges),
         link_utilization=link_utilization,
+        link_waiting=link_waiting,
         scheduler=scheduler,
         output_dir=output_dir,
     )
@@ -409,9 +422,11 @@ def main():
     path_results = os.path.join(run_dir, "pga_results.csv")
     path_params = os.path.join(run_dir, "params.csv")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
+    path_link_wait = os.path.join(run_dir, "link_waiting.csv")
     print(f"Saved results to: {path_results}")
     print(f"Saved parameters to: {path_params}")
     print(f"Saved link utilization to: {path_link_util}")
+    print(f"Saved link waiting metrics to: {path_link_wait}")
 
 
 if __name__ == "__main__":

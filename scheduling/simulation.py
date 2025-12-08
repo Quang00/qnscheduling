@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from utils.helper import compute_link_utilization
+from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
 EPS = 1e-12
@@ -226,6 +226,7 @@ def simulate_static(
     List[str],
     Dict[str, float],
     Dict[Tuple[str, str], Dict[str, float]],
+    Dict[Tuple[str, str], Dict[str, float | int]],
 ]:
     """Simulate periodic PGA scheduling. The provided static schedule defines
     when each PGA starts and ends. Each scheduled entry is a PGA that attempts
@@ -260,6 +261,7 @@ def simulate_static(
             - List of PGA names.
             - Dictionary mapping PGA names to their release times.
             - Dictionary mapping undirected links to busy time and utilization.
+            - Dictionary mapping undirected links to waiting metrics.
     """
     log = []
     pga_release_times = {}
@@ -283,6 +285,10 @@ def simulate_static(
     all_links = {link for links in pga_route_links.values() for link in links}
     resources = {link: 0.0 for link in all_links}
     link_busy = {}
+    link_waiting = {
+        link: {"total_waiting_time": 0.0, "pga_waited": 0}
+        for link in all_links
+    }
     min_start = float("inf")
     max_completion = 0.0
 
@@ -318,6 +324,12 @@ def simulate_static(
             route_links=pga_route_links.get(app),
         )
         result = pga.run()
+        waiting_time = max(0.0, float(result.get("waiting_time", 0.0)))
+        track_link_waiting(
+            pga_route_links.get(app),
+            waiting_time,
+            link_waiting,
+        )
 
         pga_names.append(pga_name)
         pga_release_times[pga_name] = sched_start
@@ -337,7 +349,7 @@ def simulate_static(
         max_completion,
     )
 
-    return df, pga_names, pga_release_times, link_utilization
+    return df, pga_names, pga_release_times, link_utilization, link_waiting
 
 
 def simulate_dynamic(
@@ -347,7 +359,13 @@ def simulate_dynamic(
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[str]],
     rng: np.random.Generator,
-):
+) -> Tuple[
+    pd.DataFrame,
+    List[str],
+    Dict[str, float],
+    Dict[Tuple[str, str], Dict[str, float]],
+    Dict[Tuple[str, str], Dict[str, float | int]],
+]:
     """Simulate dynamic PGA scheduling. The PGAs are scheduled dynamically
     based on their release times, periods, and deadlines. The simulation
     continues until all PGAs have completed their required number of
@@ -372,6 +390,7 @@ def simulate_dynamic(
             - List of PGA names.
             - Dictionary mapping PGA names to their release times.
             - Dictionary mapping undirected links to busy time and utilization.
+            - Dictionary mapping undirected links to waiting metrics.
     """
     log = []
     pga_release_times = {}
@@ -387,6 +406,10 @@ def simulate_dynamic(
     all_links = {link for links in pga_route_links.values() for link in links}
     resources = {link: 0.0 for link in all_links}
     link_busy = {}
+    link_waiting = {
+        link: {"total_waiting_time": 0.0, "pga_waited": 0}
+        for link in all_links
+    }
     min_start = float("inf")
     max_completion = 0.0
 
@@ -430,19 +453,21 @@ def simulate_dynamic(
         pga_name = (f"{app}{i}")
 
         if completion > deadline + EPS or duration > period + EPS:
-            log.append(
-                {
-                    "pga": pga_name,
-                    "arrival_time": arrival_time,
-                    "start_time": earliest_start,
-                    "burst_time": 0.0,
-                    "completion_time": earliest_start,
-                    "turnaround_time": earliest_start - arrival_time,
-                    "waiting_time": earliest_start - arrival_time,
-                    "pairs_generated": 0,
-                    "status": "deadline_miss",
-                    "deadline": deadline,
-                }
+            result = {
+                "pga": pga_name,
+                "arrival_time": arrival_time,
+                "start_time": earliest_start,
+                "burst_time": 0.0,
+                "completion_time": earliest_start,
+                "turnaround_time": earliest_start - arrival_time,
+                "waiting_time": earliest_start - arrival_time,
+                "pairs_generated": 0,
+                "status": "deadline_miss",
+                "deadline": deadline,
+            }
+            log.append(result)
+            track_link_waiting(
+                route_links, result["waiting_time"], link_waiting
             )
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
@@ -480,6 +505,10 @@ def simulate_dynamic(
         if is_retry:
             result["waiting_time"] = 0.0
 
+        track_link_waiting(
+            route_links, result.get("waiting_time", 0.0), link_waiting
+        )
+
         pga_names.append(pga_name)
         pga_release_times[pga_name] = arrival_time
         min_start = min(min_start, result["start_time"])
@@ -511,4 +540,10 @@ def simulate_dynamic(
         max_completion,
     )
 
-    return df, pga_names, pga_release_times, link_utilization
+    for link in all_links:
+        link_waiting.setdefault(
+            link,
+            {"total_waiting_time": 0.0, "pga_waited": 0},
+        )
+
+    return df, pga_names, pga_release_times, link_utilization, link_waiting

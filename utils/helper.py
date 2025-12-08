@@ -136,6 +136,32 @@ def app_params_sim(
     return sim_params
 
 
+def track_link_waiting(
+    route_links: List[Tuple[str, str]] | None,
+    waiting_time: float,
+    wait_acc: Dict[Tuple[str, str], Dict[str, float]],
+) -> None:
+    """Track waiting time statistics per link.
+
+    Args:
+        route_links (List[Tuple[str, str]] | None): List of links.
+        waiting_time (float): Waiting time per PGA.
+        wait_acc (Dict[Tuple[str, str], Dict[str, float]]): Accumulator
+        for waiting time statistics per link.
+    """
+    wait = max(0.0, float(waiting_time))
+    for link in route_links:
+        pga_wait = wait_acc.setdefault(
+            link,
+            {
+                "total_waiting_time": 0.0,
+                "pga_waited": 0,
+            },
+        )
+        pga_wait["total_waiting_time"] = pga_wait["total_waiting_time"] + wait
+        pga_wait["pga_waited"] = pga_wait["pga_waited"] + 1
+
+
 def save_results(
     df: pd.DataFrame,
     pga_names: List[str],
@@ -144,6 +170,7 @@ def save_results(
     n_edges: int,
     durations: Dict[str, float] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
+    link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
     scheduler: str = 'dynamic',
     output_dir: str = "results",
 ) -> None:
@@ -177,6 +204,8 @@ def save_results(
         durations per application.
         link_utilization (Dict): Dictionary mapping links to busy time and
         utilization metrics.
+        link_waiting (Dict | None): Dictionary mapping links to waiting
+        metrics (total waiting time and number of PGAs that waited).
         output_dir (str): Directory where the results CSV file will be saved.
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -220,6 +249,10 @@ def save_results(
     df = df.merge(params, on="task", how="left").drop(columns="task")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
 
+    arrival_min = df["arrival_time"].min()
+    completion_max = df["completion_time"].max()
+    makespan = completion_max - arrival_min
+
     csv_path = os.path.join(output_dir, "pga_results.csv")
     df.to_csv(csv_path, index=False)
 
@@ -228,6 +261,7 @@ def save_results(
 
     avg_link_utilization = float("nan")
     total_busy_time = float("nan")
+    link_waiting_path = None
     if link_utilization:
         link_util_rows = [
             {
@@ -244,7 +278,6 @@ def save_results(
         )
 
         busy_time_sum = link_util_df["busy_time"].sum()
-        makespan = df["completion_time"].max() - df["arrival_time"].min()
         avg_link_utilization = busy_time_sum / makespan / n_edges
         total_busy_time = busy_time_sum
 
@@ -254,14 +287,40 @@ def save_results(
         print("\n=== Link Utilization ===")
         print(link_util_df.to_string(index=False))
 
-    makespan = df["completion_time"].max() - df["arrival_time"].min()
+    if link_waiting:
+        waiting_rows = [
+            {
+                "link": f"{min(a, b)}-{max(a, b)}",
+                "total_waiting_time": waiting.get(
+                    "total_waiting_time", float("nan")
+                ),
+                "pga_waited": waiting.get("pga_waited", 0),
+            }
+            for (a, b), waiting in link_waiting.items()
+        ]
+        for row in waiting_rows:
+            waited = row["pga_waited"]
+            total_wait = row["total_waiting_time"]
+            row["avg_wait"] = total_wait / waited
+            row["avg_queue_length"] = total_wait / makespan
+        waiting_df = (
+            pd.DataFrame(waiting_rows)
+            .sort_values("total_waiting_time", ascending=False)
+            .reset_index(drop=True)
+        )
+        link_waiting_path = os.path.join(output_dir, "link_waiting.csv")
+        waiting_df.to_csv(link_waiting_path, index=False)
+
+        print("\n=== Link Waiting ===")
+        print(waiting_df.to_string(index=False))
+
     completed_burst = df.loc[df["status"] == "completed", "burst_time"].sum()
     useful_utilization = completed_burst / makespan
 
     total = len(df)
     completed = (df["status"] == "completed").sum()
     deadline_miss_total = (df["status"] == "deadline_miss").sum()
-    throughput = completed / makespan if makespan > 0 else float("inf")
+    throughput = completed / makespan
     waits = df.loc[
         (df["status"] == "completed") | (df["status"] == "failed"),
         "waiting_time"
