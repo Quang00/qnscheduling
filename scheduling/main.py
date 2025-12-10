@@ -155,6 +155,7 @@ def run_simulation(
         time_slot_duration,
         rng,
     )
+    pga_rel_times = {app: 0.0 for app in app_specs.keys()}
     print("Release times:", pga_rel_times)
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
