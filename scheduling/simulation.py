@@ -146,7 +146,7 @@ class PGA:
 
         if wait_until > self.start + EPS:
             completion = wait_until
-            status = "deadlline_miss"
+            status = "deadline_miss"
         else:
             current_time = self.start
             t_budget = max(0.0, self.end - self.start)
@@ -366,10 +366,12 @@ def simulate_dynamic(
     Dict[Tuple[str, str], Dict[str, float]],
     Dict[Tuple[str, str], Dict[str, float | int]],
 ]:
-    """Simulate dynamic PGA scheduling. The PGAs are scheduled dynamically
-    based on their release times, periods, and deadlines. The simulation
-    continues until all PGAs have completed their required number of
-    instances.
+    """Simulate online dynamic PGA scheduling. PGAs are released periodically
+    according to their specified release times and periods. At each time step,
+    the scheduler checks for newly released PGAs and adds them to the ready
+    queue. The scheduler then attempts to start PGAs from the ready queue based
+    on resource availability and deadlines. The scheduling is based on earliest
+    deadline first (EDF) policy.
 
     Args:
         app_specs (Dict[str, Dict[str, Any]]): Application specifications.
@@ -413,13 +415,14 @@ def simulate_dynamic(
     min_start = float("inf")
     max_completion = 0.0
 
-    periods = {app: app_specs[app].get("period", 0.0) for app in app_specs}
-    inst_req = {app: app_specs[app].get("instances", 0) for app in app_specs}
+    periods = {app: app_specs[app].get("period") for app in app_specs}
+    inst_req = {app: app_specs[app].get("instances") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     completed_instances = {app: 0 for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
 
-    priority_queue = []
+    events_queue = []
+    ready_queue = []
 
     def enqueue_release(app: str) -> None:
         if inst_req[app] <= completed_instances[app]:
@@ -428,122 +431,136 @@ def simulate_dynamic(
         period = periods[app]
         release = base_release[app] + period * idx
         deadline = release + period
-        heapq.heappush(priority_queue, (deadline, release, release, app, idx))
+        heapq.heappush(events_queue, (release, deadline, release, app, idx))
         release_indices[app] += 1
 
     for app in app_specs:
         enqueue_release(app)
 
-    while priority_queue:
-        deadline, ready_time, arrival_time, app, i = heapq.heappop(
-            priority_queue
-        )
-        route = pga_network_paths[app]
-        route_links = pga_route_links.get(app, [])
-        latest_available_resource = 0.0
-        for link in route_links:
-            latest_available_resource = max(
-                latest_available_resource,
-                resources.get(link, 0.0),
-            )
-        earliest_start = max(ready_time, latest_available_resource)
-        completion = earliest_start + durations[app]
-        duration = durations.get(app, 0.0)
-        period = periods[app]
-        pga_name = (f"{app}{i}")
+    t = 0.0
 
-        if completion > deadline + EPS or duration > period + EPS:
-            result = {
-                "pga": pga_name,
-                "arrival_time": arrival_time,
-                "start_time": earliest_start,
-                "burst_time": 0.0,
-                "completion_time": earliest_start,
-                "turnaround_time": earliest_start - arrival_time,
-                "waiting_time": earliest_start - arrival_time,
-                "pairs_generated": 0,
-                "status": "deadline_miss",
-                "deadline": deadline,
-            }
-            log.append(result)
-            track_link_waiting(
-                route_links, result["waiting_time"], link_waiting
+    while events_queue or ready_queue:
+        if not ready_queue:
+            t = events_queue[0][0]
+
+        while events_queue and events_queue[0][0] <= t + EPS:
+            rdy_t, deadline, arrival_time, app, i = heapq.heappop(events_queue)
+            heapq.heappush(
+                ready_queue, (deadline, rdy_t, arrival_time, app, i)
             )
+
+        if not ready_queue:
+            continue
+
+        while ready_queue:
+            deadline, rdy_t, arrival_time, app, i = heapq.heappop(ready_queue)
+
+            route_links = pga_route_links.get(app, [])
+            duration = durations.get(app, 0.0)
+
+            last_available = 0.0
+            for link in route_links:
+                last_available = max(last_available, resources.get(link, 0.0))
+
+            if last_available > t + EPS:
+                if last_available + duration > deadline + EPS:
+                    if inst_req[app] > completed_instances[app]:
+                        enqueue_release(app)
+                else:
+                    heapq.heappush(
+                        events_queue,
+                        (last_available, deadline, arrival_time, app, i)
+                    )
+                continue
+
+            start_time = t
+            period = periods[app]
+            completion = start_time + duration
+            pga_name = f"{app}{i}"
+
+            if completion > deadline + EPS or duration > period + EPS:
+                result = {
+                    "pga": pga_name,
+                    "arrival_time": arrival_time,
+                    "start_time": start_time,
+                    "burst_time": 0.0,
+                    "completion_time": start_time,
+                    "turnaround_time": start_time - arrival_time,
+                    "waiting_time": start_time - arrival_time,
+                    "pairs_generated": 0,
+                    "status": "deadline_miss",
+                    "deadline": deadline,
+                }
+                log.append(result)
+                track_link_waiting(
+                    route_links, result["waiting_time"], link_waiting
+                )
+                pga_names.append(pga_name)
+                pga_release_times[pga_name] = arrival_time
+
+                if duration > period + EPS:
+                    completed_instances[app] += 1
+
+                if inst_req[app] > completed_instances[app]:
+                    enqueue_release(app)
+                continue
+
+            pga = PGA(
+                name=pga_name,
+                arrival=arrival_time,
+                start=start_time,
+                end=completion,
+                route=pga_network_paths[app],
+                resources=resources,
+                link_busy=link_busy,
+                p_gen=pga_parameters[app]["p_gen"],
+                epr_pairs=int(pga_parameters[app]["epr_pairs"]),
+                slot_duration=pga_parameters[app]["slot_duration"],
+                rng=rng,
+                log=log,
+                policy=app_specs[app].get("policy"),
+                p_swap=pga_parameters[app]["p_swap"],
+                memory_lifetime=pga_parameters[app]["memory_lifetime"],
+                deadline=deadline,
+                route_links=route_links,
+            )
+            result = pga.run()
+
+            track_link_waiting(
+                route_links, result.get("waiting_time", 0.0), link_waiting
+            )
+
             pga_names.append(pga_name)
             pga_release_times[pga_name] = arrival_time
+            min_start = min(min_start, result["start_time"])
+            max_completion = max(max_completion, result["completion_time"])
 
-            if duration > period + EPS:
+            status = result.get("status", "")
+            if status == "completed":
                 completed_instances[app] += 1
+                if inst_req[app] > completed_instances[app]:
+                    enqueue_release(app)
+                continue
 
-            if inst_req[app] > completed_instances[app]:
-                enqueue_release(app)
-            continue
-
-        pga = PGA(
-            name=pga_name,
-            arrival=arrival_time,
-            start=earliest_start,
-            end=completion,
-            route=route,
-            resources=resources,
-            link_busy=link_busy,
-            p_gen=pga_parameters[app]["p_gen"],
-            epr_pairs=int(pga_parameters[app]["epr_pairs"]),
-            slot_duration=pga_parameters[app]["slot_duration"],
-            rng=rng,
-            log=log,
-            policy=app_specs[app].get("policy"),
-            p_swap=pga_parameters[app]["p_swap"],
-            memory_lifetime=pga_parameters[app]["memory_lifetime"],
-            deadline=deadline,
-            route_links=route_links,
-        )
-        result = pga.run()
-
-        # A retry has no waiting time
-        is_retry = (ready_time - arrival_time) > EPS
-        if is_retry:
-            result["waiting_time"] = 0.0
-
-        track_link_waiting(
-            route_links, result.get("waiting_time", 0.0), link_waiting
-        )
-
-        pga_names.append(pga_name)
-        pga_release_times[pga_name] = arrival_time
-        min_start = min(min_start, result["start_time"])
-        max_completion = max(max_completion, result["completion_time"])
-
-        status = result.get("status", "")
-        if status == "completed":
-            completed_instances[app] += 1
-
-            if inst_req[app] > completed_instances[app]:
-                enqueue_release(app)
-            continue
-
-        time_left = deadline - result["completion_time"]
-        if time_left > EPS:
-            next_ready_time = result["completion_time"] + EPS
-            heapq.heappush(
-                priority_queue,
-                (deadline, next_ready_time, arrival_time, app, i),
-            )
-        else:
-            if inst_req[app] > completed_instances[app]:
-                enqueue_release(app)
+            time_left = deadline - result["completion_time"]
+            if time_left > EPS:
+                next_ready_time = result["completion_time"] + EPS
+                heapq.heappush(
+                    events_queue,
+                    (next_ready_time, deadline, arrival_time, app, i)
+                )
+            else:
+                if inst_req[app] > completed_instances[app]:
+                    enqueue_release(app)
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
-        link_busy,
-        min_start,
-        max_completion,
+        link_busy, min_start, max_completion
     )
 
     for link in all_links:
         link_waiting.setdefault(
-            link,
-            {"total_waiting_time": 0.0, "pga_waited": 0},
+            link, {"total_waiting_time": 0.0, "pga_waited": 0}
         )
 
     return df, pga_names, pga_release_times, link_utilization, link_waiting
