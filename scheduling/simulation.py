@@ -397,6 +397,7 @@ def simulate_dynamic(
     log = []
     pga_release_times = {}
     pga_names = []
+    run_attempts = {}
 
     pga_route_links = {
         app: [
@@ -464,6 +465,26 @@ def simulate_dynamic(
 
             if last_available > t + EPS:
                 if last_available + duration > deadline + EPS:
+                    if run_attempts.get((app, i), 0) > 0:
+                        pga_name = f"{app}{i}"
+                        attempt_wait = max(0.0, t - rdy_t)
+
+                        drop_result = {
+                            "pga": pga_name,
+                            "arrival_time": arrival_time,
+                            "ready_time": rdy_t,
+                            "start_time": np.nan,
+                            "burst_time": 0.0,
+                            "completion_time": t,
+                            "turnaround_time": t - arrival_time,
+                            "waiting_time": attempt_wait,
+                            "pairs_generated": 0,
+                            "status": "dropped",
+                            "deadline": deadline,
+                            "earliest_start": last_available,
+                            "attempt": run_attempts[(app, i)],
+                        }
+                        log.append(drop_result)
                     if inst_req[app] > completed_instances[app]:
                         enqueue_release(app)
                 else:
@@ -524,6 +545,7 @@ def simulate_dynamic(
                 deadline=deadline,
                 route_links=route_links,
             )
+            run_attempts[(app, i)] = run_attempts.get((app, i), 0) + 1
             result = pga.run()
 
             track_link_waiting(
@@ -542,9 +564,8 @@ def simulate_dynamic(
                     enqueue_release(app)
                 continue
 
-            time_left = deadline - result["completion_time"]
-            if time_left > EPS:
-                next_ready_time = result["completion_time"] + EPS
+            next_ready_time = result["completion_time"] + EPS
+            if next_ready_time + duration <= deadline + EPS:
                 heapq.heappush(
                     events_queue,
                     (next_ready_time, deadline, arrival_time, app, i)

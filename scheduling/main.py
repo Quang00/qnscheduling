@@ -256,7 +256,7 @@ def main():
         "--apps",
         "-a",
         type=int,
-        default=10,
+        default=2,
         help="Number of applications to generate",
     )
     parser.add_argument(
@@ -284,35 +284,35 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[3.0, 3.0],
+        default=[1.0, 1.0],
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(
         "--hyperperiod",
         "-hp",
         type=float,
-        default=100,
+        default=1000,
         help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
     )
     parser.add_argument(
         "--ppacket",
         "-pp",
         type=float,
-        default=0.05,
+        default=0.2,
         help="Probability of a packet being generated",
     )
     parser.add_argument(
         "--memory",
         "-m",
         type=int,
-        default=50,
+        default=1000,
         help="Memory lifetime in number of time slot units",
     )
     parser.add_argument(
         "--pswap",
         "-ps",
         type=float,
-        default=0.95,
+        default=0.6,
         help="Probability of swapping an EPR pair in a single trial",
     )
     parser.add_argument(
