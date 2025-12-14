@@ -398,6 +398,7 @@ def simulate_dynamic(
     pga_release_times = {}
     pga_names = []
     run_attempts = {}
+    deadline_miss_logged = set()
 
     pga_route_links = {
         app: [
@@ -465,26 +466,30 @@ def simulate_dynamic(
 
             if last_available > t + EPS:
                 if last_available + duration > deadline + EPS:
-                    if run_attempts.get((app, i), 0) > 0:
-                        pga_name = f"{app}{i}"
-                        attempt_wait = max(0.0, t - rdy_t)
+                    if (app, i) not in deadline_miss_logged:
+                        deadline_miss_logged.add((app, i))
 
-                        drop_result = {
+                        pga_name = f"{app}{i}"
+                        wait = max(0.0, t - rdy_t)
+
+                        result = {
                             "pga": pga_name,
                             "arrival_time": arrival_time,
-                            "ready_time": rdy_t,
                             "start_time": np.nan,
                             "burst_time": 0.0,
                             "completion_time": t,
                             "turnaround_time": t - arrival_time,
-                            "waiting_time": attempt_wait,
+                            "waiting_time": wait,
                             "pairs_generated": 0,
-                            "status": "dropped",
+                            "status": "deadline_miss",
                             "deadline": deadline,
-                            "earliest_start": last_available,
-                            "attempt": run_attempts[(app, i)],
                         }
-                        log.append(drop_result)
+                        log.append(result)
+
+                        track_link_waiting(route_links, wait, link_waiting)
+                        pga_names.append(pga_name)
+                        pga_release_times[pga_name] = arrival_time
+
                     if inst_req[app] > completed_instances[app]:
                         enqueue_release(app)
                 else:
