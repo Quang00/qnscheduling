@@ -169,6 +169,7 @@ def save_results(
     app_specs: Dict[str, Dict[str, Any]],
     n_edges: int,
     durations: Dict[str, float] | None = None,
+    pga_network_paths: Dict[str, List[str]] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
     link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
     scheduler: str = 'dynamic',
@@ -202,6 +203,8 @@ def save_results(
         n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
         durations per application.
+        pga_network_paths (Dict | None): Length of network paths per
+        application.
         link_utilization (Dict): Dictionary mapping links to busy time and
         utilization metrics.
         link_waiting (Dict | None): Dictionary mapping links to waiting
@@ -231,6 +234,14 @@ def save_results(
 
     df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
     app_names = list(app_specs.keys())
+    if pga_network_paths:
+        path_length = {
+            app: max(0, len(path) - 1)
+            for app, path in pga_network_paths.items()
+            if path is not None
+        }
+    else:
+        path_length = {}
     params = pd.DataFrame(
         {
             "task": app_names,
@@ -239,6 +250,7 @@ def save_results(
             "instances": [int(app_specs[a]["instances"]) for a in app_names],
             "pairs_requested": [int(app_specs[a]["epr"]) for a in app_names],
             "policy": [app_specs[a]["policy"] for a in app_names],
+            "path_length": [path_length.get(a, np.nan) for a in app_names],
             "pga_duration": [
                 float(durations[a]) if durations and a in durations else np.nan
                 for a in app_names

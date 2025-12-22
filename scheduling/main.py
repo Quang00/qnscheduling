@@ -228,6 +228,7 @@ def run_simulation(
         pga_release_times,
         app_specs,
         durations=durations,
+        pga_network_paths=paths,
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
