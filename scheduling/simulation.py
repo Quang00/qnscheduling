@@ -400,8 +400,8 @@ def simulate_dynamic(
     log = []
     pga_release_times = {}
     pga_names = []
-    run_attempts = {}
-    deadline_miss_logged = set()
+    seen_pgas = set()
+    drop_logged = set()
 
     pga_route_links = {
         app: [
@@ -476,6 +476,12 @@ def simulate_dynamic(
         while ready_queue:
             deadline, rdy_t, arrival_time, app, i = heapq.heappop(ready_queue)
 
+            pga_name = f"{app}{i}"
+            if pga_name not in seen_pgas:
+                seen_pgas.add(pga_name)
+                pga_names.append(pga_name)
+                pga_release_times[pga_name] = arrival_time
+
             route_links = pga_route_links.get(app, [])
             duration = durations.get(app, 0.0)
 
@@ -485,12 +491,10 @@ def simulate_dynamic(
 
             if last_available > t + EPS:
                 if last_available + duration > deadline + EPS:
-                    if (app, i) not in deadline_miss_logged:
-                        deadline_miss_logged.add((app, i))
+                    if (app, i) not in drop_logged:
+                        drop_logged.add((app, i))
 
-                        pga_name = f"{app}{i}"
                         wait = max(0.0, t - rdy_t)
-
                         result = {
                             "pga": pga_name,
                             "arrival_time": arrival_time,
@@ -500,18 +504,31 @@ def simulate_dynamic(
                             "turnaround_time": t - arrival_time,
                             "waiting_time": wait,
                             "pairs_generated": 0,
-                            "status": "deadline_miss",
+                            "status": "drop",
                             "deadline": deadline,
                         }
                         log.append(result)
 
                         track_link_waiting(route_links, wait, link_waiting)
-                        pga_names.append(pga_name)
-                        pga_release_times[pga_name] = arrival_time
 
                     if inst_req[app] > completed_instances[app]:
                         enqueue_release(app)
                 else:
+                    wait = max(0.0, t - rdy_t)
+                    result = {
+                        "pga": pga_name,
+                        "arrival_time": arrival_time,
+                        "start_time": np.nan,
+                        "burst_time": 0.0,
+                        "completion_time": t,
+                        "turnaround_time": t - arrival_time,
+                        "waiting_time": wait,
+                        "pairs_generated": 0,
+                        "status": "defer",
+                        "deadline": deadline,
+                    }
+                    log.append(result)
+                    track_link_waiting(route_links, wait, link_waiting)
                     heapq.heappush(
                         events_queue,
                         (last_available, deadline, arrival_time, app, i)
@@ -521,7 +538,6 @@ def simulate_dynamic(
             start_time = t
             period = periods[app]
             completion = start_time + duration
-            pga_name = f"{app}{i}"
 
             if completion > deadline + EPS or duration > period + EPS:
                 result = {
@@ -533,15 +549,13 @@ def simulate_dynamic(
                     "turnaround_time": start_time - arrival_time,
                     "waiting_time": start_time - arrival_time,
                     "pairs_generated": 0,
-                    "status": "deadline_miss",
+                    "status": "drop",
                     "deadline": deadline,
                 }
                 log.append(result)
                 track_link_waiting(
                     route_links, result["waiting_time"], link_waiting
                 )
-                pga_names.append(pga_name)
-                pga_release_times[pga_name] = arrival_time
 
                 if duration > period + EPS:
                     completed_instances[app] += 1
@@ -569,15 +583,12 @@ def simulate_dynamic(
                 deadline=deadline,
                 route_links=route_links,
             )
-            run_attempts[(app, i)] = run_attempts.get((app, i), 0) + 1
             result = pga.run()
 
             track_link_waiting(
                 route_links, result.get("waiting_time", 0.0), link_waiting
             )
 
-            pga_names.append(pga_name)
-            pga_release_times[pga_name] = arrival_time
             min_start = min(min_start, result["start_time"])
             max_completion = max(max_completion, result["completion_time"])
 
@@ -590,11 +601,15 @@ def simulate_dynamic(
 
             next_ready_time = result["completion_time"] + EPS
             if next_ready_time + duration <= deadline + EPS:
+                if status == "failed":
+                    result["status"] = "retry"
                 heapq.heappush(
                     events_queue,
                     (next_ready_time, deadline, arrival_time, app, i)
                 )
             else:
+                if status == "failed":
+                    result["status"] = "drop"
                 if inst_req[app] > completed_instances[app]:
                     enqueue_release(app)
 

@@ -319,7 +319,11 @@ def save_results(
 
     total = len(df)
     completed = (df["status"] == "completed").sum()
+    failed_total = (df["status"] == "failed").sum()
     deadline_miss_total = (df["status"] == "deadline_miss").sum()
+    dropped_total = (df["status"] == "drop").sum()
+    deferred_total = (df["status"] == "defer").sum()
+    retry_total = (df["status"] == "retry").sum()
     throughput = completed / makespan
     waits = df.loc[
         (df["status"] == "completed") | (df["status"] == "failed"),
@@ -346,9 +350,31 @@ def save_results(
         float(np.sum(pga_durations)) if pga_durations.size else float("nan")
     )
     if scheduler == 'dynamic':
-        total = df['pga'].nunique()
-    completed_ratio = (completed / total) if total > 0 else float("nan")
-    deadline_miss_ratio = deadline_miss_total / total
+        total = df["pga"].nunique()
+        completed_for_ratio = df.loc[
+            df["status"] == "completed", "pga"
+        ].nunique()
+        failed_total = df.loc[df["status"] == "failed", "pga"].nunique()
+        deadline_miss_total = df.loc[
+            df["status"] == "deadline_miss", "pga"
+        ].nunique()
+        dropped_total = df.loc[df["status"] == "drop", "pga"].nunique()
+        deferred_total = df.loc[df["status"] == "defer", "pga"].nunique()
+        retry_total = df.loc[df["status"] == "retry", "pga"].nunique()
+    else:
+        completed_for_ratio = completed
+
+    completed_ratio = (
+        (completed_for_ratio / total) if total > 0 else float("nan")
+    )
+
+    failed_ratio = (failed_total / total) if total > 0 else float("nan")
+    deadline_miss_ratio = (
+        (deadline_miss_total / total) if total > 0 else float("nan")
+    )
+    drop_ratio = (dropped_total / total) if total > 0 else float("nan")
+    defer_ratio = (deferred_total / total) if total > 0 else float("nan")
+    retry_ratio = (retry_total / total) if total > 0 else float("nan")
 
     print("\n=== Summary ===")
     print(f"Total PGAs       : {total}")
@@ -377,7 +403,11 @@ def save_results(
     print(f"Makespan         : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completed ratio  : {completed_ratio:.4f}")
+    print(f"Failed ratio     : {failed_ratio:.4f}")
     print(f"Deadline miss ratio : {deadline_miss_ratio:.4f}")
+    print(f"Drop ratio       : {drop_ratio:.4f}")
+    print(f"Defer ratio      : {defer_ratio:.4f}")
+    print(f"Retry ratio      : {retry_ratio:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
@@ -393,7 +423,15 @@ def save_results(
                 "makespan": float(makespan),
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),
+                "failed_ratio": float(failed_ratio),
                 "deadline_miss_ratio": float(deadline_miss_ratio),
+                "drop_ratio": float(drop_ratio),
+                "defer_ratio": float(defer_ratio),
+                "retry_ratio": float(retry_ratio),
+                "deferred": int(deferred_total),
+                "retried": int(retry_total),
+                "dropped": int(dropped_total),
+                "deadline_miss": int(deadline_miss_total),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),
                 "avg_turnaround_time": float(avg_turnaround),
@@ -408,8 +446,13 @@ def save_results(
     overall_path = os.path.join(output_dir, "summary.csv")
     overall_df.to_csv(overall_path, index=False)
 
+    for col in ["defer", "retry", "drop"]:
+        if col not in per_task.columns:
+            per_task[col] = 0
+
+    per_task_cols = ["completed", "failed", "defer", "retry", "drop"]
     per_task_df = (
-        per_task.loc[tasks_sorted, ["completed", "failed"]]
+        per_task.loc[tasks_sorted, per_task_cols]
         .reset_index()
         .rename(columns={"task": "task_name"})
     )
