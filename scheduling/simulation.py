@@ -359,6 +359,7 @@ def simulate_dynamic(
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[str]],
     rng: np.random.Generator,
+    arrival_rate: float | None = None,
 ) -> Tuple[
     pd.DataFrame,
     List[str],
@@ -380,6 +381,8 @@ def simulate_dynamic(
         pga_rel_times (Dict[str, float]): Release times for each PGA.
         pga_network_paths (Dict[str, List[str]]): Network paths for each PGA.
         rng (np.random.Generator): Random number generator.
+        arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
+        When None, arrivals remain periodic.
 
     Returns:
         Tuple[
@@ -422,6 +425,16 @@ def simulate_dynamic(
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     completed_instances = {app: 0 for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
+    poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
+    poisson = (1.0 / arrival_rate) if poisson_enabled else None
+    poisson_next_release = (
+        {
+            app: base_release.get(app, 0.0) + rng.exponential(poisson)
+            for app in app_specs
+        }
+        if poisson_enabled
+        else {}
+    )
 
     events_queue = []
     ready_queue = []
@@ -431,7 +444,13 @@ def simulate_dynamic(
             return
         idx = release_indices[app]
         period = periods[app]
-        release = base_release[app] + period * idx
+
+        if poisson_enabled:
+            release = poisson_next_release.get(app, base_release[app])
+            poisson_next_release[app] = release + rng.exponential(poisson)
+        else:
+            release = base_release[app] + period * idx
+
         deadline = release + period
         heapq.heappush(events_queue, (release, deadline, release, app, idx))
         release_indices[app] += 1

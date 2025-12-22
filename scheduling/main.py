@@ -61,7 +61,6 @@ from scheduling.scheduling import edf_parallel_static
 from scheduling.simulation import simulate_dynamic, simulate_static
 from utils.helper import (
     app_params_sim,
-    generate_arrivals,
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
@@ -85,7 +84,7 @@ def run_simulation(
     seed: int,
     output_dir: str,
     scheduler: str = "static",
-    arrival_rate: float = 1,
+    arrival_rate: float | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -106,6 +105,9 @@ def run_simulation(
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
+        scheduler (str): Either "static" or "dynamic".
+        arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
+        When None, releases remain periodic.
     Returns:
     tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict]: A tuple
     indicating whether the schedule is feasible, the resulting PGA DataFrame
@@ -149,12 +151,6 @@ def run_simulation(
     )
     print("Durations:", durations)
 
-    pga_rel_times = generate_arrivals(
-        app_specs,
-        arrival_rate,
-        time_slot_duration,
-        rng,
-    )
     pga_rel_times = {app: 0.0 for app in app_specs.keys()}
     print("Release times:", pga_rel_times)
 
@@ -189,6 +185,7 @@ def run_simulation(
             pga_rel_times,
             paths,
             rng,
+            arrival_rate,
         )
         feasible = True
     else:
@@ -342,8 +339,8 @@ def main():
         "--arrival-rate",
         "-ar",
         type=float,
-        default=1,
-        help="Mean arrival rate (lambda) for Poisson process per time slot",
+        default=None,
+        help="Mean arrival rate (lambda) for Poisson process",
     )
     parser.add_argument(
         "--seed",

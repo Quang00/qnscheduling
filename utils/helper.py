@@ -496,48 +496,6 @@ def generate_n_apps(
     return apps
 
 
-def generate_arrivals(
-    app_specs: Iterable,
-    arrival_rate: float,
-    time_slot_duration: float,
-    rng: np.random.Generator,
-) -> dict[str, float]:
-    """Generate arrival times for applications based on a Poisson process
-    per time slot.
-
-    Args:
-        app_specs (Iterable): Application specifications.
-        arrival_rate (float): Mean arrival rate (lambda) for the Poisson
-        process per time slot.
-        time_slot_duration (float): Duration of a time slot in seconds.
-        rng (np.random.Generator): Random number generator instance.
-
-    Returns:
-        dict[str, float]: Mapping of application names to their arrival times
-        in seconds.
-    """
-    apps = list(app_specs)
-    n_apps = len(apps)
-    pga_rel_times = {}
-    i = 0
-    slot = 0
-
-    rng.shuffle(apps)
-
-    while i < n_apps:
-        arrivals_this_slot = rng.poisson(arrival_rate)
-        for _ in range(arrivals_this_slot):
-            if i >= n_apps:
-                break
-            app = apps[i]
-            arrival_time = slot * time_slot_duration
-            pga_rel_times[app] = arrival_time
-            i += 1
-        slot += 1
-
-    return pga_rel_times
-
-
 def edges_delay(
     distances: dict[tuple, float], c_fiber: float = 200_000.0
 ) -> dict[tuple, float]:
