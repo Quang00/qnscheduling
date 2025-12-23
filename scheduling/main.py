@@ -232,7 +232,6 @@ def run_simulation(
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
-        scheduler=scheduler,
         output_dir=output_dir,
     )
     return feasible, df, durations, link_utilization, link_waiting
