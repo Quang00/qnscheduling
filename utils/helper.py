@@ -439,6 +439,8 @@ def save_results(
                 "drop_ratio": float(drop_ratio),
                 "defer_prob": float(defer_prob),
                 "retry_prob": float(retry_prob),
+                "defer_ratio": float(defer_prob),
+                "retry_ratio": float(retry_prob),
                 "deadline_miss": int(miss_total),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),
