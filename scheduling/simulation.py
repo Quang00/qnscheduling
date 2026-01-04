@@ -49,8 +49,6 @@ class PGA:
         considering resource availability and link busy times.
 
         The possible outcomes for a PGA:
-        - If the PGA cannot start by its scheduled start time due to busy
-          links, it is marked as "deadline_miss".
         - If the PGA starts but cannot generate the required E2E EPR pairs
           within its time window, it is marked as "failed".
         - If the PGA successfully generates the required E2E EPR pairs within
@@ -161,53 +159,49 @@ class PGA:
         for link in self.links:
             wait_until = max(wait_until, self.resources.get(link, 0.0))
 
-        if wait_until > self.start + EPS:
-            completion = wait_until
-            status = "deadline_miss"
-        else:
-            current_time = self.start
-            t_budget = max(0.0, self.end - self.start)
-            status = "failed"
+        current_time = self.start
+        t_budget = max(0.0, self.end - self.start)
+        status = "failed"
 
-            if t_budget > EPS and self.policy == "deadline":
-                max_attempts = int((t_budget + EPS) // self.slot_duration)
-                succ = self._simulate_e2e_attempts(max_attempts)
-                csum = (
-                    np.cumsum(succ, dtype=int)
-                    if len(succ)
-                    else np.array([], dtype=int)
-                )
-                hit = (
-                    np.searchsorted(csum, self.epr_pairs, side="left")
-                    if len(csum)
-                    else len(csum)
-                )
+        if t_budget > EPS and self.policy == "deadline":
+            max_attempts = int((t_budget + EPS) // self.slot_duration)
+            succ = self._simulate_e2e_attempts(max_attempts)
+            csum = (
+                np.cumsum(succ, dtype=int)
+                if len(succ)
+                else np.array([], dtype=int)
+            )
+            hit = (
+                np.searchsorted(csum, self.epr_pairs, side="left")
+                if len(csum)
+                else len(csum)
+            )
 
-                if len(csum) and hit < len(csum):
-                    attempts_run = int(hit + 1)
-                    pairs_generated = int(csum[attempts_run - 1])
-                    status = "completed"
-                else:
-                    attempts_run = max_attempts
-                    pairs_generated = int(csum[-1]) if len(csum) else 0
-
-                current_time = self.start + attempts_run * self.slot_duration
-                completion = min(self.end, current_time)
-                self._update_resources_and_links(completion, attempts_run)
-            elif self.policy == "best_effort":
-                while pairs_generated < self.epr_pairs:
-                    succ = self._simulate_e2e_attempts(1)
-                    pairs_generated += int(succ.sum())
-                    attempts_run += 1
-
-                completion = self.start + attempts_run * self.slot_duration
-                status = (
-                    "completed" if pairs_generated >= self.epr_pairs
-                    else "failed"
-                )
-                self._update_resources_and_links(completion, attempts_run)
+            if len(csum) and hit < len(csum):
+                attempts_run = int(hit + 1)
+                pairs_generated = int(csum[attempts_run - 1])
+                status = "completed"
             else:
-                completion = self.start
+                attempts_run = max_attempts
+                pairs_generated = int(csum[-1]) if len(csum) else 0
+
+            current_time = self.start + attempts_run * self.slot_duration
+            completion = min(self.end, current_time)
+            self._update_resources_and_links(completion, attempts_run)
+        elif self.policy == "best_effort":
+            while pairs_generated < self.epr_pairs:
+                succ = self._simulate_e2e_attempts(1)
+                pairs_generated += int(succ.sum())
+                attempts_run += 1
+
+            completion = self.start + attempts_run * self.slot_duration
+            status = (
+                "completed" if pairs_generated >= self.epr_pairs
+                else "failed"
+            )
+            self._update_resources_and_links(completion, attempts_run)
+        else:
+            completion = self.start
 
         burst = completion - self.start
         turnaround = completion - self.arrival
