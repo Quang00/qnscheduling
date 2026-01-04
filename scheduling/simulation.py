@@ -44,11 +44,28 @@ class PGA:
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
-        """Packet Generation Attempt (PGA) simulation. The goal is to
-        simulate end-to-end EPR pairs generation in a quantum network.
-        Each PGA attempts to generate a specified number of EPR pairs over a
-        defined route within a given time window, considering resource
-        availability and link busy times.
+        """Packet Generation Attempt (PGA) simulation. A PGA tries to
+        generate EPR pairs over a specified route within a defined time window,
+        considering resource availability and link busy times.
+
+        The possible outcomes for a PGA:
+        - If the PGA cannot start by its scheduled start time due to busy
+          links, it is marked as "deadline_miss".
+        - If the PGA starts but cannot generate the required E2E EPR pairs
+          within its time window, it is marked as "failed".
+        - If the PGA successfully generates the required E2E EPR pairs within
+          its time window, it is marked as "completed".
+
+        The conditions for EPR generation:
+        - Each link attempts to generate EPR pairs in discrete time slots.
+        - The number of trials needed for a successful EPR pair generation on
+          each link follows a geometric distribution with success probability
+          `p_gen`.
+        - The first success across all links must occur within the memory
+          lifetime of the first generated pair to be considered valid.
+        - If there are swaps involved, each swap must also succeed based on
+          the swap probability `p_swap` for the end-to-end entanglement to be
+          successful.
 
         Args:
             name (str): PGA identifier.
@@ -228,10 +245,10 @@ def simulate_static(
     Dict[Tuple[str, str], Dict[str, float]],
     Dict[Tuple[str, str], Dict[str, float | int]],
 ]:
-    """Simulate periodic PGA scheduling. The provided static schedule defines
-    when each PGA starts and ends. Each scheduled entry is a PGA that attempts
-    to generate EPR pairs over a specified route within a scheduled time
-    window.
+    """Simulate periodic PGA scheduling. The scheduler computes a static
+    schedule of PGAs that attempt to generate EPR pairs over a specified route
+    within a defined time window, considering resource availability and link
+    busy times.
 
     Args:
         schedule (List[Tuple[str, float, float, float]]): List of tuples where
@@ -367,12 +384,25 @@ def simulate_dynamic(
     Dict[Tuple[str, str], Dict[str, float]],
     Dict[Tuple[str, str], Dict[str, float | int]],
 ]:
-    """Simulate online dynamic PGA scheduling. PGAs are released periodically
-    according to their specified release times and periods. At each time step,
-    the scheduler checks for newly released PGAs and adds them to the ready
-    queue. The scheduler then attempts to start PGAs from the ready queue based
-    on resource availability and deadlines. The scheduling is based on earliest
-    deadline first (EDF) policy.
+    """Simulate online dynamic PGA scheduling. PGAs arrive either periodically
+    or according to a Poisson process, attempting to generate EPR pairs over a
+    specified route within a defined time window, considering resource
+    availability and link busy times. The dynamic scheduler processes PGAs
+    as they arrive, making real-time decisions based on current network
+    conditions.
+
+    The scheduler made the following decisions for each PGA:
+    - If a PGA cannot start by its deadline due to busy links, it is marked as
+      "drop".
+    - If a PGA cannot be completed due to its duration exceeding the deadline,
+      it is marked as "drop".
+    - If a PGA does not generate the required E2E EPR pairs within its time
+      window, it may be retried if there is time before the deadline.
+    - If a PGA cannot start immediately due to busy links but can still
+      complete within its deadline, it is marked as "defer" and rescheduled
+      to start when resources become available.
+    - If a PGA successfully generates the required E2E EPR pairs within its
+      time window, it is marked as "completed".
 
     Args:
         app_specs (Dict[str, Dict[str, Any]]): Application specifications.
