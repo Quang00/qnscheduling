@@ -287,8 +287,9 @@ def save_results(
     avg_link_utilization = float("nan")
     p90_link_utilization = float("nan")
     p95_link_utilization = float("nan")
-    p99_link_utilization = float("nan")
     total_busy_time = float("nan")
+    p90_link_avg_wait = float("nan")
+    p95_link_avg_wait = float("nan")
     link_waiting_path = None
     if link_utilization:
         link_util_rows = [
@@ -306,15 +307,12 @@ def save_results(
         )
 
         busy_time_sum = link_util_df["busy_time"].sum()
-        avg_link_utilization = float(link_util_df["utilization"].mean())
+        avg_link_utilization = float((busy_time_sum/makespan) / n_edges)
         p90_link_utilization = float(
             link_util_df["utilization"].quantile(0.9)
         )
         p95_link_utilization = float(
             link_util_df["utilization"].quantile(0.95)
-        )
-        p99_link_utilization = float(
-            link_util_df["utilization"].quantile(0.99)
         )
         total_busy_time = busy_time_sum
 
@@ -338,13 +336,24 @@ def save_results(
         for row in waiting_rows:
             waited = row["pga_waited"]
             total_wait = row["total_waiting_time"]
-            row["avg_wait"] = total_wait / waited
-            row["avg_queue_length"] = total_wait / makespan
+            row["avg_wait"] = (
+                total_wait / waited if waited and waited > 0 else 0.0
+            )
+            row["avg_queue_length"] = (
+                total_wait / makespan if makespan and makespan > 0 else 0.0
+            )
         waiting_df = (
             pd.DataFrame(waiting_rows)
             .sort_values("total_waiting_time", ascending=False)
             .reset_index(drop=True)
         )
+
+        avg_wait_series = pd.to_numeric(
+            waiting_df.get("avg_wait"), errors="coerce"
+        ).dropna()
+        if not avg_wait_series.empty:
+            p90_link_avg_wait = float(avg_wait_series.quantile(0.9))
+            p95_link_avg_wait = float(avg_wait_series.quantile(0.95))
         link_waiting_path = os.path.join(output_dir, "link_waiting.csv")
         waiting_df.to_csv(link_waiting_path, index=False)
 
@@ -433,6 +442,8 @@ def save_results(
     print(f"Retry prob       : {retry_prob:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
+    print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
+    print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
     print(f"Total PGA duration : {total_pga_duration:.4f}")
@@ -440,7 +451,6 @@ def save_results(
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
     print(f"P90 link utilization : {p90_link_utilization:.4f}")
     print(f"P95 link utilization : {p95_link_utilization:.4f}")
-    print(f"P99 link utilization : {p99_link_utilization:.4f}")
     print(f"Useful utilization : {useful_util:.4f}")
 
     overall_df = pd.DataFrame(
@@ -466,7 +476,8 @@ def save_results(
                 "avg_link_utilization": float(avg_link_utilization),
                 "p90_link_utilization": float(p90_link_utilization),
                 "p95_link_utilization": float(p95_link_utilization),
-                "p99_link_utilization": float(p99_link_utilization),
+                "p90_link_avg_wait": float(p90_link_avg_wait),
+                "p95_link_avg_wait": float(p95_link_avg_wait),
                 "useful_utilization": float(useful_util),
             }
         ]
