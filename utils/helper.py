@@ -285,6 +285,9 @@ def save_results(
     print(df.head(20).to_string(index=False))
 
     avg_link_utilization = float("nan")
+    p90_link_utilization = float("nan")
+    p95_link_utilization = float("nan")
+    p99_link_utilization = float("nan")
     total_busy_time = float("nan")
     link_waiting_path = None
     if link_utilization:
@@ -303,7 +306,16 @@ def save_results(
         )
 
         busy_time_sum = link_util_df["busy_time"].sum()
-        avg_link_utilization = busy_time_sum / makespan / n_edges
+        avg_link_utilization = float(link_util_df["utilization"].mean())
+        p90_link_utilization = float(
+            link_util_df["utilization"].quantile(0.9)
+        )
+        p95_link_utilization = float(
+            link_util_df["utilization"].quantile(0.95)
+        )
+        p99_link_utilization = float(
+            link_util_df["utilization"].quantile(0.99)
+        )
         total_busy_time = busy_time_sum
 
         link_util_path = os.path.join(output_dir, "link_utilization.csv")
@@ -426,6 +438,9 @@ def save_results(
     print(f"Total PGA duration : {total_pga_duration:.4f}")
     print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
+    print(f"P90 link utilization : {p90_link_utilization:.4f}")
+    print(f"P95 link utilization : {p95_link_utilization:.4f}")
+    print(f"P99 link utilization : {p99_link_utilization:.4f}")
     print(f"Useful utilization : {useful_util:.4f}")
 
     overall_df = pd.DataFrame(
@@ -449,6 +464,9 @@ def save_results(
                 "total_pga_duration": float(total_pga_duration),
                 "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),
+                "p90_link_utilization": float(p90_link_utilization),
+                "p95_link_utilization": float(p95_link_utilization),
+                "p99_link_utilization": float(p99_link_utilization),
                 "useful_utilization": float(useful_util),
             }
         ]

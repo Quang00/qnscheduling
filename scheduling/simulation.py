@@ -295,12 +295,12 @@ def simulate_static(
     }
     all_links = {link for links in pga_route_links.values() for link in links}
     resources = {link: 0.0 for link in all_links}
-    link_busy = {}
+    link_busy = dict.fromkeys(all_links, 0.0)
     link_waiting = {
         link: {"total_waiting_time": 0.0, "pga_waited": 0}
         for link in all_links
     }
-    min_start = float("inf")
+    min_arrival = float("inf")
     max_completion = 0.0
 
     for pga_name, sched_start, sched_end, sched_deadline in schedule:
@@ -314,6 +314,7 @@ def simulate_static(
         r0 = float(pga_rel_times.get(app, 0.0))
         T = float(pga_periods.get(app, 0.0))
         arrival = r0 + idx * T
+        min_arrival = min(min_arrival, arrival)
 
         pga = PGA(
             name=pga_name,
@@ -344,7 +345,6 @@ def simulate_static(
 
         pga_names.append(pga_name)
         pga_release_times[pga_name] = sched_start
-        min_start = min(min_start, result["start_time"])
         max_completion = max(max_completion, result["completion_time"])
 
         if result.get("status") == "completed":
@@ -356,7 +356,7 @@ def simulate_static(
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
         link_busy,
-        min_start,
+        min_arrival,
         max_completion,
     )
 
@@ -436,12 +436,12 @@ def simulate_dynamic(
     }
     all_links = {link for links in pga_route_links.values() for link in links}
     resources = {link: 0.0 for link in all_links}
-    link_busy = {}
+    link_busy = dict.fromkeys(all_links, 0.0)
     link_waiting = {
         link: {"total_waiting_time": 0.0, "pga_waited": 0}
         for link in all_links
     }
-    min_start = float("inf")
+    min_arrival = float("inf")
     max_completion = 0.0
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
@@ -499,6 +499,7 @@ def simulate_dynamic(
 
         while ready_queue:
             deadline, rdy_t, arrival_time, app, i = heapq.heappop(ready_queue)
+            min_arrival = min(min_arrival, float(arrival_time))
 
             pga_name = f"{app}{i}"
             if pga_name not in seen_pgas:
@@ -613,7 +614,6 @@ def simulate_dynamic(
                 route_links, result.get("waiting_time", 0.0), link_waiting
             )
 
-            min_start = min(min_start, result["start_time"])
             max_completion = max(max_completion, result["completion_time"])
 
             status = result.get("status", "")
@@ -639,7 +639,7 @@ def simulate_dynamic(
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
-        link_busy, min_start, max_completion
+        link_busy, min_arrival, max_completion
     )
 
     for link in all_links:
