@@ -10,10 +10,10 @@
 This repository simulates on-demand entanglement packet scheduling using Packet Generation Attempts (PGAs) from the paper [[1]](#1).
 
 The simulator can:
-- Generates application demands (src/dst, periods, number of packets, number of required EPR pairs)
+- Generates a batch of application loads (src/dst, periods, number of packets, number of required EPR pairs)
 - Computes per-application PGA “service times” from a probabilistic model
-- Schedules PGAs with either a **static EDF table** or **dynamic online EDF-style** decisions
-- Runs a stochastic simulation of entanglement generation/swapping with link contention, deferrals, retries, and drops
+- Schedules PGAs with either a **static EDF table** or **dynamic online EDF-like**
+- Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
 - Exports results and summary metrics as CSVs
 
 This is the high-level workflow of the dynamic scheduler of entanglement packets:
@@ -56,9 +56,9 @@ pytest
 If infeasible, the run exits early (no result CSVs are written for that run).
 
 ### Dynamic scheduler (`--scheduler dynamic`)
-- Online EDF-style dispatching as jobs arrive.
+- Online EDF-like with dynamic arrival.
 - Arrivals are periodic by default; if `--arrival-rate` is provided, arrivals follow a Poisson process.
-- Jobs may be deferred, retried, or dropped.
+- Can admit/schedule/defer/retry/drop.
 
 ### Status values (in `pga_results.csv`)
 - `completed`: generated required E2E EPR pairs within its budget time (PGA)
@@ -66,7 +66,7 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 - `retry`: failed attempt that is rescheduled again (dynamic mode)
 - `defer`: could not start due to busy links, rescheduled to later (dynamic mode)
 - `drop`: cannot start/finish by deadline constraints (dynamic mode)
-- `missing`: expected PGA never executed/logged; filled during saving for completenes
+- `missing`: expected PGA never executed/logged; filled during saving for completeness
 
 ## CLI options
 
@@ -98,8 +98,8 @@ Files written into the run folder:
 
 - `pga_results.csv`: per-attempt logs (arrival/start/completion/waiting/status, plus merged app metadata)
 - `params.csv`: parameters used for the run, plus runtime and run number
-- `summary.csv`: one-row aggregate metrics (makespan, throughput, ratios, waiting stats, utilization stats, etc.)
-- `summary_per_task.csv`: per-application breakdown (counts of statuses + deterministic PGA duration)
+- `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
+- `summary_per_task.csv`: per-application breakdown (counts of statuses + PGA duration)
 - `link_utilization.csv`: per-link busy time and utilization over the observed makespan
 - `link_waiting.csv`: per-link waiting totals, average waiting time, average queue length
 
