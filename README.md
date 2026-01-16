@@ -18,8 +18,9 @@ The simulator can:
 
 This is the high-level workflow of the dynamic scheduler of entanglement packets:
 
-<img src=docs/dynamic_online_scheduler_pga>
-
+<p align="center">
+  <img src="docs/dynamic_online_scheduler_pga.png" alt="Dynamic Online Scheduler" />
+</p>
 
 ## Installation
 
@@ -71,7 +72,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
 - `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
 - `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (primarily used by **static** scheduler)
-- `--ppacket`, `-pp`: Target probability to compute PGA duration $p_{packet}$
+- `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Swap success probability per trial ($p_{bsm}$)
 - `--pgen`, `-pg`: Link-level EPR generation success probability per trial ($p_{gen}$)
