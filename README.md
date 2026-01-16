@@ -16,6 +16,11 @@ The simulator can:
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, deferrals, retries, and drops
 - Exports results and summary metrics as CSVs
 
+This is the high-level workflow of the dynamic scheduler of entanglement packets:
+
+<img src=docs/dynamic_online_scheduler_pga>
+
+
 ## Installation
 
 1. **Create a Python Virtual Environment:**
@@ -61,16 +66,16 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 Run `python -m scheduling.main --help` for the full list. Common flags:
 
 - `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/Dumbbell.gml`)
-- `--apps`, `-a`: Number of applications to generate
-- `--inst MIN MAX`, `-i MIN MAX`: Range for instances per application
-- `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application
-- `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds)
-- `--hyperperiod`, `-hp`: Number of hyperperiod cycles to schedule/simulate (primarily used by **static** scheduler)
-- `--ppacket`, `-pp`: Packet probability threshold used when sizing PGA duration
-- `--memory`, `-m`: Memory lifetime as “number of independent link-generation trials per slot”
-- `--pswap`, `-ps`: Swap success probability per trial
-- `--pgen`, `-pg`: Link-level EPR generation success probability per trial
-- `--slot-duration`, `-sd`: Slot duration in seconds
+- `--apps`, `-a`: Number of applications to generate ($a$)
+- `--inst MIN MAX`, `-i MIN MAX`: Range for instances per application ($I_a$)
+- `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
+- `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
+- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (primarily used by **static** scheduler)
+- `--ppacket`, `-pp`: Target probability to compute PGA duration $p_{packet}$
+- `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
+- `--pswap`, `-ps`: Swap success probability per trial ($p_{bsm}$)
+- `--pgen`, `-pg`: Link-level EPR generation success probability per trial ($p_{gen}$)
+- `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic** mode). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
