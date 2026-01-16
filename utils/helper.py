@@ -100,7 +100,7 @@ def app_params_sim(
     paths: dict[str, list[str]],
     app_specs: dict[str, dict[str, Any]],
     p_packet: float,
-    memory_lifetime: int,
+    memory: int,
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
@@ -113,7 +113,7 @@ def app_params_sim(
         app_specs (dict[str, dict[str, Any]]): Application metadata produced by
         ``generate_n_apps`` containing network endpoints and requirements.
         p_packet (float): Probability of a packet being generated.
-        memory_lifetime (int): Memory lifetime in number of time slot units.
+        memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
@@ -127,7 +127,7 @@ def app_params_sim(
         spec = app_specs[key]
         sim_params[key] = {
             "p_packet": p_packet,
-            "memory_lifetime": memory_lifetime,
+            "memory": memory,
             "p_swap": p_swap,
             "p_gen": p_gen,
             "epr_pairs": int(spec["epr"]),

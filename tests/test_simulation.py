@@ -9,7 +9,7 @@ def base_pga_parameters():
     return {
         "p_gen": 1.0,
         "p_swap": 1.0,
-        "memory_lifetime": 2,
+        "memory": 2,
         "epr_pairs": 2,
         "slot_duration": 0.1,
     }

@@ -13,7 +13,7 @@ from scipy.stats import binom
 
 def probability_e2e(
     n_swap: int,
-    memory_lifetime: int = 1,
+    memory: int = 1,
     p_gen: float = 0.001,
     p_swap: float = 0.95
 ) -> float:
@@ -22,8 +22,8 @@ def probability_e2e(
 
     Args:
         n_swap (int): Number of swaps performed.
-        memory_lifetime (int, optional): Memory lifetime in number of time
-        slot units.
+        memory (int, optional): Number of independent link-generation trials
+        per slot.
         p_gen (float, optional): Probability of generating an EPR pair in a
         single trial.
         p_swap (float, optional): Probability of swapping an EPR pair in a
@@ -32,9 +32,7 @@ def probability_e2e(
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
-    if memory_lifetime < 0:
-        raise ValueError("memory_lifetime must be non-negative")
-    p_succ_one_link = 1 - (1 - p_gen) ** (memory_lifetime)
+    p_succ_one_link = 1 - (1 - p_gen) ** (memory)
     p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
 
@@ -63,7 +61,7 @@ def duration_pga(
     p_packet: float,
     epr_pairs: int,
     n_swap: int,
-    memory_lifetime: int = 1,
+    memory: int = 1,
     p_swap: float = 0.95,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
@@ -74,8 +72,8 @@ def duration_pga(
         p_packet (float): Probability of a packet being generated.
         epr_pairs (int): Number of successes (number of EPR pairs generated).
         n_swap (int): Number of swaps performed.
-        memory_lifetime (int, optional): Memory lifetime in number of time
-        slot units.
+        memory (int, optional): Number of independent link-generation trials
+        per slot.
         p_swap (float, optional): Probability of swapping an EPR pair in a
         single trial.
         p_gen (float, optional): Probability of generating an EPR pair in a
@@ -86,7 +84,7 @@ def duration_pga(
     Returns:
         float: Duration of a PGA in seconds.
     """
-    p_e2e = probability_e2e(n_swap, memory_lifetime, p_gen, p_swap)
+    p_e2e = probability_e2e(n_swap, memory, p_gen, p_swap)
 
     # exponential search
     low = epr_pairs
@@ -107,7 +105,7 @@ def compute_durations(
     paths: dict[str, list[str]],
     epr_pairs: dict[str, int],
     p_packet: float,
-    memory_lifetime: int,
+    memory: int,
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
@@ -121,8 +119,7 @@ def compute_durations(
         epr_pairs (dict[str, int]): Entanglement generation pairs for each
         application, indicating how many EPR pairs are to be generated.
         p_packet (float): Probability of a packet being generated.
-        memory_lifetime (int): Memory lifetime in number of time
-        slot units.
+        memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a
         single trial.
         p_gen (float): Probability of generating an EPR pair in a
@@ -145,7 +142,7 @@ def compute_durations(
             p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
-            memory_lifetime=memory_lifetime,
+            memory=memory,
             p_swap=p_swap,
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,

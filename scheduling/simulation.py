@@ -40,7 +40,7 @@ class PGA:
         log: List[Dict[str, Any]],
         policy: str,
         p_swap: float,
-        memory_lifetime: int,
+        memory: int,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
@@ -60,7 +60,7 @@ class PGA:
           each link follows a geometric distribution with success probability
           `p_gen`.
         - The first success across all links must occur within the memory
-          lifetime of the first generated pair to be considered valid.
+          of the first generated pair to be considered valid.
         - If there are swaps involved, each swap must also succeed based on
           the swap probability `p_swap` for the end-to-end entanglement to be
           successful.
@@ -86,8 +86,8 @@ class PGA:
             or "deadline". If "deadline", the PGA will attempt to complete
             within the maximum burst time defined in durations.
             p_swap (float): Probability of swapping an EPR pair.
-            memory_lifetime (int): Memory lifetime in number of time slot
-            units.
+            memory (int): Memory: number of independent link-generation trials
+            per slot.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
         """
@@ -108,15 +108,15 @@ class PGA:
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
-        self.memory_lifetime = max(0, int(memory_lifetime))
+        self.memory = max(0, int(memory))
 
     def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
         """Single end-to-end entanglement for a batch of attempts."""
-        if self.memory_lifetime <= 0 or self.p_gen <= 0.0 or max_attempts <= 0:
+        if self.memory <= 0 or self.p_gen <= 0.0 or max_attempts <= 0:
             return np.zeros(max_attempts, dtype=bool)
 
         n_links = self.n_swap + 1
-        t_mem = self.memory_lifetime
+        t_mem = self.memory
         size = (max_attempts, n_links)
 
         starts = self.rng.geometric(self.p_gen, size=size) - 1
@@ -331,7 +331,7 @@ def simulate_static(
             log=log,
             policy=policies[app],
             p_swap=pga_parameters[app]["p_swap"],
-            memory_lifetime=pga_parameters[app]["memory_lifetime"],
+            memory=pga_parameters[app]["memory"],
             deadline=sched_deadline,
             route_links=pga_route_links.get(app),
         )
@@ -604,7 +604,7 @@ def simulate_dynamic(
                 log=log,
                 policy=app_specs[app].get("policy"),
                 p_swap=pga_parameters[app]["p_swap"],
-                memory_lifetime=pga_parameters[app]["memory_lifetime"],
+                memory=pga_parameters[app]["memory"],
                 deadline=deadline,
                 route_links=route_links,
             )

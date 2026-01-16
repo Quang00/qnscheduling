@@ -6,15 +6,12 @@ Overview:
 ---------
 This script simulates the scheduling of quantum network applications. It
 generates a set of applications based on a given network configuration,
-computes their durations using Packet Generation Attempt (PGA) models, and
-applies an Earliest Deadline First (EDF) scheduling algorithm to create a
-static schedule. The simulation then runs over a specified number of
-hyperperiod cycles, tracking PGA performance and link utilization, and saves
-the results to an output directory. Each PGA duration is calculated based on
-the end-to-end probability of generating EPR pairs, considering factors such
-as memory lifetime, swap probabilities, and generation probabilities. The
-scheduling process accounts for parallelizable tasks to optimize resource
-usage.
+computes their durations using Packet Generation Attempt (PGA). There are two
+scheduling strategies available: static scheduling using Earliest Deadline
+First (EDF) that precomputes a schedule, and dynamic scheduling that makes
+decisions online based on application arrivals. The simulation runs until all
+applications are processed, collecting performance metrics such as completion
+status, delays, and link utilization.
 
 Process:
 --------
@@ -23,8 +20,11 @@ Process:
 2. Generate network data and applications based on the provided configuration.
 3. Compute shortest paths for each application and identify parallelizable
    tasks.
-4. Calculate the duration of each application using the PGA model.
-5. Create a static schedule using the EDF scheduling algorithm.
+4. Calculate the duration of each application using PGA parameters.
+5. Depending on the chosen scheduling strategy (static or dynamic):
+   - For static scheduling, compute a feasible schedule using EDF with
+    parallelization capabilities.
+   - For dynamic scheduling, prepare for online scheduling based on arrivals.
 6. Run a probabilistic simulation of the scheduled PGAs over the defined
    hyperperiod cycles.
 7. Save the simulation results, including PGA performance metrics and link
@@ -40,7 +40,7 @@ Run the script from the command line with appropriate arguments:
     --period: Range for the period of each application.
     --hyperperiod: Number of hyperperiod cycles to simulate.
     --ppacket: Probability of a packet being generated.
-    --memory: Memory lifetime in number of time slot units.
+    --memory: Memory: number of independent link-generation trials per slot.
     --pswap: Probability of swapping an EPR pair in a single trial.
     --pgen: Probability of generating an EPR pair in a single trial.
     --slot-duration: Duration of a time slot in seconds.
@@ -77,7 +77,7 @@ def run_simulation(
     period_range: tuple[float, float],
     hyperperiod_cycles: int,
     p_packet: float,
-    memory_lifetime: float,
+    memory: float,
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
@@ -99,7 +99,8 @@ def run_simulation(
         each application.
         hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         p_packet (float): Probability of a packet being generated.
-        memory_lifetime (float): Memory lifetime in number of time slot units.
+        memory (float): Memory: number of independent link-generation trials
+        per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
@@ -144,7 +145,7 @@ def run_simulation(
         paths,
         epr_pairs,
         p_packet,
-        memory_lifetime,
+        memory,
         p_swap,
         p_gen,
         time_slot_duration,
@@ -161,7 +162,7 @@ def run_simulation(
         paths,
         app_specs,
         p_packet,
-        memory_lifetime,
+        memory,
         p_swap,
         p_gen,
         time_slot_duration
@@ -303,7 +304,7 @@ def main():
         "-m",
         type=int,
         default=1000,
-        help="Memory lifetime in number of time slot units",
+        help="Number of independent link-generation trials per slot",
     )
     parser.add_argument(
         "--pswap",
@@ -379,7 +380,7 @@ def main():
         period_range=args.period,
         hyperperiod_cycles=args.hyperperiod,
         p_packet=args.ppacket,
-        memory_lifetime=args.memory,
+        memory=args.memory,
         p_swap=args.pswap,
         p_gen=args.pgen,
         time_slot_duration=args.slot_duration,
@@ -407,7 +408,7 @@ def main():
         "period_max": args.period[1],
         "hyperperiod_cycles": args.hyperperiod,
         "p_packet": args.ppacket,
-        "memory_lifetime": args.memory,
+        "memory": args.memory,
         "p_swap": args.pswap,
         "p_gen": args.pgen,
         "time_slot_duration": args.slot_duration,
