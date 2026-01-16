@@ -145,7 +145,7 @@ python -m scheduling.main \
 
 ## Acknowledgements (Network Topologies)
 
-The network topology configurations (`configurations/network/*.gml`) were obtained from, and are used here for research and simulation purposes.
+The network topology configurations (`configurations/network/*.gml`) were obtained from **topohub** (https://github.com/piotrjurkiewicz/topohub) based on the Internet Topology Zoo, and are used here for research and simulation purposes.
 
 ## References
 
