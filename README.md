@@ -38,6 +38,12 @@ python3 -m pip install -U pip
 pip install -r requirements.txt
 ```
 
+3. **Verify the installation**
+
+```bash
+pytest
+```
+
 ## Scheduling modes and statuses
 
 ### Static scheduler (`--scheduler static`)
