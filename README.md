@@ -77,7 +77,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--inst MIN MAX`, `-i MIN MAX`: Range for instances per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
 - `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
-- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (primarily used by **static** scheduler)
+- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (static)
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
