@@ -96,7 +96,7 @@ Each run creates a new folder:
 
 Files written into the run folder:
 
-- `pga_results.csv`: per-attempt logs (arrival/start/completion/waiting/status, plus merged app metadata)
+- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/completion/waiting/status, etc...)
 - `params.csv`: parameters used for the run, plus runtime and run number
 - `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
 - `summary_per_task.csv`: per-application breakdown (counts of statuses + PGA duration)
