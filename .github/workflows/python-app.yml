@@ -32,7 +32,7 @@ jobs:
           ruff check --output-format=github .
       - name: Run tests with coverage
         run: |
-          coverage run -m pytest tests/
+          coverage run --source=scheduling,utils -m pytest tests/
           coverage report -m  --omit="*/main.py,*/plots.py"
           coverage xml  # Generate coverage.xml for Coveralls
       - name: Upload coverage to Coveralls
