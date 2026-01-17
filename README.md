@@ -64,10 +64,9 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 ### Status values (in `pga_results.csv`)
 - `completed`: generated required E2E EPR pairs within its budget time (PGA)
 - `failed`: ran but didn’t generate enough pairs by the end of its PGA
-- `retry`: failed attempt that is rescheduled again (dynamic mode)
-- `defer`: could not start due to busy links, rescheduled to later (dynamic mode)
-- `drop`: cannot start/finish by deadline constraints (dynamic mode)
-- `missing`: expected PGA never executed/logged; filled during saving for completeness
+- `retry`: failed attempt that is rescheduled again (dynamic)
+- `defer`: could not start due to busy links, rescheduled to later (dynamic)
+- `drop`: cannot start/finish by deadline constraints (dynamic)
 
 ## CLI options
 
@@ -150,7 +149,7 @@ python -m scheduling.main \
   --output results
 ```
 
-## Acknowledgements (Network Topologies)
+## Acknowledgements
 
 The network topology configurations (`configurations/network/*.gml`) were obtained from **topohub** (https://github.com/piotrjurkiewicz/topohub) based on the Internet Topology Zoo, and are used here for research and simulation purposes.
 
