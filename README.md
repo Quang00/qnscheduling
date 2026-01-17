@@ -11,7 +11,7 @@
 This repository simulates on-demand entanglement packet scheduling using Packet Generation Attempts (PGAs) from the paper [[1]](#1).
 
 The simulator can:
-- Generates a batch of application loads (src/dst, periods, number of packets, number of required EPR pairs)
+- Generates a batch of applications (src/dst, periods, number of packets, number of required EPR pairs)
 - Computes the budget time per-application PGA based on a network-layer model/entanglement swapping 
 - Schedules PGAs with either a **static EDF timetable** or **dynamic online EDF-like**
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
