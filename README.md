@@ -17,11 +17,19 @@ The simulator can:
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
 - Exports results and summary metrics as CSVs
 
-This is a high-level workflow of the dynamic scheduler of entanglement packets:
+A high-level workflow of the dynamic scheduler of entanglement packets:
 
 <p align="center">
   <img src="docs/dynamic_online_scheduler_pga.png" alt="Dynamic Online Scheduler" />
 </p>
+
+
+A toy example of the network-layer model with the two schedulers (with a linear chain A-B-C):
+
+<p align="center">
+  <img src="docs/pga_detailed.png" alt="Model" />
+</p>
+
 
 ## Installation
 
@@ -77,14 +85,14 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--inst MIN MAX`, `-i MIN MAX`: Range for instances per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
 - `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
-- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (static)
+- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (**static**)
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
-- `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic** mode). If omitted, arrivals are periodic.
+- `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
 - `--output`, `-o`: Output directory root (default: `results`)
 
