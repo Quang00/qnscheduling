@@ -81,8 +81,8 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (primarily used by **static** scheduler)
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
-- `--pswap`, `-ps`: Swap success probability per trial ($p_{bsm}$)
-- `--pgen`, `-pg`: Link-level EPR generation success probability per trial ($p_{gen}$)
+- `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
+- `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic** mode). If omitted, arrivals are periodic.
