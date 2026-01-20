@@ -24,7 +24,7 @@ A high-level workflow of the dynamic scheduler of entanglement packets:
 </p>
 
 
-A toy example of the network-layer model with the two schedulers (with a linear chain A-B-C):
+A toy example of the network-layer model with the two schedulers (with a linear chain A-B-C) and 3 apps/flows (1, 2, 3):
 
 <p align="center">
   <img src="docs/pga_detailed.png" alt="Model" />
