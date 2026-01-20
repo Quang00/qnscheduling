@@ -204,8 +204,8 @@ class PGA:
             completion = self.start
 
         burst = completion - self.start
-        turnaround = completion - self.arrival
-        waiting = self.start - self.arrival
+        turnaround = max(0.0, completion - self.arrival)
+        waiting = max(0.0, turnaround - burst)
 
         result = {
             "pga": self.name,
@@ -476,7 +476,9 @@ def simulate_dynamic(
             release = base_release[app] + period * idx
 
         deadline = release + period
-        heapq.heappush(events_queue, (release, deadline, release, app, idx))
+        heapq.heappush(
+            events_queue, (release, deadline, release, app, idx, release)
+        )
         release_indices[app] += 1
 
     for app in app_specs:
@@ -489,16 +491,21 @@ def simulate_dynamic(
             t = events_queue[0][0]
 
         while events_queue and events_queue[0][0] <= t + EPS:
-            rdy_t, deadline, arrival_time, app, i = heapq.heappop(events_queue)
+            event_time, deadline, arrival_time, app, i, ready_time = (
+                heapq.heappop(events_queue)
+            )
             heapq.heappush(
-                ready_queue, (deadline, rdy_t, arrival_time, app, i)
+                ready_queue,
+                (deadline, ready_time, arrival_time, app, i, event_time),
             )
 
         if not ready_queue:
             continue
 
         while ready_queue:
-            deadline, rdy_t, arrival_time, app, i = heapq.heappop(ready_queue)
+            deadline, rdy_t, arrival_time, app, i, _event_time = heapq.heappop(
+                ready_queue
+            )
             min_arrival = min(min_arrival, float(arrival_time))
 
             pga_name = f"{app}{i}"
@@ -519,14 +526,17 @@ def simulate_dynamic(
                     if (app, i) not in drop_logged:
                         drop_logged.add((app, i))
 
+                        turnaround = max(0.0, t - arrival_time)
+                        burst = 0.0
                         wait = max(0.0, t - rdy_t)
                         result = {
                             "pga": pga_name,
                             "arrival_time": arrival_time,
+                            "ready_time": rdy_t,
                             "start_time": np.nan,
-                            "burst_time": 0.0,
+                            "burst_time": burst,
                             "completion_time": t,
-                            "turnaround_time": t - arrival_time,
+                            "turnaround_time": turnaround,
                             "waiting_time": wait,
                             "pairs_generated": 0,
                             "status": "drop",
@@ -539,24 +549,33 @@ def simulate_dynamic(
                     if inst_req[app] > completed_instances[app]:
                         enqueue_release(app)
                 else:
+                    turnaround = max(0.0, t - arrival_time)
+                    burst = 0.0
                     wait = max(0.0, t - rdy_t)
                     result = {
                         "pga": pga_name,
                         "arrival_time": arrival_time,
+                        "ready_time": rdy_t,
                         "start_time": np.nan,
-                        "burst_time": 0.0,
+                        "burst_time": burst,
                         "completion_time": t,
-                        "turnaround_time": t - arrival_time,
+                        "turnaround_time": turnaround,
                         "waiting_time": wait,
                         "pairs_generated": 0,
                         "status": "defer",
                         "deadline": deadline,
                     }
                     log.append(result)
-                    track_link_waiting(route_links, wait, link_waiting)
                     heapq.heappush(
                         events_queue,
-                        (last_available, deadline, arrival_time, app, i)
+                        (
+                            last_available,
+                            deadline,
+                            arrival_time,
+                            app,
+                            i,
+                            rdy_t,
+                        )
                     )
                 continue
 
@@ -565,14 +584,17 @@ def simulate_dynamic(
             completion = start_time + duration
 
             if completion > deadline + EPS or duration > period + EPS:
+                turnaround = max(0.0, start_time - arrival_time)
+                wait = max(0.0, start_time - rdy_t)
                 result = {
                     "pga": pga_name,
                     "arrival_time": arrival_time,
+                    "ready_time": float(rdy_t),
                     "start_time": start_time,
                     "burst_time": 0.0,
                     "completion_time": start_time,
-                    "turnaround_time": start_time - arrival_time,
-                    "waiting_time": start_time - arrival_time,
+                    "turnaround_time": turnaround,
+                    "waiting_time": wait,
                     "pairs_generated": 0,
                     "status": "drop",
                     "deadline": deadline,
@@ -609,6 +631,8 @@ def simulate_dynamic(
                 route_links=route_links,
             )
             result = pga.run()
+            result["ready_time"] = float(rdy_t)
+            result["waiting_time"] = max(0.0, start_time - rdy_t)
 
             track_link_waiting(
                 route_links, result.get("waiting_time", 0.0), link_waiting
@@ -629,7 +653,14 @@ def simulate_dynamic(
                     result["status"] = "retry"
                 heapq.heappush(
                     events_queue,
-                    (next_ready_time, deadline, arrival_time, app, i)
+                    (
+                        next_ready_time,
+                        deadline,
+                        arrival_time,
+                        app,
+                        i,
+                        next_ready_time,
+                    )
                 )
             else:
                 if status == "failed":

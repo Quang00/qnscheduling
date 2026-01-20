@@ -130,14 +130,14 @@ def run_simulation(
             rng=rng,
         )
 
-    # Compute shortest paths and parallelizable tasks
+    # Compute shortest paths and parallelizable applications
     app_requests = {
         name: (spec["src"], spec["dst"]) for name, spec in app_specs.items()
     }
     paths = shortest_paths(edges, app_requests)
     print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
-    print("Parallelizable tasks:", parallel_map)
+    print("Parallelizable applications:", parallel_map)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
@@ -264,7 +264,8 @@ def main():
         nargs=2,
         metavar=("MIN", "MAX"),
         default=[2, 2],
-        help="Number of instances to generate (e.g., --inst 1 5)",
+        help="Number of entanglement packets to generate per application"
+        "(e.g., --inst 1 5)",
     )
     parser.add_argument(
         "--epr",
@@ -304,7 +305,8 @@ def main():
         "-m",
         type=int,
         default=1000,
-        help="Number of independent link-generation trials per slot",
+        help="Number of independent link-generation trials per slot in the"
+        "multiplexed memory",
     )
     parser.add_argument(
         "--pswap",

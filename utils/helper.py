@@ -695,13 +695,12 @@ def prepare_run_dir(
 def build_default_sim_args(config: str, args: dict | None) -> dict:
     default_args = {
         "config": config,
-        "n_apps": 100,
         "inst_range": (100, 100),
         "epr_range": (2, 2),
-        "period_range": (70, 70),
-        "hyperperiod_cycles": 100,
-        "memory_lifetime": 50,
-        "p_swap": 0.95,
+        "period_range": (1, 1),
+        "hyperperiod_cycles": 2000,
+        "memory": 1000,
+        "p_swap": 0.6,
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
     }

@@ -82,7 +82,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 
 - `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/Dumbbell.gml`)
 - `--apps`, `-a`: Number of applications to generate ($a$)
-- `--inst MIN MAX`, `-i MIN MAX`: Range for instances per application ($I_a$)
+- `--inst MIN MAX`, `-i MIN MAX`: Range of number of required entanglement packets per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
 - `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
 - `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (**static**)
