@@ -80,6 +80,7 @@ def run_simulation(
     memory: float,
     p_swap: float,
     p_gen: float,
+    fidelity_range: tuple[float, float],
     time_slot_duration: float,
     seed: int,
     output_dir: str,
@@ -103,6 +104,8 @@ def run_simulation(
         per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
+        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
+        fidelity of each application.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
@@ -126,6 +129,7 @@ def run_simulation(
             inst_range=inst_range,
             epr_range=epr_range,
             period_range=period_range,
+            fidelity_range=fidelity_range,
             list_policies=["deadline"],
             rng=rng,
         )
@@ -323,6 +327,15 @@ def main():
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(
+        "--min-fidelity",
+        "-f",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[0.8, 0.8],
+        help="Minimum fidelity per application (e.g., --min-fidelity 0.7 0.8)",
+    )
+    parser.add_argument(
         "--slot-duration",
         "-sd",
         type=float,
@@ -385,6 +398,7 @@ def main():
         memory=args.memory,
         p_swap=args.pswap,
         p_gen=args.pgen,
+        fidelity_range=args.min_fidelity,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
@@ -413,6 +427,8 @@ def main():
         "memory": args.memory,
         "p_swap": args.pswap,
         "p_gen": args.pgen,
+        "fidelity_min": args.min_fidelity[0],
+        "fidelity_max": args.min_fidelity[1],
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,

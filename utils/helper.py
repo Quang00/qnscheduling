@@ -533,6 +533,7 @@ def generate_n_apps(
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
+    fidelity_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Dict[str, Dict[str, Any]]:
@@ -547,6 +548,8 @@ def generate_n_apps(
         pairs for each application.
         period_range (tuple[float, float]): Range (min, max) for the period
         of each application.
+        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
+        fidelity of each application.
         list_policies (list[str], optional): List of policies to assign to
         each application.
         rng (np.random.Generator): Random number generator for reproducibility.
@@ -564,6 +567,9 @@ def generate_n_apps(
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
         rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
         rand_period = float(rng.uniform(period_range[0], period_range[1]))
+        rand_min_fidelity = float(
+            rng.uniform(fidelity_range[0], fidelity_range[1])
+        )
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = {
@@ -572,6 +578,7 @@ def generate_n_apps(
             "instances": rand_instance,
             "epr": rand_epr_pairs,
             "period": rand_period,
+            "min_fidelity": rand_min_fidelity,
             "policy": rand_policy,
         }
 
