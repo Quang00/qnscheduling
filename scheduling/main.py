@@ -63,6 +63,7 @@ from utils.helper import (
     app_params_sim,
     generate_n_apps,
     gml_data,
+    find_min_fidelity_path,
     parallelizable_tasks,
     save_results,
     shortest_paths,
@@ -134,11 +135,18 @@ def run_simulation(
             rng=rng,
         )
 
-    # Compute shortest paths and parallelizable applications
+    # Compute shortest feasibles paths and parallelizable applications
     app_requests = {
-        name: (spec["src"], spec["dst"]) for name, spec in app_specs.items()
+        name: {
+            'src': spec["src"],
+            'dst': spec["dst"],
+            'min_fidelity': spec.get("min_fidelity", 0.0)
+        } for name, spec in app_specs.items()
     }
-    paths = shortest_paths(edges, app_requests)
+    if fidelity_range == [0.0, 0.0]:
+        paths = shortest_paths(edges, app_requests)
+    else:
+        paths = find_min_fidelity_path(edges, app_requests)
     print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable applications:", parallel_map)
@@ -332,8 +340,8 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[0.8, 0.8],
-        help="Minimum fidelity per application (e.g., --min-fidelity 0.7 0.8)",
+        default=[0.0, 0.0],
+        help="Minimum fidelity per application (e.g., --min-fidelity 0.6 0.7)",
     )
     parser.add_argument(
         "--slot-duration",

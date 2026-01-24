@@ -84,6 +84,10 @@ def duration_pga(
     Returns:
         float: Duration of a PGA in seconds.
     """
+    if p_packet == 1.0:
+        raise ValueError(
+            "p_packet cannot be 1.0, as it would lead to infinite duration."
+        )
     p_e2e = probability_e2e(n_swap, memory, p_gen, p_swap)
 
     # exponential search

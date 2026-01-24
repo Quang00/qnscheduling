@@ -16,7 +16,7 @@ from openpyxl.utils import get_column_letter
 
 
 def shortest_paths(
-    edges: List[Tuple[str, str]], app_requests: Dict[str, Tuple[str, str]]
+    edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
 ) -> Dict[str, List[str]]:
     """Find shortest paths for each applications in a quantum network graph
     represented by edges.
@@ -24,14 +24,14 @@ def shortest_paths(
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
         where each edge is a tuple of nodes (src, dst).
-        app_requests (Dict[str, Tuple[str, str]]): A dictionary where keys are
-        application names and values are tuples of source and destination nodes
-        (src, dst) for the application. For example:
+        app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
+        application names and values are dictionaries containing source and
+        destination nodes (src, dst) for the application. For example:
             {
-                'A': ('Alice', 'Bob'),
-                'B': ('Alice', 'Charlie'),
-                'C': ('Charlie', 'David'),
-                'D': ('Bob', 'David')
+                'A': {'src': 'Alice', 'dst': 'Bob'},
+                'B': {'src': 'Alice', 'dst': 'Charlie'},
+                'C': {'src': 'Charlie', 'dst': 'David'},
+                'D': {'src': 'Bob', 'dst': 'David'}
             }
 
     Returns:
@@ -43,9 +43,68 @@ def shortest_paths(
     G.add_edges_from(edges)
 
     return {
-        application: nx.shortest_path(G, src, dst)
-        for application, (src, dst) in app_requests.items()
+        application: nx.shortest_path(G, req['src'], req['dst'])
+        for application, req in app_requests.items()
     }
+
+
+def find_min_fidelity_path(
+    edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
+) -> Dict[str, List[str] | None]:
+    """Assign a feasible path for each application in a quantum network graph
+    based on minimum fidelity threshold. The fidelity constraint is transformed
+    into a maximum path length (L_max) from the paper Chakraborty et al.,
+    "Entanglement Distribution in a Quantum Network: A Multicommodity
+    Flow-Based Approach", (2020). The path with the fewest hops that meets the
+    fidelity requirement is selected.
+
+    Args:
+        edges (List[Tuple[str, str]]): List of edges in the quantum network,
+        where each edge is a tuple of nodes (src, dst).
+        app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
+        application names and values are dictionaries containing source and
+        destination nodes (src, dst) and minimum fidelity (min_fidelity)
+        for the application. For example:
+            {
+                'A': {'src': 'Alice', 'dst': 'Bob', 'min_fidelity': 0.9},
+                'B': {'src': 'Alice', 'dst': 'Charlie', 'min_fidelity': 0.85},
+                'C': {'src': 'Charlie', 'dst': 'David', 'min_fidelity': 0.8},
+                'D': {'src': 'Bob', 'dst': 'David', 'min_fidelity': 0.75}
+            }
+
+    Returns:
+        Dict[str, List[str] | None]: A dictionary where keys are application
+        names and values are lists of nodes representing the feasible path from
+        source to destination for that application, or None if no feasible
+        path exists.
+    """
+    G = nx.Graph()
+    G.add_edges_from(edges)
+    ret = {}
+    initial_fidelity = 0.95
+
+    for app, req in app_requests.items():
+        src = req['src']
+        dst = req['dst']
+        min_fidelity = req['min_fidelity']
+
+        if min_fidelity <= 0.25 or initial_fidelity <= 0.25:
+            ret[app] = None
+            continue
+
+        L_max = math.floor(
+            math.log((4 * min_fidelity - 1) / 3)
+            / math.log((4 * initial_fidelity - 1) / 3)
+        )
+        feasible_paths = []
+        all_shortest_paths = list(nx.shortest_simple_paths(G, src, dst))
+        for path in all_shortest_paths:
+            L = len(path) - 1
+            if L <= L_max:
+                feasible_paths.append(path)
+
+        ret[app] = feasible_paths[0] if feasible_paths else None
+    return ret
 
 
 def parallelizable_tasks(

@@ -90,7 +90,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
-- `--min-fidelity MIN MAX`, `-f MIN MAX`: Range for application minimum fidelity ($F_a$)
+- `--min-fidelity MIN MAX`, `-f MIN MAX`: Range for application minimum fidelity ($F_a$). If omitted, minimum fidelity is not considered.
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
@@ -132,6 +132,7 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
+  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler dynamic \
@@ -152,6 +153,7 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
+  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler static \
