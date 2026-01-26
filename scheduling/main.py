@@ -123,7 +123,8 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
-        nodes, edges, distances = gml_data(config)
+        nodes, edges, distances, fidelities = gml_data(config, rng)
+        print("Edges Fidelities:", fidelities)
         app_specs = generate_n_apps(
             nodes,
             n_apps=n_apps,
@@ -134,6 +135,7 @@ def run_simulation(
             list_policies=["deadline"],
             rng=rng,
         )
+        print("Application requests:", app_specs)
 
     # Compute shortest feasibles paths and parallelizable applications
     app_requests = {
@@ -146,7 +148,7 @@ def run_simulation(
     if fidelity_range == [0.0, 0.0]:
         paths = shortest_paths(edges, app_requests)
     else:
-        paths = find_min_fidelity_path(edges, app_requests)
+        paths = find_min_fidelity_path(edges, app_requests, fidelities)
     print("Paths:", paths)
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable applications:", parallel_map)

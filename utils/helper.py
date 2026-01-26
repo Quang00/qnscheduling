@@ -49,7 +49,9 @@ def shortest_paths(
 
 
 def find_min_fidelity_path(
-    edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
+    edges: List[Tuple[str, str]],
+    app_requests: Dict[str, Dict[str, Any]],
+    fidelities: Dict[Tuple[str, str], float],
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
     based on minimum fidelity threshold. The fidelity constraint is transformed
@@ -71,6 +73,9 @@ def find_min_fidelity_path(
                 'C': {'src': 'Charlie', 'dst': 'David', 'min_fidelity': 0.8},
                 'D': {'src': 'Bob', 'dst': 'David', 'min_fidelity': 0.75}
             }
+            fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
+            the quantum network, where keys are directed edges (src, dst) and
+            values are the fidelities of those edges.
 
     Returns:
         Dict[str, List[str] | None]: A dictionary where keys are application
@@ -81,7 +86,7 @@ def find_min_fidelity_path(
     G = nx.Graph()
     G.add_edges_from(edges)
     ret = {}
-    initial_fidelity = 0.95
+    initial_fidelity = min(fidelities.values())
 
     for app, req in app_requests.items():
         src = req['src']
@@ -565,7 +570,10 @@ def save_results(
     per_task_df.to_csv(per_task_path, index=False)
 
 
-def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
+def gml_data(
+    gml_file: str,
+    rng: np.random.Generator,
+) -> Tuple[list, list, dict[tuple, float], dict[tuple, float]]:
     """Extracts nodes, edges, and distances from a GML file.
 
     Args:
@@ -576,14 +584,24 @@ def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
         edges (list): List of edges (source, target).
         distances (dict[tuple, float]): Dict mapping edges
         to distances.
+        fidelity (dict[tuple, float]): Dict mapping directed edges to
+        fidelities.
     """
     G = nx.read_gml(gml_file)
+
+    for _, _, data in G.edges(data=True):
+        data["fidelity"] = float(rng.random())
+        data["fidelity"] = 0.95
 
     nodes = list(G.nodes())
     edges = list(G.edges())
     distances = {(u, v): data.get("dist") for u, v, data in G.edges(data=True)}
+    fidelities: dict[tuple, float] = {}
+    for u, v, data in G.edges(data=True):
+        f = float(data["fidelity"])
+        fidelities[(u, v)] = f
 
-    return nodes, edges, distances
+    return nodes, edges, distances, fidelities
 
 
 def generate_n_apps(
