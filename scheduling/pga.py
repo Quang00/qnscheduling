@@ -106,7 +106,7 @@ def duration_pga(
 
 
 def compute_durations(
-    paths: dict[str, list[str]],
+    paths: dict[str, list[str] | None],
     epr_pairs: dict[str, int],
     p_packet: float,
     memory: int,
@@ -138,6 +138,8 @@ def compute_durations(
     """
     durations = {}
     for app, route in paths.items():
+        if not route:
+            continue
         length_route = len(route)
         n_swaps = length_route - 2
         if length_route <= 2:

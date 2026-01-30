@@ -93,7 +93,7 @@ def find_min_fidelity_path(
         dst = req['dst']
         min_fidelity = req['min_fidelity']
 
-        if min_fidelity <= 0.25 or initial_fidelity <= 0.25:
+        if min_fidelity <= 0.5 or initial_fidelity <= 0.5:
             ret[app] = None
             continue
 
@@ -113,7 +113,7 @@ def find_min_fidelity_path(
 
 
 def parallelizable_tasks(
-    paths_for_each_apps: dict[str, List[str]],
+    paths_for_each_apps: dict[str, List[str] | None],
 ) -> dict[str, set[str]]:
     """Find parallelizable applications based on shared links of a
     quantum network.
@@ -143,6 +143,8 @@ def parallelizable_tasks(
     # Build conflict graph using undirected links along each path
     for app, nodes in paths_for_each_apps.items():
         G.add_node(app)
+        if not nodes or len(nodes) < 2:
+            continue
         edges_on_path = {
             tuple(sorted((u, v)))
             for u, v in zip(nodes[:-1], nodes[1:], strict=False)
@@ -236,6 +238,8 @@ def save_results(
     pga_network_paths: Dict[str, List[str]] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
     link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
+    admitted_apps: int | None = None,
+    total_apps: int | None = None,
     output_dir: str = "results",
 ) -> None:
     """Save the results of PGA scheduling and execution to a CSV file and print
@@ -425,6 +429,9 @@ def save_results(
         print(waiting_df.to_string(index=False))
 
     total = len(df)
+    admission_rate = float("nan")
+    if admitted_apps is not None and total_apps is not None and total_apps > 0:
+        admission_rate = float(admitted_apps) / float(total_apps)
     completed_final = final.loc[final["status"] == "completed"]
     completed_burst = completed_final["burst_time"].sum()
     useful_util = completed_burst / makespan if makespan > 0 else float("nan")
@@ -473,6 +480,7 @@ def save_results(
     )
 
     print("\n=== Summary ===")
+    print(f"Admission rate   : {admission_rate:.4f}")
     print(f"Total PGAs       : {total}")
 
     tmp = df.copy()
@@ -520,6 +528,7 @@ def save_results(
     overall_df = pd.DataFrame(
         [
             {
+                "admission_rate": float(admission_rate),
                 "makespan": float(makespan),
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),

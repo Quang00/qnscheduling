@@ -124,7 +124,6 @@ def run_simulation(
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
         nodes, edges, distances, fidelities = gml_data(config, rng)
-        print("Edges Fidelities:", fidelities)
         app_specs = generate_n_apps(
             nodes,
             n_apps=n_apps,
@@ -135,7 +134,6 @@ def run_simulation(
             list_policies=["deadline"],
             rng=rng,
         )
-        print("Application requests:", app_specs)
 
     # Compute shortest feasibles paths and parallelizable applications
     app_requests = {
@@ -149,7 +147,28 @@ def run_simulation(
         paths = shortest_paths(edges, app_requests)
     else:
         paths = find_min_fidelity_path(edges, app_requests, fidelities)
+
+    total_apps = len(app_specs)
+    admitted = [app for app, path in paths.items() if path is not None]
+    admitted_apps = len(admitted)
+    admission_rate = (
+        admitted_apps / total_apps
+        if total_apps and total_apps > 0
+        else float("nan")
+    )
+    if total_apps:
+        print(f"Admission rate: {admission_rate:.4f}")
+
+    if admitted_apps == 0:
+        return False, None, {}, {}, {}
+
+    print("Edges Fidelities:", fidelities)
+    print("Application requests:", app_specs)
     print("Paths:", paths)
+
+    app_specs = {app: app_specs[app] for app in admitted}
+    paths = {app: paths[app] for app in admitted}
+
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable applications:", parallel_map)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
@@ -247,6 +266,8 @@ def run_simulation(
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
+        admitted_apps=admitted_apps,
+        total_apps=total_apps,
         output_dir=output_dir,
     )
     return feasible, df, durations, link_utilization, link_waiting
@@ -384,17 +405,16 @@ def main():
 
     args = parser.parse_args()
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
-    os.makedirs(seed_dir, exist_ok=True)
 
     run_number = 1
     pattern = re.compile(r"run(\d+)$")
-    for name in os.listdir(seed_dir):
-        m = pattern.match(name)
-        if m:
-            run_number = max(run_number, int(m.group(1)) + 1)
+    if os.path.isdir(seed_dir):
+        for name in os.listdir(seed_dir):
+            m = pattern.match(name)
+            if m:
+                run_number = max(run_number, int(m.group(1)) + 1)
 
     run_dir = os.path.join(seed_dir, f"run{run_number}")
-    os.makedirs(run_dir, exist_ok=False)
 
     t0 = time.perf_counter()
     feasible, _, _, _, _ = run_simulation(
