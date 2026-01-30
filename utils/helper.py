@@ -575,7 +575,7 @@ def save_results(
         on="task_name",
         how="left",
     )
-    per_task_path = os.path.join(output_dir, "summary_per_task.csv")
+    per_task_path = os.path.join(output_dir, "summary_per_app.csv")
     per_task_df.to_csv(per_task_path, index=False)
 
 

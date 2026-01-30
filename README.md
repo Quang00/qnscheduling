@@ -59,7 +59,7 @@ pytest
 - Builds a precomputed EDF schedule over a horizon.
 - Uses a conflict graph for concurrency: applications that share at least one link cannot overlap.
 - Feasibility checks:
-  - Rejects any task with utilization $U = \frac{\text{duration}}{\text{period}} > 1$
+  - Rejects any application with utilization $U = \frac{\text{duration}}{\text{period}} > 1$
   - Rejects schedules that would miss deadlines (`end > deadline`)
 
 If infeasible, the run exits early (no result CSVs are written for that run).
@@ -105,11 +105,11 @@ Each run creates a new folder:
 
 Files written into the run folder:
 
-- `app_requests.csv`: per-application request (src/dst/minimum fidelity, etc...)
+- `app_requests.csv`: per-application request (source node, destination node, minimum fidelity, etc...)
 - `pga_results.csv`: per-attempt (PGA) logs (arrival/start/completion/waiting/status, etc...)
 - `params.csv`: parameters used for the run, plus runtime and run number
 - `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
-- `summary_per_task.csv`: per-application breakdown (counts of statuses + PGA duration)
+- `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
 - `link_utilization.csv`: per-link busy time and utilization over the observed makespan
 - `link_waiting.csv`: per-link waiting totals, average waiting time, average queue length
 
