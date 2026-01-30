@@ -205,6 +205,21 @@ def run_simulation(
 
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
+
+    app_requests_df = (
+        pd.DataFrame.from_dict(app_requests, orient="index")
+        .reset_index()
+        .rename(columns={"index": "app"})
+    )
+    hops_map = {
+        app: (len(path) - 1) if path is not None else np.nan
+        for app, path in paths.items()
+    }
+    app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
+    app_requests_df.to_csv(
+        os.path.join(output_dir, "app_requests.csv"), index=False
+    )
+
     if scheduler == "dynamic":
         (
             df,

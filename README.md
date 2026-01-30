@@ -105,6 +105,7 @@ Each run creates a new folder:
 
 Files written into the run folder:
 
+- `app_requests.csv`: per-application request (src/dst/minimum fidelity, etc...)
 - `pga_results.csv`: per-attempt (PGA) logs (arrival/start/completion/waiting/status, etc...)
 - `params.csv`: parameters used for the run, plus runtime and run number
 - `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
