@@ -385,18 +385,19 @@ def simulate_dynamic(
     as they arrive, making real-time decisions based on current network
     conditions.
 
-    The scheduler made the following decisions for each PGA:
-    - If a PGA cannot start by its deadline due to busy links, it is marked as
-      "drop".
-    - If a PGA cannot be completed due to its duration exceeding the deadline,
-      it is marked as "drop".
-    - If a PGA does not generate the required E2E EPR pairs within its time
-      window, it may be retried if there is time before the deadline.
-    - If a PGA cannot start immediately due to busy links but can still
-      complete within its deadline, it is marked as "defer" and rescheduled
-      to start when resources become available.
-    - If a PGA successfully generates the required E2E EPR pairs within its
-      time window, it is marked as "completed".
+        The scheduler made the following decisions for each PGA:
+
+        - If a PGA cannot start by its deadline due to busy links, it
+            is marked as "drop".
+        - If a PGA cannot be completed due to its duration exceeding
+            the deadline, it is marked as "drop".
+        - If a PGA does not generate the required E2E EPR pairs within its time
+            window, it may be retried if there is time before the deadline.
+        - If a PGA cannot start immediately due to busy links but can still
+            complete within its deadline, it is marked as "defer" and
+            rescheduled to start when resources become available.
+        - If a PGA successfully generates the required E2E EPR pairs within its
+            time window, it is marked as "completed".
 
     Args:
         app_specs (Dict[str, Dict[str, Any]]): Application specifications.
@@ -406,7 +407,7 @@ def simulate_dynamic(
         pga_network_paths (Dict[str, List[str]]): Network paths for each PGA.
         rng (np.random.Generator): Random number generator.
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
-        When None, arrivals remain periodic.
+            When None, arrivals remain periodic.
 
     Returns:
         Tuple[

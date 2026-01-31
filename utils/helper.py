@@ -23,16 +23,17 @@ def shortest_paths(
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
-        where each edge is a tuple of nodes (src, dst).
+            where each edge is a tuple of nodes (src, dst).
         app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
-        application names and values are dictionaries containing source and
-        destination nodes (src, dst) for the application. For example:
-            {
-                'A': {'src': 'Alice', 'dst': 'Bob'},
-                'B': {'src': 'Alice', 'dst': 'Charlie'},
-                'C': {'src': 'Charlie', 'dst': 'David'},
-                'D': {'src': 'Bob', 'dst': 'David'}
-            }
+            application names and values are dictionaries containing source and
+            destination nodes (src, dst) for the application. For example:
+
+                {
+                    'A': {'src': 'Alice', 'dst': 'Bob'},
+                    'B': {'src': 'Alice', 'dst': 'Charlie'},
+                    'C': {'src': 'Charlie', 'dst': 'David'},
+                    'D': {'src': 'Bob', 'dst': 'David'}
+                }
 
     Returns:
         Dict[str, List[str]]: A dictionary where keys are application names and
@@ -62,18 +63,12 @@ def find_min_fidelity_path(
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
-        where each edge is a tuple of nodes (src, dst).
+            where each edge is a tuple of nodes (src, dst).
         app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
-        application names and values are dictionaries containing source and
-        destination nodes (src, dst) and minimum fidelity (min_fidelity)
-        for the application. For example:
-            {
-                'A': {'src': 'Alice', 'dst': 'Bob', 'min_fidelity': 0.9},
-                'B': {'src': 'Alice', 'dst': 'Charlie', 'min_fidelity': 0.85},
-                'C': {'src': 'Charlie', 'dst': 'David', 'min_fidelity': 0.8},
-                'D': {'src': 'Bob', 'dst': 'David', 'min_fidelity': 0.75}
-            }
-            fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
+            application names and values are dictionaries containing source and
+            destination nodes (src, dst) and minimum fidelity (min_fidelity)
+            for the application.
+        fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
             the quantum network, where keys are directed edges (src, dst) and
             values are the fidelities of those edges.
 
@@ -120,22 +115,25 @@ def parallelizable_tasks(
 
     Args:
         paths_for_each_apps (dict[str, List[str]]): A dictionary where keys are
-        application names and values are lists of nodes describing the route
-        used to run the applications, e.g. on a linar chain Alice-Rob-Bob:
-            {
-                'A': ['Alice', 'Rob'],
-                'B': ['Rob', 'Bob'],
-            }
+            application names and values are list of nodes describing the route
+            used to run the applications, e.g. on a linear chain Alice-Rob-Bob:
+
+                {
+                    'A': ['Alice', 'Rob'],
+                    'B': ['Rob', 'Bob'],
+                }
 
     Returns:
         dict[str, set[str]]: A dictionary where keys are application names and
-        values are sets of applications that can run in parallel with the key
-        application, based on shared links. From the example above, the output
-        would be A and B can run in parallel since they do not share any links:
-            {
-                'A': {'B'},
-                'B': {'A'},
-            }
+            values are sets of applications that can run in parallel with key
+            application, based on shared links. From the example above, the
+            output would be A and B can run in parallel since they do not share
+            any links:
+
+                {
+                    'A': {'B'},
+                    'B': {'A'},
+                }
     """
     G = nx.Graph()
     conflicts = defaultdict(set)
@@ -262,20 +260,20 @@ def save_results(
             - epr_pairs: Number of EPR pairs for the PGA
             - policy: Scheduling policy used for the PGA
         pga_names (List): List of all PGA names that should be present in the
-        results.
+            results.
         pga_release_times (Dict): Dictionary mapping PGA names to their
-        relative release times, used to fill in missing PGAs.
+            relative release times, used to fill in missing PGAs.
         app_specs (Dict): Metadata for each application including endpoints,
-        instances, requested EPR pairs, period, and policy.
+            instances, requested EPR pairs, period, and policy.
         n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
-        durations per application.
+            durations per application.
         pga_network_paths (Dict | None): Length of network paths per
-        application.
+            application.
         link_utilization (Dict): Dictionary mapping links to busy time and
-        utilization metrics.
+            utilization metrics.
         link_waiting (Dict | None): Dictionary mapping links to waiting
-        metrics (total waiting time and number of PGAs that waited).
+            metrics (total waiting time and number of PGAs that waited).
         output_dir (str): Directory where the results CSV file will be saved.
     """
     os.makedirs(output_dir, exist_ok=True)

@@ -22,8 +22,9 @@ Process:
    tasks.
 4. Calculate the duration of each application using PGA parameters.
 5. Depending on the chosen scheduling strategy (static or dynamic):
+
    - For static scheduling, compute a feasible schedule using EDF with
-    parallelization capabilities.
+      parallelization capabilities.
    - For dynamic scheduling, prepare for online scheduling based on arrivals.
 6. Run a probabilistic simulation of the scheduled PGAs over the defined
    hyperperiod cycles.
@@ -94,30 +95,30 @@ def run_simulation(
         config (yaml or gml): Configuration file path in YAML or GML format.
         n_apps (int): Number of applications to generate.
         inst_range (tuple[int, int]): Range (min, max) for the number of
-        instances per application.
+            instances per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
-        pairs to generate per application.
+            pairs to generate per application.
         period_range (tuple[float, float]): Range (min, max) for the period of
-        each application.
+            each application.
         hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
-        per slot.
+            per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
         fidelity_range (tuple[float, float]): Range (min, max) for the minimum
-        fidelity of each application.
+            fidelity of each application.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
         scheduler (str): Either "static" or "dynamic".
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
-        When None, releases remain periodic.
+            When None, releases remain periodic.
     Returns:
-    tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict]: A tuple
-    indicating whether the schedule is feasible, the resulting PGA DataFrame
-    when feasible, the PGA durations per application, the per-link
-    utilization metrics, and the per-link waiting metrics.
+        tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict]: A tuple
+            indicating whether the schedule is feasible, the resulting PGA
+            DataFrame when feasible, the PGA durations per application, the
+            per-link utilization metrics, and the per-link waiting metrics.
     """
     rng = np.random.default_rng(seed)
 
