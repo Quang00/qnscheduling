@@ -17,5 +17,8 @@ run_simulation = "scheduling:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.setuptools]
+packages = ["scheduling", "utils"]
+
 [project.urls]
 Repository = "https://github.com/Quang00/QNScheduling"
