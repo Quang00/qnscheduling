@@ -5,6 +5,7 @@
 ![Pytest and Ruff validation](https://github.com/Quang00/QNScheduling/actions/workflows/python-app.yml/badge.svg)
 [![Coverage Status](https://img.shields.io/coveralls/Quang00/qnscheduling.svg?logo=Coveralls)](https://coveralls.io/r/Quang00/qnscheduling)
 ![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-ffdd54?logo=python&logoColor=ffdd54)
+[![Documentation](https://img.shields.io/readthedocs/qnscheduling?logo=readthedocs&logoColor=white)](https://qnscheduling.readthedocs.io/en/latest/)
 
 </div>
 
