@@ -59,7 +59,7 @@ pytest
 - Builds a precomputed EDF schedule over a horizon.
 - Uses a conflict graph for concurrency: applications that share at least one link cannot overlap.
 - Feasibility checks:
-  - Rejects any task with utilization $U = \frac{\text{duration}}{\text{period}} > 1$
+  - Rejects any application with utilization $U = \frac{\text{duration}}{\text{period}} > 1$
   - Rejects schedules that would miss deadlines (`end > deadline`)
 
 If infeasible, the run exits early (no result CSVs are written for that run).
@@ -90,6 +90,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
+- `--min-fidelity MIN MAX`, `-f MIN MAX`: Range for application minimum fidelity ($F_a$). If omitted, minimum fidelity is not considered.
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
@@ -104,12 +105,13 @@ Each run creates a new folder:
 
 Files written into the run folder:
 
-- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/completion/waiting/status, etc...)
-- `params.csv`: parameters used for the run, plus runtime and run number
-- `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
-- `summary_per_task.csv`: per-application breakdown (counts of statuses + PGA duration)
+- `app_requests.csv`: per-application request (source node, destination node, minimum fidelity, etc...)
 - `link_utilization.csv`: per-link busy time and utilization over the observed makespan
 - `link_waiting.csv`: per-link waiting totals, average waiting time, average queue length
+- `params.csv`: parameters used for the run, plus runtime and run number
+- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/burst/completion/waiting/status, etc...)
+- `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
+- `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
 
 ## Quick Start
 
@@ -131,6 +133,7 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
+  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler dynamic \
@@ -151,6 +154,7 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
+  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler static \

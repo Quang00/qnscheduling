@@ -63,6 +63,7 @@ from utils.helper import (
     app_params_sim,
     generate_n_apps,
     gml_data,
+    find_min_fidelity_path,
     parallelizable_tasks,
     save_results,
     shortest_paths,
@@ -80,6 +81,7 @@ def run_simulation(
     memory: float,
     p_swap: float,
     p_gen: float,
+    fidelity_range: tuple[float, float],
     time_slot_duration: float,
     seed: int,
     output_dir: str,
@@ -103,6 +105,8 @@ def run_simulation(
         per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
+        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
+        fidelity of each application.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
@@ -119,23 +123,52 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
-        nodes, edges, distances = gml_data(config)
+        nodes, edges, distances, fidelities = gml_data(config, rng)
         app_specs = generate_n_apps(
             nodes,
             n_apps=n_apps,
             inst_range=inst_range,
             epr_range=epr_range,
             period_range=period_range,
+            fidelity_range=fidelity_range,
             list_policies=["deadline"],
             rng=rng,
         )
 
-    # Compute shortest paths and parallelizable applications
+    # Compute shortest feasibles paths and parallelizable applications
     app_requests = {
-        name: (spec["src"], spec["dst"]) for name, spec in app_specs.items()
+        name: {
+            'src': spec["src"],
+            'dst': spec["dst"],
+            'min_fidelity': spec.get("min_fidelity", 0.0)
+        } for name, spec in app_specs.items()
     }
-    paths = shortest_paths(edges, app_requests)
+    if fidelity_range == [0.0, 0.0]:
+        paths = shortest_paths(edges, app_requests)
+    else:
+        paths = find_min_fidelity_path(edges, app_requests, fidelities)
+
+    total_apps = len(app_specs)
+    admitted = [app for app, path in paths.items() if path is not None]
+    admitted_apps = len(admitted)
+    admission_rate = (
+        admitted_apps / total_apps
+        if total_apps and total_apps > 0
+        else float("nan")
+    )
+    if total_apps:
+        print(f"Admission rate: {admission_rate:.4f}")
+
+    if admitted_apps == 0:
+        return False, None, {}, {}, {}
+
+    print("Edges Fidelities:", fidelities)
+    print("Application requests:", app_specs)
     print("Paths:", paths)
+
+    app_specs = {app: app_specs[app] for app in admitted}
+    paths = {app: paths[app] for app in admitted}
+
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable applications:", parallel_map)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
@@ -172,6 +205,21 @@ def run_simulation(
 
     # Run simulation
     os.makedirs(output_dir, exist_ok=True)
+
+    app_requests_df = (
+        pd.DataFrame.from_dict(app_requests, orient="index")
+        .reset_index()
+        .rename(columns={"index": "app"})
+    )
+    hops_map = {
+        app: (len(path) - 1) if path is not None else np.nan
+        for app, path in paths.items()
+    }
+    app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
+    app_requests_df.to_csv(
+        os.path.join(output_dir, "app_requests.csv"), index=False
+    )
+
     if scheduler == "dynamic":
         (
             df,
@@ -233,6 +281,8 @@ def run_simulation(
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
+        admitted_apps=admitted_apps,
+        total_apps=total_apps,
         output_dir=output_dir,
     )
     return feasible, df, durations, link_utilization, link_waiting
@@ -323,6 +373,15 @@ def main():
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(
+        "--min-fidelity",
+        "-f",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[0.0, 0.0],
+        help="Minimum fidelity per application (e.g., --min-fidelity 0.6 0.7)",
+    )
+    parser.add_argument(
         "--slot-duration",
         "-sd",
         type=float,
@@ -361,17 +420,16 @@ def main():
 
     args = parser.parse_args()
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
-    os.makedirs(seed_dir, exist_ok=True)
 
     run_number = 1
     pattern = re.compile(r"run(\d+)$")
-    for name in os.listdir(seed_dir):
-        m = pattern.match(name)
-        if m:
-            run_number = max(run_number, int(m.group(1)) + 1)
+    if os.path.isdir(seed_dir):
+        for name in os.listdir(seed_dir):
+            m = pattern.match(name)
+            if m:
+                run_number = max(run_number, int(m.group(1)) + 1)
 
     run_dir = os.path.join(seed_dir, f"run{run_number}")
-    os.makedirs(run_dir, exist_ok=False)
 
     t0 = time.perf_counter()
     feasible, _, _, _, _ = run_simulation(
@@ -385,6 +443,7 @@ def main():
         memory=args.memory,
         p_swap=args.pswap,
         p_gen=args.pgen,
+        fidelity_range=args.min_fidelity,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
@@ -413,6 +472,8 @@ def main():
         "memory": args.memory,
         "p_swap": args.pswap,
         "p_gen": args.pgen,
+        "fidelity_min": args.min_fidelity[0],
+        "fidelity_max": args.min_fidelity[1],
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,

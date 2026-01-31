@@ -84,6 +84,10 @@ def duration_pga(
     Returns:
         float: Duration of a PGA in seconds.
     """
+    if p_packet == 1.0:
+        raise ValueError(
+            "p_packet cannot be 1.0, as it would lead to infinite duration."
+        )
     p_e2e = probability_e2e(n_swap, memory, p_gen, p_swap)
 
     # exponential search
@@ -102,7 +106,7 @@ def duration_pga(
 
 
 def compute_durations(
-    paths: dict[str, list[str]],
+    paths: dict[str, list[str] | None],
     epr_pairs: dict[str, int],
     p_packet: float,
     memory: int,
@@ -134,6 +138,8 @@ def compute_durations(
     """
     durations = {}
     for app, route in paths.items():
+        if not route:
+            continue
         length_route = len(route)
         n_swaps = length_route - 2
         if length_route <= 2:

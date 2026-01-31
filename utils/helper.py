@@ -16,7 +16,7 @@ from openpyxl.utils import get_column_letter
 
 
 def shortest_paths(
-    edges: List[Tuple[str, str]], app_requests: Dict[str, Tuple[str, str]]
+    edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
 ) -> Dict[str, List[str]]:
     """Find shortest paths for each applications in a quantum network graph
     represented by edges.
@@ -24,14 +24,14 @@ def shortest_paths(
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
         where each edge is a tuple of nodes (src, dst).
-        app_requests (Dict[str, Tuple[str, str]]): A dictionary where keys are
-        application names and values are tuples of source and destination nodes
-        (src, dst) for the application. For example:
+        app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
+        application names and values are dictionaries containing source and
+        destination nodes (src, dst) for the application. For example:
             {
-                'A': ('Alice', 'Bob'),
-                'B': ('Alice', 'Charlie'),
-                'C': ('Charlie', 'David'),
-                'D': ('Bob', 'David')
+                'A': {'src': 'Alice', 'dst': 'Bob'},
+                'B': {'src': 'Alice', 'dst': 'Charlie'},
+                'C': {'src': 'Charlie', 'dst': 'David'},
+                'D': {'src': 'Bob', 'dst': 'David'}
             }
 
     Returns:
@@ -43,13 +43,77 @@ def shortest_paths(
     G.add_edges_from(edges)
 
     return {
-        application: nx.shortest_path(G, src, dst)
-        for application, (src, dst) in app_requests.items()
+        application: nx.shortest_path(G, req['src'], req['dst'])
+        for application, req in app_requests.items()
     }
 
 
+def find_min_fidelity_path(
+    edges: List[Tuple[str, str]],
+    app_requests: Dict[str, Dict[str, Any]],
+    fidelities: Dict[Tuple[str, str], float],
+) -> Dict[str, List[str] | None]:
+    """Assign a feasible path for each application in a quantum network graph
+    based on minimum fidelity threshold. The fidelity constraint is transformed
+    into a maximum path length (L_max) from the paper Chakraborty et al.,
+    "Entanglement Distribution in a Quantum Network: A Multicommodity
+    Flow-Based Approach", (2020). The path with the fewest hops that meets the
+    fidelity requirement is selected.
+
+    Args:
+        edges (List[Tuple[str, str]]): List of edges in the quantum network,
+        where each edge is a tuple of nodes (src, dst).
+        app_requests (Dict[str, Dict[str, Any]]): A dictionary where keys are
+        application names and values are dictionaries containing source and
+        destination nodes (src, dst) and minimum fidelity (min_fidelity)
+        for the application. For example:
+            {
+                'A': {'src': 'Alice', 'dst': 'Bob', 'min_fidelity': 0.9},
+                'B': {'src': 'Alice', 'dst': 'Charlie', 'min_fidelity': 0.85},
+                'C': {'src': 'Charlie', 'dst': 'David', 'min_fidelity': 0.8},
+                'D': {'src': 'Bob', 'dst': 'David', 'min_fidelity': 0.75}
+            }
+            fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
+            the quantum network, where keys are directed edges (src, dst) and
+            values are the fidelities of those edges.
+
+    Returns:
+        Dict[str, List[str] | None]: A dictionary where keys are application
+        names and values are lists of nodes representing the feasible path from
+        source to destination for that application, or None if no feasible
+        path exists.
+    """
+    G = nx.Graph()
+    G.add_edges_from(edges)
+    ret = {}
+    initial_fidelity = min(fidelities.values())
+
+    for app, req in app_requests.items():
+        src = req['src']
+        dst = req['dst']
+        min_fidelity = req['min_fidelity']
+
+        if min_fidelity <= 0.5 or initial_fidelity <= 0.5:
+            ret[app] = None
+            continue
+
+        L_max = math.floor(
+            math.log((4 * min_fidelity - 1) / 3)
+            / math.log((4 * initial_fidelity - 1) / 3)
+        )
+        feasible_paths = []
+        all_shortest_paths = list(nx.shortest_simple_paths(G, src, dst))
+        for path in all_shortest_paths:
+            L = len(path) - 1
+            if L <= L_max:
+                feasible_paths.append(path)
+
+        ret[app] = feasible_paths[0] if feasible_paths else None
+    return ret
+
+
 def parallelizable_tasks(
-    paths_for_each_apps: dict[str, List[str]],
+    paths_for_each_apps: dict[str, List[str] | None],
 ) -> dict[str, set[str]]:
     """Find parallelizable applications based on shared links of a
     quantum network.
@@ -79,6 +143,8 @@ def parallelizable_tasks(
     # Build conflict graph using undirected links along each path
     for app, nodes in paths_for_each_apps.items():
         G.add_node(app)
+        if not nodes or len(nodes) < 2:
+            continue
         edges_on_path = {
             tuple(sorted((u, v)))
             for u, v in zip(nodes[:-1], nodes[1:], strict=False)
@@ -172,6 +238,8 @@ def save_results(
     pga_network_paths: Dict[str, List[str]] | None = None,
     link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
     link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
+    admitted_apps: int | None = None,
+    total_apps: int | None = None,
     output_dir: str = "results",
 ) -> None:
     """Save the results of PGA scheduling and execution to a CSV file and print
@@ -361,6 +429,9 @@ def save_results(
         print(waiting_df.to_string(index=False))
 
     total = len(df)
+    admission_rate = float("nan")
+    if admitted_apps is not None and total_apps is not None and total_apps > 0:
+        admission_rate = float(admitted_apps) / float(total_apps)
     completed_final = final.loc[final["status"] == "completed"]
     completed_burst = completed_final["burst_time"].sum()
     useful_util = completed_burst / makespan if makespan > 0 else float("nan")
@@ -409,6 +480,7 @@ def save_results(
     )
 
     print("\n=== Summary ===")
+    print(f"Admission rate   : {admission_rate:.4f}")
     print(f"Total PGAs       : {total}")
 
     tmp = df.copy()
@@ -456,6 +528,7 @@ def save_results(
     overall_df = pd.DataFrame(
         [
             {
+                "admission_rate": float(admission_rate),
                 "makespan": float(makespan),
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),
@@ -502,11 +575,14 @@ def save_results(
         on="task_name",
         how="left",
     )
-    per_task_path = os.path.join(output_dir, "summary_per_task.csv")
+    per_task_path = os.path.join(output_dir, "summary_per_app.csv")
     per_task_df.to_csv(per_task_path, index=False)
 
 
-def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
+def gml_data(
+    gml_file: str,
+    rng: np.random.Generator,
+) -> Tuple[list, list, dict[tuple, float], dict[tuple, float]]:
     """Extracts nodes, edges, and distances from a GML file.
 
     Args:
@@ -517,14 +593,24 @@ def gml_data(gml_file: str) -> Tuple[list, list, dict[tuple, float]]:
         edges (list): List of edges (source, target).
         distances (dict[tuple, float]): Dict mapping edges
         to distances.
+        fidelity (dict[tuple, float]): Dict mapping directed edges to
+        fidelities.
     """
     G = nx.read_gml(gml_file)
+
+    for _, _, data in G.edges(data=True):
+        data["fidelity"] = float(rng.random())
+        data["fidelity"] = 0.95
 
     nodes = list(G.nodes())
     edges = list(G.edges())
     distances = {(u, v): data.get("dist") for u, v, data in G.edges(data=True)}
+    fidelities: dict[tuple, float] = {}
+    for u, v, data in G.edges(data=True):
+        f = float(data["fidelity"])
+        fidelities[(u, v)] = f
 
-    return nodes, edges, distances
+    return nodes, edges, distances, fidelities
 
 
 def generate_n_apps(
@@ -533,6 +619,7 @@ def generate_n_apps(
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
+    fidelity_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Dict[str, Dict[str, Any]]:
@@ -547,6 +634,8 @@ def generate_n_apps(
         pairs for each application.
         period_range (tuple[float, float]): Range (min, max) for the period
         of each application.
+        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
+        fidelity of each application.
         list_policies (list[str], optional): List of policies to assign to
         each application.
         rng (np.random.Generator): Random number generator for reproducibility.
@@ -564,6 +653,9 @@ def generate_n_apps(
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
         rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
         rand_period = float(rng.uniform(period_range[0], period_range[1]))
+        rand_min_fidelity = float(
+            rng.uniform(fidelity_range[0], fidelity_range[1])
+        )
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = {
@@ -572,6 +664,7 @@ def generate_n_apps(
             "instances": rand_instance,
             "epr": rand_epr_pairs,
             "period": rand_period,
+            "min_fidelity": rand_min_fidelity,
             "policy": rand_policy,
         }
 

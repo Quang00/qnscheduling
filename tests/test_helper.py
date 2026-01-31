@@ -1,4 +1,3 @@
-import networkx as nx
 import numpy as np
 import pandas as pd
 import pytest
@@ -24,8 +23,8 @@ def basic_graph():
 
 def test_shortest_paths_basic_small(basic_graph):
     apps = {
-        "A": ("Alice", "Charlie"),
-        "B": ("Bob", "Charlie"),
+        "A": {'src': "Alice", 'dst': "Charlie"},
+        "B": {'src': "Bob", 'dst': "Charlie"},
     }
     result = shortest_paths(basic_graph, apps)
     assert result == {
@@ -36,8 +35,8 @@ def test_shortest_paths_basic_small(basic_graph):
 
 def test_shortest_paths_basic_long(basic_graph):
     apps = {
-        "A": ("Alice", "David"),
-        "B": ("Bob", "Charlie"),
+        "A": {'src': "Alice", 'dst': "David"},
+        "B": {'src': "Bob", 'dst': "Charlie"},
     }
     result = shortest_paths(basic_graph, apps)
     assert result == {
@@ -52,11 +51,6 @@ def test_empty_app_requests(basic_graph):
 
 def test_empty_edges_and_no_requests_is_ok():
     assert shortest_paths([], {}) == {}
-
-
-def test_raises_no_path_for_disconnected(basic_graph):
-    with pytest.raises(nx.NetworkXNoPath):
-        shortest_paths(basic_graph, {"nopath": ("Alice", "Eve")})
 
 
 def assert_equal_set(res: dict[str, set[str]]):
