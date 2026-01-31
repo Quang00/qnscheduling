@@ -106,12 +106,12 @@ Each run creates a new folder:
 Files written into the run folder:
 
 - `app_requests.csv`: per-application request (source node, destination node, minimum fidelity, etc...)
-- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/completion/waiting/status, etc...)
-- `params.csv`: parameters used for the run, plus runtime and run number
-- `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
-- `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
 - `link_utilization.csv`: per-link busy time and utilization over the observed makespan
 - `link_waiting.csv`: per-link waiting totals, average waiting time, average queue length
+- `params.csv`: parameters used for the run, plus runtime and run number
+- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/burst/completion/waiting/status, etc...)
+- `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
+- `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
 
 ## Quick Start
 
