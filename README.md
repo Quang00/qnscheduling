@@ -1,4 +1,6 @@
-# qnscheduling
+<p align="center">
+  <img src="docs/logo.png" alt="QNScheduling logo" width="500">
+</p>
 
 <div align="center">
 
