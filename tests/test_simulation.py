@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from scheduling.simulation import simulate_static
+from scheduling.simulation import simulate_dynamic, simulate_static
 
 
 @pytest.fixture
@@ -59,3 +59,31 @@ def test_simulation_fails_basic(base_pga_parameters):
     )
 
     assert df.loc[0, "status"] == "failed"
+
+
+def test_simulate_dynamic_basic():
+    rng = np.random.default_rng(42)
+    app_specs = {"A": {"instances": 1, "period": 10.0, "policy": "deadline"}}
+    durations = {"A": 0.5}
+    pga_params = {
+        "p_gen": 0.99,
+        "p_swap": 1.0,
+        "memory": 2,
+        "epr_pairs": 1,
+        "slot_duration": 0.01,
+    }
+    pga_parameters = {"A": pga_params}
+    pga_rel_times = {"A": 0.0}
+    pga_network_paths = {"A": ["Alice", "Bob"]}
+
+    df, _, _, _, _ = simulate_dynamic(
+        app_specs=app_specs,
+        durations=durations,
+        pga_parameters=pga_parameters,
+        pga_rel_times=pga_rel_times,
+        pga_network_paths=pga_network_paths,
+        rng=rng,
+        arrival_rate=None,
+    )
+
+    assert len(df) > 0
