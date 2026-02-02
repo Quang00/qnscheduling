@@ -64,7 +64,7 @@ from utils.helper import (
     app_params_sim,
     generate_n_apps,
     gml_data,
-    find_min_fidelity_path,
+    find_feasible_path,
     parallelizable_tasks,
     save_results,
     shortest_paths,
@@ -88,6 +88,8 @@ def run_simulation(
     output_dir: str,
     scheduler: str = "static",
     arrival_rate: float | None = None,
+    routing: str = "shortest",
+    capacity_threshold: float = 0.8,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -136,22 +138,73 @@ def run_simulation(
             rng=rng,
         )
 
-    # Compute shortest feasibles paths and parallelizable applications
+    # Arrival times for each application
+    poisson_enabled = (
+        scheduler == "dynamic"
+        and arrival_rate is not None
+        and float(arrival_rate) > 0.0
+    )
+    if poisson_enabled:
+        mean_interarrival = 1.0 / float(arrival_rate)
+        pga_rel_times = {
+            app: float(rng.exponential(mean_interarrival))
+            for app in app_specs.keys()
+        }
+    else:
+        pga_rel_times = {app: 0.0 for app in app_specs.keys()}
+    print("Arrival times:", pga_rel_times)
+
+    # Find feasible paths for each application based on fidelity/routing mode
     app_requests = {
         name: {
-            'src': spec["src"],
-            'dst': spec["dst"],
-            'min_fidelity': spec.get("min_fidelity", 0.0)
-        } for name, spec in app_specs.items()
+            "src": spec["src"],
+            "dst": spec["dst"],
+            "min_fidelity": spec.get("min_fidelity", 0.0),
+            "epr": spec.get("epr", 0),
+            "period": spec.get("period", 0.0),
+        }
+        for name, spec in app_specs.items()
     }
-    if fidelity_range == [0.0, 0.0]:
-        paths = shortest_paths(edges, app_requests)
-    else:
-        paths = find_min_fidelity_path(edges, app_requests, fidelities)
-
+    fidelity_enabled = not (
+        len(fidelity_range) == 2
+        and float(fidelity_range[0]) == 0.0
+        and float(fidelity_range[1]) == 0.0
+    )
     total_apps = len(app_specs)
-    admitted = [app for app, path in paths.items() if path is not None]
-    admitted_apps = len(admitted)
+    routing_mode = str(routing)
+    admitted_specs = {}
+
+    if routing_mode == "capacity":
+        paths = find_feasible_path(
+            edges,
+            app_requests,
+            fidelities if fidelity_enabled else None,
+            pga_rel_times=pga_rel_times,
+            routing_mode=routing_mode,
+            capacity_threshold=capacity_threshold,
+            p_packet=p_packet,
+            memory=memory,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
+        )
+    else:
+        if not fidelity_enabled:
+            paths = shortest_paths(edges, app_requests)
+        else:
+            paths = find_feasible_path(
+                edges,
+                app_requests,
+                fidelities,
+                pga_rel_times=pga_rel_times,
+                routing_mode=routing_mode,
+            )
+
+    admitted_paths = {
+        app: path for app, path in paths.items() if path is not None
+    }
+    admitted_specs = {app: app_specs[app] for app in admitted_paths.keys()}
+    admitted_apps = len(admitted_specs)
     admission_rate = (
         admitted_apps / total_apps
         if total_apps and total_apps > 0
@@ -165,10 +218,10 @@ def run_simulation(
 
     print("Edges Fidelities:", fidelities)
     print("Application requests:", app_specs)
-    print("Paths:", paths)
 
-    app_specs = {app: app_specs[app] for app in admitted}
-    paths = {app: paths[app] for app in admitted}
+    app_specs = admitted_specs
+    paths = admitted_paths
+    print("Paths:", paths)
 
     parallel_map = parallelizable_tasks(paths)
     print("Parallelizable applications:", parallel_map)
@@ -185,9 +238,6 @@ def run_simulation(
         time_slot_duration,
     )
     print("Durations:", durations)
-
-    pga_rel_times = {app: 0.0 for app in app_specs.keys()}
-    print("Release times:", pga_rel_times)
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
     print("Periods:", pga_periods)
@@ -217,6 +267,7 @@ def run_simulation(
         for app, path in paths.items()
     }
     app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
+    app_requests_df["admitted"] = app_requests_df["app"].isin(app_specs)
     app_requests_df.to_csv(
         os.path.join(output_dir, "app_requests.csv"), index=False
     )
@@ -406,6 +457,23 @@ def main():
         help="Mean arrival rate (lambda) for Poisson process",
     )
     parser.add_argument(
+        "--routing",
+        "-r",
+        type=str,
+        choices=["shortest", "capacity"],
+        default="shortest",
+        help=(
+            "Routing: 'shortest' (Dijkstra) or 'capacity' (capacity-aware)."
+        ),
+    )
+    parser.add_argument(
+        "--capacity-threshold",
+        "-ct",
+        type=float,
+        default=0.8,
+        help="Capacity threshold for routing capacity (sum(PGA/T) per link)",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -450,6 +518,8 @@ def main():
         output_dir=run_dir,
         scheduler=args.scheduler,
         arrival_rate=args.arrival_rate,
+        routing=args.routing,
+        capacity_threshold=args.capacity_threshold,
     )
     t1 = time.perf_counter()
 
@@ -479,6 +549,8 @@ def main():
         "seed": args.seed,
         "runtime_seconds": runtime,
         "run_number": run_number,
+        "routing": args.routing,
+        "capacity_threshold": args.capacity_threshold,
     }
     pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
