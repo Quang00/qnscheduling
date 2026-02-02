@@ -1,386 +1,117 @@
-import multiprocessing as mp
 import os
-import tempfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import redirect_stdout
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.ticker import (
-    AutoMinorLocator,
-    FuncFormatter,
-)
-from tqdm.auto import tqdm
-
-from scheduling.main import run_simulation
-from utils.helper import (
-    build_default_sim_args,
-    build_tasks,
-    generate_metadata,
-    ppacket_dirname,
-    prepare_run_dir,
-)
+from matplotlib.ticker import FuncFormatter
 
 
 def set_plot_theme(dpi: int) -> None:
-    sns.set_theme(context="paper", style="ticks", font_scale=1.2)
-    plt.rcParams.update(
-        {
-            "figure.dpi": dpi,
-            "savefig.dpi": dpi,
-            "axes.linewidth": 0.8,
-            "axes.edgecolor": "#333333",
-            "xtick.direction": "out",
-            "ytick.direction": "out",
-            "xtick.major.size": 4,
-            "ytick.major.size": 4,
-            "xtick.minor.size": 2.5,
-            "ytick.minor.size": 2.5,
-            "grid.linestyle": "--",
-            "grid.alpha": 0.35,
-        }
-    )
-
-
-def plot_graph_from_gml(gml_file: str) -> None:
-    """Plot a graph from a GML file.
-
-    Args:
-        gml_file (str): Path to the GML file.
-    """
-    G = nx.read_gml(gml_file)
-    pos = {n: (data["lon"], data["lat"]) for n, data in G.nodes(data=True)}
-
-    base = os.path.basename(gml_file)
-    name, _ = os.path.splitext(base)
-
-    _, ax = plt.subplots(figsize=(8, 6))
-    ax.set_aspect("equal")
-
-    nx.draw(G, pos, ax=ax, with_labels=True, node_size=80, font_size=5)
-
-    ax.set_title(name)
-    ax.axis("off")
-
-    plt.show()
-
-
-def simulate_one_ppacket(args: tuple) -> dict:
-    (
-        p_packet,
-        run_seed,
-        run_dir,
-        default_kwargs,
-        n_apps_value,
-        keep_seed_outputs,
-    ) = args
-
-    n_apps_int = int(n_apps_value) if n_apps_value is not None else None
-
-    if keep_seed_outputs:
-        base_dir = run_dir
-        if n_apps_int is not None:
-            base_dir = os.path.join(run_dir, f"napps_{n_apps_int}")
-        os.makedirs(base_dir, exist_ok=True)
-        ppacket_dir = os.path.join(base_dir, ppacket_dirname(p_packet))
-        os.makedirs(ppacket_dir, exist_ok=True)
-        sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
-        os.makedirs(sd_dir, exist_ok=True)
-    else:
-        sd_dir = tempfile.mkdtemp(prefix=f"seed_{run_seed}_")
-
-    args = default_kwargs.copy()
-    args.update({"p_packet": p_packet, "seed": run_seed, "output_dir": sd_dir})
-    args["n_apps"] = n_apps_int
-
-    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-        feasible, df, durations = run_simulation(**args)
-
-    admission_rate = 1.0 if feasible else 0.0
-    completed = 0
-    total = 0
-    if feasible and df is not None and not df.empty:
-        status_series = df["status"].astype(str)
-        completed = int((status_series == "completed").sum())
-        total = int(len(status_series))
-    durations = durations or {}
-
-    summary_metrics = {
-        "makespan": float("nan"),
-        "throughput": float("nan"),
-        "completed_ratio": float("nan"),
-        "deadline_miss_ratio": float("nan"),
-        "avg_waiting_time": float("nan"),
-        "total_busy_time": float("nan"),
-        "avg_link_utilization": float("nan"),
-        "useful_utilization": float("nan"),
-    }
-    summary_row = None
-    summary_path = os.path.join(sd_dir, "summary.csv")
-    if os.path.exists(summary_path):
-        summary_df = pd.read_csv(summary_path)
-        if not summary_df.empty:
-            row = summary_df.iloc[0]
-            summary_row = row
-            for key in summary_metrics:
-                if key in row:
-                    summary_metrics[key] = float(row[key])
-
-    pga_duration_total = float("nan")
-    if summary_row is not None:
-        pga_duration_total = float(
-            summary_row.get("total_pga_duration", pga_duration_total)
-        )
-
-    if durations:
-        duration_vals = np.array(list(durations.values()), dtype=float)
-        if duration_vals.size:
-            pga_duration_total = float(duration_vals.sum())
-
-    result = {
-        "p_packet": p_packet,
-        "seed": run_seed,
-        "feasible": feasible,
-        "admission_rate": admission_rate,
-        "completed": completed,
-        "total_jobs": total,
-        "n_apps": n_apps_int,
-        "pga_duration_total": pga_duration_total,
-        **summary_metrics,
-    }
-    return result
-
-
-def run_parallel_sims(
-    tasks: list[tuple[Any, ...]],
-    max_workers: int,
-    show_progress: bool,
-) -> list[dict[str, Any]]:
-    mp_ctx = mp.get_context("spawn")
-    records = []
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_ctx) as ex:
-        if show_progress:
-            futures = [ex.submit(simulate_one_ppacket, t) for t in tasks]
-            with tqdm(
-                total=len(futures),
-                desc="Simulations",
-                unit="run",
-            ) as pbar:
-                for fut in as_completed(futures):
-                    records.append(fut.result())
-                    pbar.update(1)
-        else:
-            for rec in ex.map(simulate_one_ppacket, tasks, chunksize=1):
-                records.append(rec)
-    return records
+    sns.set_theme(context="paper", style="ticks")
+    plt.rcParams["figure.dpi"] = dpi
+    plt.rcParams["savefig.dpi"] = dpi
 
 
 def build_metric_specs(
-    n_tasks_label: str,
-    n_tasks_display: str,
+    v_label: str,
     save_path: str,
     run_dir: str,
-    plot_label: str,
-    scheduler_display: str,
-    scheduler_suffix: str,
-    scheduler_key: str | None = None,
+    sch_suffix: str,
+    x: str = "p_packet",
     group_column: str | None = None,
     group_labels: dict | None = None,
     group_palette: Sequence[str] | None = None,
     group_palette_map: dict[str, Any] | None = None,
-    individual_n_apps: Sequence[int] | None = None,
-    individual_keep_group: bool = False,
+    individual_values: Sequence[int | float] | None = None,
     group_line_styles: dict[str, str] | None = None,
+    create_individual: bool = False,
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
             "key": "admission_rate",
-            "plot_type": "line",
             "ylabel": "Admission rate (%)",
-            "metric_name": "Admission Rate",
-            "ymin": 0.0,
-            "ymax": 1.0,
-            "format_str": "{:.2f}",
             "percentage": True,
-            "auto_ylim": False,
         },
         {
             "key": "makespan",
-            "plot_type": "line",
-            "ylabel": "Makespan (s)",
-            "metric_name": "Makespan",
-            "format_str": "{:.1f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
+            "ylabel": "Completion time (s)",
             "yscale": "log",
         },
         {
             "key": "throughput",
-            "plot_type": "line",
             "ylabel": "Throughput (completed PGAs/s)",
-            "metric_name": "Throughput",
-            "format_str": "{:.3f}",
         },
         {
             "key": "completed_ratio",
-            "plot_type": "line",
-            "ylabel": "Completed ratio (%)",
-            "metric_name": "Completed Ratio",
-            "format_str": "{:.2f}",
+            "ylabel": "Completion ratio (%)",
             "percentage": True,
-            "auto_ylim": False,
         },
         {
             "key": "avg_waiting_time",
-            "plot_type": "line",
-            "ylabel": "Average Waiting Time (s)",
-            "metric_name": "Average Waiting Time",
-            "format_str": "{:.2f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-        },
-        {
-            "key": "pga_duration_total",
-            "plot_type": "line",
-            "ylabel": "Total PGA duration (s)",
-            "metric_name": "Total PGA Duration",
-            "format_str": "{:.2f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
+            "ylabel": "Average waiting time (s)",
         },
         {
             "key": "avg_link_utilization",
-            "plot_type": "line",
-            "ylabel": "Average Link Utilization (%)",
-            "metric_name": "Average Link Utilization",
-            "format_str": "{:.2f}",
+            "ylabel": "Average link utilization (%)",
             "percentage": True,
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-            "percentage_format": "{:.2f}%",
         },
         {
-            "key": "total_busy_time",
-            "plot_type": "line",
-            "ylabel": "Total Busy Time (s)",
-            "metric_name": "Total Busy Time",
-            "format_str": "{:.2f}",
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
+            "key": "p95_link_utilization",
+            "ylabel": "95th percentile link utilization (%)",
+            "percentage": True,
         },
         {
-            "key": "useful_utilization",
-            "plot_type": "line",
-            "ylabel": "Useful Utilization (%)",
-            "metric_name": "Useful Utilization",
-            "format_str": "{:.2f}",
-            "percentage": True,
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-            "percentage_format": "{:.2f}%",
+            "key": "p95_link_avg_wait",
+            "ylabel": "95th percentile link average wait (s)",
         },
         {
-            "key": "deadline_miss_ratio",
-            "plot_type": "line",
-            "ylabel": "Deadline Miss Rate (%)",
-            "metric_name": "Deadline Miss Rate",
-            "format_str": "{:.2f}",
+            "key": "deadline_miss_rate",
+            "ylabel": "Deadline miss rate (%)",
             "percentage": True,
-            "auto_ylim": True,
-            "pad_fraction": 0.1,
-            "percentage_format": "{:.2f}%",
-        }
+        },
     ]
 
     specs = []
-    individual_values = []
-    seen_values = set()
-    for val in individual_n_apps or []:
-        intval = int(val)
-        if intval in seen_values:
-            continue
-        seen_values.add(intval)
-        individual_values.append(intval)
+    indiv_values = list(individual_values or [])
 
     for template in metric_templates:
         spec = template.copy()
-        metric_name = spec.pop("metric_name", spec["key"])
-        spec["title"] = f"{metric_name} (n_tasks={n_tasks_display})"
-        spec["scheduler_label"] = (scheduler_key or scheduler_suffix).lower()
         if spec["key"] == "admission_rate":
-            spec["base_label"] = plot_label
             spec["plot_path"] = save_path
         else:
-            base_label = (
-                f"{spec['key']}_vs_ppacket_n_tasks_{n_tasks_label}_"
-                f"{scheduler_suffix}"
-            )
-            spec["base_label"] = base_label
-            spec["plot_path"] = os.path.join(
-                run_dir,
-                f"{base_label}.png",
-            )
+            file = f"{spec['key']}_vs_{x}_vary_{v_label}_{sch_suffix}.png"
+            spec["plot_path"] = os.path.join(run_dir, file)
+        spec["x_var"] = x
         spec["group_column"] = group_column
-        if group_labels is not None:
-            spec["group_labels"] = group_labels.copy()
-        if group_palette is not None:
-            spec["group_palette"] = list(group_palette)
-        if group_palette_map is not None:
-            spec["group_palette_map"] = {
-                str(k): v for k, v in group_palette_map.items()
-            }
-        if group_line_styles is not None:
-            spec["group_line_styles"] = {
-                str(k): v for k, v in group_line_styles.items()
-            }
+        spec["group_labels"] = group_labels
+        spec["group_palette"] = group_palette
+        spec["group_palette_map"] = group_palette_map
+        spec["group_line_styles"] = group_line_styles
         specs.append(spec)
 
-        for value in individual_values:
-            indiv = template.copy()
-            metric_name = indiv.pop("metric_name", indiv["key"])
-            indiv["title"] = f"{metric_name} (n_apps={value})"
-            indiv["base_label"] = (
-                f"{indiv['key']}_vs_ppacket_n_apps_{value}_"
-                f"{scheduler_suffix}"
-            )
-            indiv["plot_path"] = os.path.join(
-                run_dir,
-                f"{indiv['base_label']}.png",
-            )
-            indiv["scheduler_label"] = (
-                scheduler_key or scheduler_suffix).lower()
-            if not individual_keep_group:
-                indiv["group_column"] = None
-                indiv.pop("group_palette", None)
-                indiv.pop("group_labels", None)
-                indiv.pop("group_palette_map", None)
-                indiv.pop("group_line_styles", None)
-            indiv["filter_column"] = "n_apps"
-            indiv["filter_value"] = int(value)
-            if group_palette_map is not None:
-                lookup_key = str(int(value))
-                color = group_palette_map.get(lookup_key)
-                if color is not None:
-                    indiv["color_override"] = color
-            specs.append(indiv)
-
+        if create_individual:
+            for v in indiv_values:
+                i = template.copy()
+                file = f"{i['key']}_vs_{x}_value_{v}_{sch_suffix}.png"
+                i["plot_path"] = os.path.join(run_dir, file)
+                i["x_var"] = x
+                i["filter_column"] = "p_packet" if x == "n_apps" else "n_apps"
+                i["filter_value"] = float(v) if x == "n_apps" else int(v)
+                i["color_override"] = group_palette_map.get(str(v))
+                specs.append(i)
     return specs
 
 
 def render_plot(
     spec: dict[str, Any],
     raw_data: pd.DataFrame,
-    color,
     figsize: tuple[float, float],
     dpi: int,
-    simulations_per_point: int,
-) -> Optional[pd.DataFrame]:
+) -> None:
     metric = spec["key"]
-    plot_type = spec["plot_type"]
+    x_var = spec.get("x_var", "p_packet")
     group_column = spec.get("group_column")
     group_labels = spec.get("group_labels") or {}
     group_palette = spec.get("group_palette")
@@ -389,617 +120,309 @@ def render_plot(
     color_override = spec.get("color_override")
     filter_column = spec.get("filter_column")
     filter_value = spec.get("filter_value")
+    base_color = color_override or sns.color_palette("tab10", 1)[0]
+    cols = [x_var, metric]
 
-    base_color = color_override if color_override is not None else color
-    if base_color is None:
-        base_color = sns.color_palette("tab10", 1)[0]
-
-    cols = ["p_packet", metric]
     if group_column:
         cols.append(group_column)
     if filter_column:
         cols.append(filter_column)
-    data = raw_data[cols].copy()
-
+    data = raw_data[cols]
     if filter_column and filter_value is not None:
         data = data[data[filter_column].isin(np.atleast_1d(filter_value))]
 
-    data = data.reset_index(drop=True)
+    keys = [x_var] + ([group_column] if group_column else [])
+    summary_df = data.groupby(keys, as_index=False).agg(
+        mean=(metric, "mean"),
+        std=(metric, "std"),
+        count=(metric, "count"),
+    )
+    sem = summary_df["std"] / np.sqrt(summary_df["count"].clip(lower=1))
+    sem = sem.where(summary_df["count"] >= 2)
+    ci95 = 1.96 * sem
+    summary_df["lower"] = summary_df["mean"] - ci95
+    summary_df["upper"] = summary_df["mean"] + ci95
+    x_values = sorted(summary_df[x_var].unique())
 
-    summary_df = None
-    if plot_type == "line":
-        keys = ["p_packet"] + ([group_column] if group_column else [])
-        summary_df = (
-            data.groupby(keys, as_index=False)
-            .agg(
-                mean=(metric, "mean"),
-                std=(metric, lambda s: s.std(ddof=1)),
-                count=(metric, "count"),
-            )
-            .sort_values(keys)
-            .reset_index(drop=True)
+    use_categorical = x_var == "n_apps"
+    if use_categorical:
+        x_map = {val: idx for idx, val in enumerate(x_values)}
+        summary_df["x_plot"] = summary_df[x_var].map(x_map)
+    else:
+        summary_df["x_plot"] = summary_df[x_var]
+
+    if group_column:
+        summary_df["group_display"] = (
+            summary_df[group_column]
+            .map(group_labels)
+            .fillna(summary_df[group_column].astype(str))
         )
-        if summary_df.empty:
-            return summary_df
-
-        summary_df["sem"] = (
-            summary_df["std"] / np.sqrt(summary_df["count"])
-            ).where(summary_df["count"] >= 2)
-        summary_df["ci95"] = 1.96 * summary_df["sem"]
-        summary_df["lower"] = summary_df["mean"] - summary_df["ci95"]
-        summary_df["upper"] = summary_df["mean"] + summary_df["ci95"]
-        summary_df[metric] = summary_df["mean"]
-        if group_column:
-            summary_df["group_display"] = (
-                summary_df[group_column]
-                .map(group_labels)
-                .fillna(summary_df[group_column].astype(str))
-            )
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
-    yscale = spec.get("yscale")
-    if yscale:
-        ax.set_yscale(yscale)
 
-    scheduler_style = spec.get("scheduler_style")
-
-    if plot_type == "line":
-        if group_column:
-            group_values = summary_df[group_column].dropna().unique().tolist()
-            base_palette = (
-                list(group_palette)
-                if group_palette is not None
-                else sns.color_palette("tab10", max(1, len(group_values)))
-            )
-            line_styles = spec.get("line_styles", [])
-            markers = spec.get("markers", ["o", "s", "D", "^", "v"])
-
-            for i, gv in enumerate(group_values):
-                gdf = summary_df[summary_df[group_column] == gv]
-                if gdf.empty:
-                    continue
-                disp = gdf["group_display"].iloc[0]
-                col = palette_map.get(
-                    str(gv), base_palette[i % len(base_palette)]
-                )
-                custom_style = group_line_styles.get(str(gv))
-                style = (
-                    custom_style
-                    if custom_style is not None
-                    else (
-                        line_styles[i % len(line_styles)]
-                        if line_styles else "-"
-                    )
-                )
-                ax.plot(
-                    gdf["p_packet"],
-                    gdf[metric],
-                    marker=markers[i % len(markers)],
-                    linestyle=style,
-                    linewidth=2.0,
-                    markersize=5.0,
-                    color=col,
-                    label=disp,
-                )
-                if not gdf[["lower", "upper"]].isnull().values.all():
-                    ax.fill_between(
-                        gdf["p_packet"],
-                        gdf["lower"],
-                        gdf["upper"],
-                        color=col,
-                        alpha=0.18,
-                        linewidth=0,
-                    )
-
-            ax.legend(frameon=False, loc="best", fontsize=9)
-        else:
-            linestyle = scheduler_style or "-"
-            sns.lineplot(
-                data=summary_df,
-                x="p_packet",
-                y=metric,
-                marker="o",
-                linewidth=2.0,
-                markersize=5.0,
-                color=base_color,
-                ax=ax,
-                linestyle=linestyle,
-            )
-            if not summary_df[["lower", "upper"]].isnull().values.all():
-                ax.fill_between(
-                    summary_df["p_packet"],
-                    summary_df["lower"],
-                    summary_df["upper"],
-                    color=base_color,
-                    alpha=0.18,
-                    linewidth=0,
-                )
-
-        ax.margins(x=0.02)
-
-    else:
-        labelled = data.assign(
-            p_packet_label=data["p_packet"].map(lambda v: f"{v:g}")
+    if group_column:
+        group_values = summary_df[group_column].dropna().unique().tolist()
+        base_palette = (
+            list(group_palette)
+            if group_palette
+            else sns.color_palette("tab10", max(1, len(group_values)))
         )
-        order = [f"{v:g}" for v in sorted(data["p_packet"].unique())]
+        markers = ["o", "s", "D", "^", "v"]
 
-        if group_column:
-            display_col = "group_display"
-            labelled[display_col] = (
-                labelled[group_column]
-                .map(group_labels)
-                .fillna(labelled[group_column].astype(str))
+        for i, gv in enumerate(group_values):
+            gdf = summary_df[summary_df[group_column] == gv]
+            disp = gdf["group_display"].iloc[0]
+            col = palette_map.get(str(gv), base_palette[i % len(base_palette)])
+            style = group_line_styles.get(str(gv), "-")
+            ax.plot(
+                gdf["x_plot"],
+                gdf["mean"],
+                marker=markers[i % len(markers)],
+                linestyle=style,
+                color=col,
+                label=disp,
             )
-            hue_order = labelled[display_col].unique().tolist()
-            base_palette = (
-                list(group_palette)
-                if group_palette is not None
-                else sns.color_palette("tab10", max(1, len(hue_order)))
-            )
-
-            pairs = (
-                labelled[[group_column, display_col]]
-                .dropna(subset=[group_column])
-                .drop_duplicates()
-            )
-            palette = {}
-            for disp in hue_order:
-                raw = (
-                    pairs.loc[pairs[display_col] == disp, group_column].iloc[0]
-                    if not pairs.empty
-                    else disp
-                )
-                palette[disp] = palette_map.get(str(raw))
-            for i, disp in enumerate(hue_order):
-                if palette.get(disp) is None:
-                    palette[disp] = base_palette[i % len(base_palette)]
-
-            sns.violinplot(
-                data=labelled,
-                x="p_packet_label",
-                y=metric,
-                hue=display_col,
-                order=order,
-                hue_order=hue_order,
-                cut=0,
-                inner="quartile",
-                density_norm="count",
-                palette=palette,
-                linewidth=0.8,
-                dodge=True,
-                ax=ax,
-            )
-            leg = ax.get_legend()
-            if leg is not None:
-                leg.remove()
-            ax.legend(frameon=False, loc="best", fontsize=9)
-        else:
-            sns.violinplot(
-                data=labelled,
-                x="p_packet_label",
-                y=metric,
-                order=order,
-                cut=0,
-                inner="quartile",
-                density_norm="count",
-                color=base_color,
-                linewidth=0.8,
-                ax=ax,
+            ax.fill_between(
+                gdf["x_plot"],
+                gdf["lower"],
+                gdf["upper"],
+                color=col,
+                alpha=0.2,
             )
 
-    if plot_type == "line" and summary_df is not None:
-        if {"lower", "upper"}.issubset(summary_df.columns):
-            vals = np.concatenate(
-                [
-                    summary_df[metric].to_numpy(),
-                    summary_df["lower"].to_numpy(),
-                    summary_df["upper"].to_numpy(),
-                ]
-            )
-        else:
-            vals = summary_df[metric].to_numpy()
+        ax.legend()
     else:
-        vals = data[metric].to_numpy()
+        ax.plot(
+            summary_df["x_plot"],
+            summary_df["mean"],
+            marker="o",
+            linestyle="-",
+            color=base_color,
+        )
+        ax.fill_between(
+            summary_df["x_plot"],
+            summary_df["lower"],
+            summary_df["upper"],
+            color=base_color,
+            alpha=0.2,
+        )
 
-    vals = pd.Series(vals).dropna().to_numpy()
-    if yscale == "log":
-        vals = vals[vals > 0]
-    if vals.size:
-        pad_frac = float(spec.get("pad_fraction", 0.05))
-        lo, hi = float(vals.min()), float(vals.max())
-        span = hi - lo
-        if span == 0:
-            span = max(abs(lo) * 0.05, 1e-6)
-        lo -= span * pad_frac
-        hi += span * pad_frac
-        y_min = spec.get("ymin", lo)
-        y_max = spec.get("ymax", hi)
-        if yscale == "log":
-            min_positive = max(1e-9, float(vals.min()) * 0.5)
-            y_min = max(y_min, min_positive)
-            if y_max <= y_min:
-                y_max = y_min * 10.0
-        ax.set_ylim(y_min, y_max)
+    if spec.get("yscale"):
+        if summary_df["mean"].gt(0).any():
+            ax.set_yscale(spec["yscale"])
 
+    ymin = spec.get("ymin")
+    ymax = spec.get("ymax")
+    if ymin is not None or ymax is not None:
+        ax.set_ylim(ymin, ymax)
     if spec.get("percentage"):
         fmt = spec.get("percentage_format", "{:.1f}%")
-        ax.yaxis.set_major_formatter(FuncFormatter(
-            lambda v, _: fmt.format(v * 100.0)
-        ))
-    else:
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda v, _p: "0" if v == 0.0 else f"{v:.4g}")
+            FuncFormatter(lambda v, _: fmt.format(v * 100.0))
         )
 
-    if plot_type == "line":
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-    if yscale != "log":
-        ax.yaxis.set_minor_locator(AutoMinorLocator())
-    ax.grid(True, which="major", linewidth=0.6)
-    ax.grid(True, which="minor", linewidth=0.3, alpha=0.2)
-    sns.despine(ax=ax)
-
-    ax.set_xlabel(r"$p_{\mathrm{packet}}$")
+    xlabel_map = {
+        "p_packet": r"$p_{\mathrm{packet}}$",
+        "load": "Load",
+        "n_apps": "Number of applications",
+    }
+    ax.set_xlabel(xlabel_map.get(x_var, x_var))
     ax.set_ylabel(spec["ylabel"])
-    # ax.set_title(spec["title"], pad=6)
-    ax.text(
-        0.99,
-        0.02,
-        f"{simulations_per_point} sims/point",
-        ha="right",
-        va="bottom",
-        transform=ax.transAxes,
-        fontsize=9,
-        color="#444",
-    )
+
+    if use_categorical:
+        ax.set_xticks(range(len(x_values)))
+        ax.set_xticklabels([f"{int(v)}" for v in x_values])
+    else:
+        ax.set_xticks(x_values)
+    ax.margins(x=0, y=0.05)
 
     plot_path = spec["plot_path"]
-    directory = os.path.dirname(plot_path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    fig.tight_layout()
+    os.makedirs(os.path.dirname(plot_path), exist_ok=True)
     fig.savefig(plot_path, bbox_inches="tight")
     plt.close(fig)
 
-    return summary_df
-
 
 def plot_metrics_vs_ppacket(
-    ppacket_values: list[float],
-    simulations_per_point: int = 100,
-    seed_start: int = 0,
-    config: str = "configurations/network/Dumbbell.gml",
+    raw_csv_path: str,
     save_path: str | None = None,
-    output_dir: str = "results",
-    simulation_kwargs: dict | None = None,
     figsize: tuple[float, float] = (7, 4.5),
-    dpi: int = 300,
-    max_workers: Optional[int] = None,
-    show_progress: bool = True,
-    keep_seed_outputs: bool = False,
-    group_column: str | None = None,
-    group_labels: dict | None = None,
+    dpi: int = 600,
+    gp_column: str | None = None,
+    gp_labels: dict | None = None,
     group_palette: Sequence[str] | None = None,
     n_apps_values: Sequence[int] | None = None,
-    compare_schedulers: bool = False,
-    schedulers: Sequence[str] | None = None,
-) -> tuple[pd.DataFrame, str]:
-    """Run multiple simulations varying the packet generation probability.
+    scheduler: str | None = None,
+    create_individual: bool = False,
+) -> pd.DataFrame:
+    results_df = pd.read_csv(raw_csv_path)
+    run_dir = os.path.dirname(raw_csv_path) or "."
 
-    Args:
-        ppacket_values (list[float]): List of packet generation probabilities
-        to test.
-        simulations_per_point (int, optional): Number of simulations to run for
-        each probability point.
-        seed_start (int, optional): Starting seed value for random number
-        generation.
-        config (str, optional): Path to the network configuration file.
-        save_path (str | None, optional): Path to save the plot.
-        output_dir (str, optional): Directory to save simulation results.
-        simulation_kwargs (dict | None, optional): Additional arguments for the
-        simulation.
-        figsize (tuple[float, float], optional): Size of the plot figure.
-        dpi (int, optional): Dots per inch for the plot.
-        max_workers (Optional[int], optional): Maximum number of workers for
-        parallel processing.
-        show_progress (bool, optional): Whether to show progress bars during
-        simulations.
-        keep_seed_outputs (bool, optional): When ``False``, delete the
-        per-seed result folders after each simulation finishes.
-        group_column (str | None, optional): Column used to split lines/violins
-        into groups. Defaults to ``"n_apps"`` when multiple ``n_apps`` values
-        are provided.
-        group_labels (dict | None, optional): Mapping from group values to
-        display labels.
-        group_palette (Sequence[str] | None, optional): Custom color palette
-        for grouped plots.
-        n_apps_values (Sequence[int] | None, optional): Specific application
-        counts to sweep. When multiple values are provided, one line/violin
-        will be produced per group.
-        compare_schedulers (bool, optional): When ``True``, sweep multiple
-        schedulers and also create combined plots.
-        schedulers (Sequence[str] | None, optional): Ordered scheduler names
-        to compare when ``compare_schedulers`` is enabled.
-
-    Returns:
-        tuple[pd.DataFrame, str]: Aggregated simulation results and the path to
-        the CSV file containing the raw records.
-    """
-    n_apps_list = [int(v) for v in n_apps_values]
-    n_tasks_label = str(n_apps_list[0]) if len(n_apps_list) == 1 else "varied"
-    n_tasks_display = ", ".join(map(str, n_apps_list))
-
-    if compare_schedulers:
-        scheduler_order: list[str] = []
-        desired = schedulers or ("dynamic", "static")
-        for name in desired:
-            normalized = str(name).strip().lower()
-            if not normalized or normalized in scheduler_order:
-                continue
-            scheduler_order.append(normalized)
-
-        combined_records = []
-        for sched in scheduler_order:
-            nested_kwargs = dict(simulation_kwargs or {})
-            nested_kwargs["scheduler"] = sched
-            out = os.path.join(output_dir, sched) if output_dir else sched
-            df, _ = plot_metrics_vs_ppacket(
-                ppacket_values=ppacket_values,
-                simulations_per_point=simulations_per_point,
-                seed_start=seed_start,
-                config=config,
-                save_path=save_path,
-                output_dir=out,
-                simulation_kwargs=nested_kwargs,
-                figsize=figsize,
-                dpi=dpi,
-                max_workers=max_workers,
-                show_progress=show_progress,
-                keep_seed_outputs=keep_seed_outputs,
-                group_column=group_column,
-                group_labels=group_labels,
-                group_palette=group_palette,
-                n_apps_values=n_apps_values,
-                compare_schedulers=False,
-            )
-            temp = df.copy()
-            temp["scheduler"] = sched
-            combined_records.append(temp)
-
-        combined_df = pd.concat(combined_records, ignore_index=True)
-        comparison_root = os.path.join(output_dir, "comparison")
-        comparison_dir, comparison_ts = prepare_run_dir(
-            comparison_root,
-            ppacket_values,
-            keep_seed_outputs=keep_seed_outputs,
-        )
-        combined_csv_path = os.path.join(
-            comparison_dir,
-            f"{comparison_ts}_combined_raw.csv",
-        )
-        combined_df.to_csv(combined_csv_path, index=False)
-
-        scheduler_labels = {
-            sched: sched.replace("_", " ").title() for sched in scheduler_order
-        }
-        scheduler_palette = sns.color_palette("tab10", len(scheduler_order))
-        palette_map = {
-            sched: scheduler_palette[idx % len(scheduler_palette)]
-            for idx, sched in enumerate(scheduler_order)
-        }
-        scheduler_styles = {
-            "static": "-",
-            "dynamic": "--",
-        }
-        comparison_plot_label = (
-            f"admission_rate_vs_ppacket_n_tasks_{n_tasks_label}_comparison"
-        )
-        comparison_save_path = os.path.join(
-            comparison_dir,
-            f"{comparison_plot_label}.png",
-        )
-        comparison_specs = build_metric_specs(
-            n_tasks_label=n_tasks_label,
-            n_tasks_display=n_tasks_display,
-            save_path=comparison_save_path,
-            run_dir=comparison_dir,
-            plot_label=comparison_plot_label,
-            scheduler_display="Scheduler Comparison",
-            scheduler_suffix="Comparison",
-            scheduler_key="comparison",
-            group_column="scheduler",
-            group_labels=scheduler_labels,
-            group_palette=scheduler_palette,
-            group_palette_map=palette_map,
-            individual_n_apps=(n_apps_list if len(n_apps_list) > 1 else None),
-            individual_keep_group=True,
-            group_line_styles=scheduler_styles,
-        )
-
-        comparison_kwargs = build_default_sim_args(config, simulation_kwargs)
-        comparison_kwargs["n_apps"] = n_apps_list[0]
-        comparison_kwargs["scheduler"] = ",".join(scheduler_order)
-
-        generate_metadata(
-            run_dir=comparison_dir,
-            timestamp=comparison_ts,
-            ppacket_values=ppacket_values,
-            simulations_per_point=simulations_per_point,
-            seed_start=seed_start,
-            config=config,
-            save_path=comparison_save_path,
-            raw_csv_path=combined_csv_path,
-            default_kwargs=comparison_kwargs,
-            metrics_to_plot=comparison_specs,
-            n_apps_values=n_apps_list,
-            keep_seed_outputs=keep_seed_outputs,
-            scheduler=",".join(scheduler_order),
-        )
-
-        set_plot_theme(dpi)
-        palette = sns.color_palette("tab10", len(comparison_specs))
-        for i, spec in enumerate(comparison_specs):
-            render_plot(
-                spec=spec,
-                raw_data=combined_df,
-                color=palette[i % len(palette)],
-                figsize=figsize,
-                dpi=dpi,
-                simulations_per_point=simulations_per_point,
-            )
-
-        return combined_df, combined_csv_path
-
-    default_kwargs = build_default_sim_args(config, simulation_kwargs)
-    default_kwargs["n_apps"] = n_apps_list[0]
-
-    scheduler_option = default_kwargs.get("scheduler")
-    scheduler_value = str(scheduler_option).strip() or "dynamic"
-    scheduler_display = scheduler_value.replace("_", " ").title()
-    scheduler_suffix = (
-        "".join(sch for sch in scheduler_display if sch.isalnum()) or "Dynamic"
-    )
-
-    plot_label = (
-        f"admission_rate_vs_ppacket_n_apps_{n_tasks_label}_"
-        f"{scheduler_suffix}"
-    )
-
-    run_dir, timestamp = prepare_run_dir(
-        output_dir,
-        ppacket_values,
-        keep_seed_outputs=keep_seed_outputs,
-    )
-    if save_path:
-        base, ext = os.path.splitext(save_path)
-        ext = ext or ".png"
-        suffix = f"_{scheduler_suffix}"
-        if not base.lower().endswith(suffix.lower()):
-            base = f"{base}{suffix}"
-        save_path = f"{base}{ext}"
+    if n_apps_values is None:
+        apps_list = results_df["n_apps"].dropna().astype(int).unique().tolist()
+        apps_list.sort()
     else:
-        save_path = os.path.join(run_dir, f"{plot_label}.png")
-    raw_csv_path = os.path.join(run_dir, f"{timestamp}_raw.csv")
+        apps_list = [int(v) for v in n_apps_values]
 
-    resolved_group_column = group_column or (
-        "n_apps" if len(n_apps_list) > 1 else None
-    )
-    resolved_group_labels = group_labels or (
-        {v: f"{v} apps" for v in n_apps_list}
-        if resolved_group_column == "n_apps"
-        else None
-    )
-    resolved_palette_map = None
-    if resolved_group_column:
-        keys = [
-            str(v)
-            for v in (
-                n_apps_list
-                if resolved_group_column == "n_apps"
-                else resolved_group_labels.keys()
-            )
-        ]
-        base = (
+    n_apps_label = str(apps_list[0]) if len(apps_list) == 1 else "varied"
+    scheduler_value = scheduler or "dynamic"
+    scheduler_suffix = scheduler_value.title()
+
+    if not save_path:
+        save_path = os.path.join(
+            run_dir,
+            f"admission_rate_vs_ppacket_{n_apps_label}_{scheduler_suffix}.png",
+        )
+    if not gp_column and len(apps_list) > 1:
+        gp_column = "n_apps"
+    if not gp_labels and gp_column == "n_apps":
+        gp_labels = {v: f"{v} apps" for v in apps_list}
+
+    plt_map = None
+    if gp_column:
+        keys = apps_list if gp_column == "n_apps" else list(gp_labels.keys())
+        plt = (
             list(group_palette)
             if group_palette
             else sns.color_palette("tab10", len(keys))
         )
-        resolved_palette_map = {
-            k: base[i % len(base)] for i, k in enumerate(keys)
-        }
+        plt_map = {str(k): plt[i % len(plt)] for i, k in enumerate(keys)}
 
     metrics_to_plot = build_metric_specs(
-        n_tasks_label=n_tasks_label,
-        n_tasks_display=n_tasks_display,
+        v_label=n_apps_label,
         save_path=save_path,
         run_dir=run_dir,
-        plot_label=plot_label,
-        scheduler_display=scheduler_display,
-        scheduler_suffix=scheduler_suffix,
-        scheduler_key=scheduler_value,
-        group_column=resolved_group_column,
-        group_labels=resolved_group_labels,
+        sch_suffix=scheduler_suffix,
+        x="p_packet",
+        group_column=gp_column,
+        group_labels=gp_labels,
         group_palette=group_palette,
-        group_palette_map=resolved_palette_map,
-        individual_n_apps=(n_apps_list if len(n_apps_list) > 1 else None),
+        group_palette_map=plt_map,
+        individual_values=apps_list if len(apps_list) > 1 else None,
+        create_individual=create_individual,
     )
-
-    generate_metadata(
-        run_dir=run_dir,
-        timestamp=timestamp,
-        ppacket_values=ppacket_values,
-        simulations_per_point=simulations_per_point,
-        seed_start=seed_start,
-        config=config,
-        save_path=save_path,
-        raw_csv_path=raw_csv_path,
-        default_kwargs=default_kwargs,
-        metrics_to_plot=metrics_to_plot,
-        n_apps_values=n_apps_list,
-        keep_seed_outputs=keep_seed_outputs,
-        scheduler=scheduler_value,
-    )
-
-    tasks = build_tasks(
-        ppacket_values=ppacket_values,
-        simulations_per_point=simulations_per_point,
-        seed_start=seed_start,
-        run_dir=run_dir,
-        default_kwargs=default_kwargs,
-        n_apps_values=n_apps_list,
-        keep_seed_outputs=keep_seed_outputs,
-    )
-
-    records = run_parallel_sims(
-        tasks=tasks,
-        max_workers=max_workers or os.cpu_count(),
-        show_progress=show_progress,
-    )
-
-    results_df = pd.DataFrame(records)
-    results_df.to_csv(raw_csv_path, index=False)
 
     set_plot_theme(dpi)
-    palette = sns.color_palette("tab10", len(metrics_to_plot))
-    for i, spec in enumerate(metrics_to_plot):
-        if spec.get("group_column") is None:
-            scheduler_val = spec.get("scheduler_label")
-            if scheduler_val == "dynamic":
-                spec.setdefault("scheduler_style", "--")
-            elif scheduler_val == "static":
-                spec.setdefault("scheduler_style", "-")
+    for spec in metrics_to_plot:
         render_plot(
             spec=spec,
             raw_data=results_df,
-            color=palette[i % len(palette)],
             figsize=figsize,
             dpi=dpi,
-            simulations_per_point=simulations_per_point,
         )
 
-    return results_df, raw_csv_path
+    return results_df
+
+
+def plot_metrics_vs_load(
+    raw_csv_path: str,
+    save_path: str | None = None,
+    figsize: tuple[float, float] = (7, 4.5),
+    dpi: int = 600,
+    group_column: str | None = None,
+    gp_labels: dict | None = None,
+    group_palette: Sequence[str] | None = None,
+    p_packet_values: Sequence[float] | None = None,
+    scheduler: str | None = None,
+    create_individual: bool = False,
+) -> pd.DataFrame:
+    results_df = pd.read_csv(raw_csv_path)
+    run_dir = os.path.dirname(raw_csv_path) or "."
+
+    if p_packet_values is None:
+        pp_list = results_df["p_packet"].dropna().unique().tolist()
+        pp_list.sort()
+    else:
+        pp_list = [float(v) for v in p_packet_values]
+
+    pp_label = str(pp_list[0]) if len(pp_list) == 1 else "varied"
+    scheduler_value = scheduler or "dynamic"
+    sch_suffix = scheduler_value.title()
+
+    if not save_path:
+        save_path = os.path.join(
+            run_dir,
+            f"admission_rate_vs_load_p_packet_{pp_label}_{sch_suffix}.png",
+        )
+    if not group_column and len(pp_list) > 1:
+        group_column = "p_packet"
+    if not gp_labels and group_column == "p_packet":
+        gp_labels = {v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in pp_list}
+
+    plt_map = None
+    if group_column:
+        keys = (
+            pp_list if group_column == "p_packet" else list(gp_labels.keys())
+        )
+        plt = (
+            list(group_palette)
+            if group_palette
+            else sns.color_palette("tab10", len(keys))
+        )
+        plt_map = {str(k): plt[i % len(plt)] for i, k in enumerate(keys)}
+
+    metrics_to_plot = build_metric_specs(
+        v_label=pp_label,
+        save_path=save_path,
+        run_dir=run_dir,
+        sch_suffix=sch_suffix,
+        x="n_apps",
+        group_column=group_column,
+        group_labels=gp_labels,
+        group_palette=group_palette,
+        group_palette_map=plt_map,
+        individual_values=pp_list if len(pp_list) > 1 else None,
+        create_individual=create_individual,
+    )
+
+    set_plot_theme(dpi)
+    for spec in metrics_to_plot:
+        render_plot(
+            spec=spec,
+            raw_data=results_df,
+            figsize=figsize,
+            dpi=dpi,
+        )
+
+    return results_df
 
 
 """
-# Example usage of the plot_metrics_vs_ppacket function.
 if __name__ == "__main__":
-    sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
-    n_apps_values = [100, 120, 140, 160, 180, 200]
+    from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
-    plot_metrics_vs_ppacket(
+    sweep_values = np.round(np.linspace(0.1, 0.9, 9), 2).tolist()
+    n_apps_values = [10, 20, 40, 60, 80, 100]
+
+    _, raw_csv_path = run_ppacket_sweep_to_csv(
         ppacket_values=sweep_values,
-        simulations_per_point=1000,
+        simulations_per_point=2,
         simulation_kwargs={
-            "inst_range": (100, 100),
-            "epr_range": (10, 10),
+            "inst_range": (10, 10),
+            "epr_range": (2, 2),
             "period_range": (1, 1),
-            "hyperperiod_cycles": 2000,
-            "memory_lifetime": 1000,
-            "p_swap": 0.95,
+            "memory": 100,
+            "p_swap": 0.6,
+            "p_gen": 1e-3,
+            "fidelity_range": (0.6, 0.8),
+            "time_slot_duration": 1e-4,
+            "routing": "capacity",
+            "capacity_threshold": 0.8,
             "scheduler": "dynamic",
         },
-        config="configurations/network/Garr201201.gml",
-        n_apps_values=n_apps_values[:1],
-        compare_schedulers=True,
+        config="configurations/network/Dumbbell.gml",
+        n_apps_values=n_apps_values,
+        keep_seed_outputs=False,
+    )
+
+    plot_metrics_vs_ppacket(
+        raw_csv_path=raw_csv_path,
+        n_apps_values=n_apps_values,
+        scheduler="dynamic",
+    )
+
+    plot_metrics_vs_load(
+        raw_csv_path=raw_csv_path,
+        p_packet_values=sweep_values,
+        scheduler="dynamic",
     )
 """
