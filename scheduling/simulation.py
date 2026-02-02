@@ -453,10 +453,7 @@ def simulate_dynamic(
     poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
     poisson = (1.0 / arrival_rate) if poisson_enabled else None
     poisson_next_release = (
-        {
-            app: base_release.get(app, 0.0) + rng.exponential(poisson)
-            for app in app_specs
-        }
+        {app: float(base_release.get(app, 0.0)) for app in app_specs}
         if poisson_enabled
         else {}
     )

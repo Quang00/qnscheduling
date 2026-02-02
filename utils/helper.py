@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from openpyxl.utils import get_column_letter
 
+from scheduling.pga import duration_pga
+
 
 def shortest_paths(
     edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
@@ -49,17 +51,27 @@ def shortest_paths(
     }
 
 
-def find_min_fidelity_path(
+def find_feasible_path(
     edges: List[Tuple[str, str]],
     app_requests: Dict[str, Dict[str, Any]],
-    fidelities: Dict[Tuple[str, str], float],
+    fidelities: Dict[Tuple[str, str], float] | None,
+    pga_rel_times: Dict[str, float] | None = None,
+    routing_mode: str = "shortest",
+    capacity_threshold: float = 0.8,
+    p_packet: float | None = None,
+    memory: int = 1,
+    p_swap: float = 0.6,
+    p_gen: float = 0.001,
+    time_slot_duration: float = 1e-4,
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
     based on minimum fidelity threshold. The fidelity constraint is transformed
     into a maximum path length (L_max) from the paper Chakraborty et al.,
     "Entanglement Distribution in a Quantum Network: A Multicommodity
     Flow-Based Approach", (2020). The path with the fewest hops that meets the
-    fidelity requirement is selected.
+    fidelity requirement is selected. The routing mode can be set to "shortest"
+    or "capacity". In "capacity" mode, edges that have reached the capacity
+    threshold are excluded from path selection.
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
@@ -71,6 +83,21 @@ def find_min_fidelity_path(
         fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
             the quantum network, where keys are directed edges (src, dst) and
             values are the fidelities of those edges.
+        routing_mode (str, optional): Routing mode, either "shortest" or
+            "capacity". In "capacity" mode, edges that have reached the
+            capacity threshold are excluded from path selection.
+        capacity_threshold (float, optional): Capacity threshold for edges in
+            "capacity" routing mode. Edges with utilization above this
+            threshold are excluded from path selection.
+        p_packet (float, optional): Probability of a packet being generated.
+        memory (int, optional): Number of independent link-generation trials
+            per slot.
+        p_swap (float, optional): Probability of swapping an EPR pair in a
+            single trial.
+        p_gen (float, optional): Probability of generating an EPR pair in a
+            single trial.
+        time_slot_duration (float, optional): Duration of a time slot in
+            seconds.
 
     Returns:
         Dict[str, List[str] | None]: A dictionary where keys are application
@@ -78,32 +105,88 @@ def find_min_fidelity_path(
         source to destination for that application, or None if no feasible
         path exists.
     """
-    G = nx.Graph()
-    G.add_edges_from(edges)
-    ret = {}
     initial_fidelity = min(fidelities.values())
+    base_graph = nx.Graph()
+    base_graph.add_edges_from(edges)
+    ret = {}
+    capacity = defaultdict(float)
 
-    for app, req in app_requests.items():
+    apps_ordered = list(app_requests.keys())
+    if pga_rel_times is not None:
+        apps_ordered.sort(
+            key=lambda app: (float(pga_rel_times.get(app, 0.0)), str(app))
+        )
+
+    for app in apps_ordered:
+        req = app_requests[app]
         src = req['src']
         dst = req['dst']
         min_fidelity = req['min_fidelity']
 
-        if min_fidelity <= 0.5 or initial_fidelity <= 0.5:
+        if min_fidelity <= 0.25:
             ret[app] = None
             continue
 
+        if routing_mode == "capacity":
+            usable_edges = [
+                (u, v)
+                for (u, v) in edges
+                if capacity[tuple(sorted((u, v)))] < capacity_threshold
+            ]
+            G = nx.Graph()
+            G.add_edges_from(usable_edges)
+        else:
+            G = base_graph
+
+        if not nx.has_path(G, src, dst):
+            ret[app] = None
+            continue
+
+        selected_path = None
+        selected_delta = 0.0
         L_max = math.floor(
             math.log((4 * min_fidelity - 1) / 3)
             / math.log((4 * initial_fidelity - 1) / 3)
         )
-        feasible_paths = []
-        all_shortest_paths = list(nx.shortest_simple_paths(G, src, dst))
-        for path in all_shortest_paths:
+        for path in nx.shortest_simple_paths(G, src, dst):
             L = len(path) - 1
-            if L <= L_max:
-                feasible_paths.append(path)
+            if L > L_max:
+                continue
+            if routing_mode == "capacity":
+                n_swaps = max(0, len(path) - 2)
+                pga_duration = duration_pga(
+                    p_packet=p_packet,
+                    epr_pairs=req['epr'],
+                    n_swap=n_swaps,
+                    memory=memory,
+                    p_swap=p_swap,
+                    p_gen=p_gen,
+                    time_slot_duration=time_slot_duration,
+                )
+                delta = float(pga_duration) / float(req['period'])
+                links = [
+                    tuple(sorted((u, v)))
+                    for u, v in zip(path[:-1], path[1:], strict=False)
+                ]
+                if any(
+                    capacity[lk] + delta > capacity_threshold for lk in links
+                ):
+                    continue
+                selected_delta = delta
+            selected_path = path
+            break
 
-        ret[app] = feasible_paths[0] if feasible_paths else None
+        if selected_path is None:
+            ret[app] = None
+            continue
+
+        if routing_mode == "capacity":
+            for u, v in zip(
+                selected_path[:-1], selected_path[1:], strict=False
+            ):
+                link = tuple(sorted((u, v)))
+                capacity[link] += selected_delta
+        ret[app] = selected_path
     return ret
 
 
@@ -337,7 +420,17 @@ def save_results(
     )
     completed_total = int((final["status"] == "completed").sum())
     drop_total = int((final["status"] == "drop").sum())
-    miss_total = (df["status"] == "deadline_miss").sum()
+    deadline_mask = (
+        final.get("deadline").notna() if "deadline" in final else None
+    )
+    if deadline_mask is None:
+        miss_total = 0
+        tot_deadline_reqs = 0
+    else:
+        tot_deadline_reqs = int(deadline_mask.sum())
+        miss_total = int(
+            ((final["status"] != "completed") & deadline_mask).sum()
+        )
     failed_total = int((final["status"] == "failed").sum())
 
     arrival_min = df["arrival_time"].min()
@@ -464,7 +557,9 @@ def save_results(
     )
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
-    deadline_miss_ratio = miss_total / tot_reqs if tot_reqs else float("nan")
+    deadline_miss_rate = (
+        miss_total / tot_deadline_reqs if tot_deadline_reqs else float("nan")
+    )
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
     defer_prob = (
         df.loc[df["status"] == "defer", "pga"].nunique() / tot_reqs
@@ -506,7 +601,7 @@ def save_results(
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completed ratio  : {completed_ratio:.4f}")
     print(f"Failed ratio     : {failed_ratio:.4f}")
-    print(f"Deadline miss ratio : {deadline_miss_ratio:.4f}")
+    print(f"Deadline miss rate : {deadline_miss_rate:.4f}")
     print(f"Drop ratio       : {drop_ratio:.4f}")
     print(f"Deferral prob    : {defer_prob:.4f}")
     print(f"Retry prob       : {retry_prob:.4f}")
@@ -531,7 +626,7 @@ def save_results(
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),
                 "failed_ratio": float(failed_ratio),
-                "deadline_miss_ratio": float(deadline_miss_ratio),
+                "deadline_miss_rate": float(deadline_miss_rate),
                 "drop_ratio": float(drop_ratio),
                 "defer_prob": float(defer_prob),
                 "retry_prob": float(retry_prob),
