@@ -33,7 +33,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           coverage run --source=scheduling,utils -m pytest tests/
-          coverage xml  --omit=scheduling/main.py,utils/plots.py, utils/parallel_simulations.py
+          coverage xml  --omit=scheduling/main.py,utils/plots.py,utils/parallel_simulations.py
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
         with:
