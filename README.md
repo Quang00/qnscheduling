@@ -166,6 +166,28 @@ python -m scheduling.main \
   --output results
 ```
 
+### Dynamic scheduler + routing capacity-aware
+```bash
+python -m scheduling.main \
+  --config configurations/network/Dumbbell.gml \
+  --apps 2 \
+  --inst 2 2 \
+  --epr 2 2 \
+  --period 10.0 10.0 \
+  --ppacket 0.1 \
+  --memory 50 \
+  --pswap 0.95 \
+  --pgen 0.001 \
+  --min-fidelity 0.6 0.6 \
+  --slot-duration 0.0001 \
+  --seed 42 \
+  --routing capacity \
+  --capacity-threshold 0.8 \
+  --scheduler dynamic \
+  --arrival-rate 1.0 \
+  --output results
+```
+
 ## Acknowledgements
 
 The network topology configurations (`configurations/network/*.gml`) were obtained from **topohub** (https://github.com/piotrjurkiewicz/topohub) based on the Internet Topology Zoo, and are used here for research and simulation purposes.
