@@ -907,7 +907,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "inst_range": (100, 100),
         "epr_range": (2, 2),
         "period_range": (1, 1),
-        "hyperperiod_cycles": 2000,
+        "hyperperiod_cycles": 1000,
         "memory": 1000,
         "p_swap": 0.6,
         "p_gen": 1e-3,
@@ -951,80 +951,6 @@ def build_tasks(
                     )
                 )
     return tasks
-
-
-def aggregate_metric(
-    data: pd.DataFrame,
-    column: str,
-    prefix: str,
-    clip: tuple[float | None, float | None] | None = None,
-    prefixed_columns: bool = True,
-) -> pd.DataFrame:
-    mean_col = f"mean_{prefix}"
-    std_col = f"std_{prefix}"
-    if prefixed_columns:
-        sem_col, ci_col, lower_col, upper_col = (
-            f"sem_{prefix}",
-            f"ci95_{prefix}",
-            f"lower_{prefix}",
-            f"upper_{prefix}",
-        )
-    else:
-        sem_col, ci_col, lower_col, upper_col = "sem", "ci95", "lower", "upper"
-
-    ordered_cols = [
-        "p_packet",
-        "total",
-        mean_col,
-        std_col,
-        "count",
-        sem_col,
-        ci_col,
-        lower_col,
-        upper_col,
-    ]
-    metric_df = data.dropna(subset=[column])
-    if metric_df.empty:
-        return pd.DataFrame(columns=ordered_cols)
-
-    grouped = (
-        metric_df.groupby("p_packet", as_index=False)
-        .agg(
-            total=(column, "sum"),
-            mean=(column, "mean"),
-            std=(column, "std"),
-            count=(column, "count"),
-        )
-        .assign(
-            sem=lambda df: df["std"] / np.sqrt(df["count"].clip(lower=1)),
-        )
-    )
-
-    grouped["total"] = grouped["total"].astype(float)
-    grouped["std"] = grouped["std"].fillna(0.0)
-    grouped["sem"] = grouped["sem"].fillna(0.0)
-
-    grouped["ci95"] = grouped["sem"] * 1.96
-    grouped["lower"] = grouped["mean"] - grouped["ci95"]
-    grouped["upper"] = grouped["mean"] + grouped["ci95"]
-
-    if clip is not None:
-        lo, hi = clip
-        grouped["lower"] = grouped["lower"].clip(lower=lo, upper=hi)
-        grouped["upper"] = grouped["upper"].clip(lower=lo, upper=hi)
-
-    grouped["count"] = grouped["count"].astype(int)
-    grouped = grouped.rename(
-        columns={
-            "mean": mean_col,
-            "std": std_col,
-            "sem": sem_col,
-            "ci95": ci_col,
-            "lower": lower_col,
-            "upper": upper_col,
-        }
-    )
-    return grouped[ordered_cols]
 
 
 def generate_metadata(
