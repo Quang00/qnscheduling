@@ -71,6 +71,14 @@ def build_metric_specs(
             "ylabel": "Deadline miss rate (%)",
             "percentage": True,
         },
+        {
+            "key": "avg_hops",
+            "ylabel": "Average number of hops",
+        },
+        {
+            "key": "avg_min_fidelity",
+            "ylabel": "Average minimum fidelity",
+        }
     ]
 
     specs = []
@@ -395,23 +403,24 @@ if __name__ == "__main__":
 
     _, raw_csv_path = run_ppacket_sweep_to_csv(
         ppacket_values=sweep_values,
-        simulations_per_point=2,
+        simulations_per_point=200,
         simulation_kwargs={
-            "inst_range": (10, 10),
+            "inst_range": (100, 100),
             "epr_range": (2, 2),
             "period_range": (1, 1),
             "memory": 100,
             "p_swap": 0.6,
             "p_gen": 1e-3,
-            "fidelity_range": (0.6, 0.8),
+            "fidelity_range": (0.8, 1.0),
             "time_slot_duration": 1e-4,
-            "routing": "capacity",
+            "routing": "shortest",
             "capacity_threshold": 0.8,
             "scheduler": "dynamic",
+            "arrival_rate": 1,
         },
         config="configurations/network/Dumbbell.gml",
         n_apps_values=n_apps_values,
-        keep_seed_outputs=False,
+        keep_seed_outputs=True,
     )
 
     plot_metrics_vs_ppacket(
