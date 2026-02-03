@@ -1,4 +1,3 @@
-import json
 import math
 import os
 import re
@@ -807,22 +806,6 @@ def edges_delay(
     return delay_map
 
 
-def sum_path_delay(route: list[str], delay_map: dict[tuple, float]) -> float:
-    """Summing the total delay along a given route based on a delay map.
-
-    Args:
-        route (list[str]): A list of nodes representing the route.
-        delay_map (dict[tuple, float]): A mapping of edges to their delays.
-
-    Returns:
-        float: The total delay along the route.
-    """
-    total = 0.0
-    for u, v in zip(route[:-1], route[1:], strict=False):
-        total += max(0.0, delay_map.get((u, v), delay_map.get((v, u), 0.0)))
-    return total
-
-
 def _lcm(a: int, b: int) -> int:
     """Compute the least common multiple (LCM) of two integers.
 
@@ -951,54 +934,6 @@ def build_tasks(
                     )
                 )
     return tasks
-
-
-def generate_metadata(
-    run_dir: str,
-    timestamp: str,
-    ppacket_values: Iterable[float],
-    simulations_per_point: int,
-    seed_start: int,
-    config: str,
-    save_path: str,
-    raw_csv_path: str,
-    default_kwargs: dict,
-    metrics_to_plot: list[dict[str, Any]],
-    n_apps_values: Iterable[int] | None = None,
-    keep_seed_outputs: bool = True,
-    scheduler: str | None = None,
-) -> None:
-    metrics_metadata = {}
-    for spec in metrics_to_plot:
-        entry = {
-            "base_label": spec.get("base_label"),
-            "plot": (
-                os.path.basename(spec.get("plot_path", ""))
-                if spec.get("plot_path")
-                else None
-            ),
-            "plot_type": spec.get("plot_type"),
-        }
-        metrics_metadata[spec["key"]] = entry
-    metadata = {
-        "timestamp": timestamp,
-        "output_dir": run_dir,
-        "ppacket_values": [float(v) for v in ppacket_values],
-        "simulations_per_point": simulations_per_point,
-        "seed_start": seed_start,
-        "config": config,
-        "save_path": save_path,
-        "raw_csv": os.path.basename(raw_csv_path),
-        "metrics": metrics_metadata,
-        "parameters": {k: default_kwargs[k] for k in default_kwargs},
-        "keep_seed_outputs": bool(keep_seed_outputs),
-    }
-    if n_apps_values is not None:
-        metadata["n_apps_values"] = [int(val) for val in n_apps_values]
-    if scheduler is not None:
-        metadata["scheduler"] = str(scheduler)
-    with open(os.path.join(run_dir, "params.json"), "w") as f:
-        json.dump(metadata, f, indent=2, sort_keys=True)
 
 
 def compute_link_utilization(
