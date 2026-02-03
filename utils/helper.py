@@ -580,6 +580,16 @@ def save_results(
         if not admitted_hops.empty
         else float("nan")
     )
+    admitted_min_fidelities = [
+        app_specs[app].get("min_fidelity", float("nan"))
+        for app in admitted_apps
+        if app in app_specs
+    ]
+    avg_min_fidelity = (
+        float(np.mean(admitted_min_fidelities))
+        if admitted_min_fidelities
+        else float("nan")
+    )
 
     print("\n=== Summary ===")
     print(f"Admission rate   : {admission_rate:.4f}")
@@ -606,7 +616,7 @@ def save_results(
         n_failed = int(row.get("failed", 0))
         print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
 
-    print(f"Makespan         : {makespan:.4f}")
+    print(f"Completion time  : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completed ratio  : {completed_ratio:.4f}")
     print(f"Failed ratio     : {failed_ratio:.4f}")
@@ -621,6 +631,7 @@ def save_results(
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
     print(f"Avg hops         : {avg_hops:.4f}")
+    print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
     print(f"Total PGA duration : {total_pga_duration:.4f}")
     print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
@@ -648,6 +659,7 @@ def save_results(
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
                 "avg_hops": float(avg_hops),
+                "avg_min_fidelity": float(avg_min_fidelity),
                 "total_pga_duration": float(total_pga_duration),
                 "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),
