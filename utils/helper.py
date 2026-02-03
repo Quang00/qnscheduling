@@ -571,6 +571,15 @@ def save_results(
         if tot_reqs
         else float("nan")
     )
+    admitted_apps = completed_final["pga"].astype(str).str.replace(
+        r"\d+$", "", regex=True
+    ).unique()
+    admitted_hops = params.loc[params["task"].isin(admitted_apps), "hops"]
+    avg_hops = (
+        admitted_hops.mean()
+        if not admitted_hops.empty
+        else float("nan")
+    )
 
     print("\n=== Summary ===")
     print(f"Admission rate   : {admission_rate:.4f}")
@@ -611,6 +620,7 @@ def save_results(
     print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
     print(f"Avg turnaround   : {avg_turnaround:.4f}")
     print(f"Max turnaround   : {max_turnaround:.4f}")
+    print(f"Avg hops         : {avg_hops:.4f}")
     print(f"Total PGA duration : {total_pga_duration:.4f}")
     print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
@@ -637,6 +647,7 @@ def save_results(
                 "max_waiting_time": float(max_wait),
                 "avg_turnaround_time": float(avg_turnaround),
                 "max_turnaround_time": float(max_turnaround),
+                "avg_hops": float(avg_hops),
                 "total_pga_duration": float(total_pga_duration),
                 "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),

@@ -77,6 +77,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "max_waiting_time": float("nan"),
         "avg_turnaround_time": float("nan"),
         "max_turnaround_time": float("nan"),
+        "avg_hops": float("nan"),
         "total_pga_duration": float("nan"),
         "total_busy_time": float("nan"),
         "avg_link_utilization": float("nan"),
