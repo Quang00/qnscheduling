@@ -1,9 +1,15 @@
+import os
+import tempfile
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from utils.helper import (
     edges_delay,
+    find_feasible_path,
+    generate_n_apps,
+    gml_data,
     hyperperiod,
     parallelizable_tasks,
     save_results,
@@ -23,8 +29,8 @@ def basic_graph():
 
 def test_shortest_paths_basic_small(basic_graph):
     apps = {
-        "A": {'src': "Alice", 'dst': "Charlie"},
-        "B": {'src': "Bob", 'dst': "Charlie"},
+        "A": {"src": "Alice", "dst": "Charlie"},
+        "B": {"src": "Bob", "dst": "Charlie"},
     }
     result = shortest_paths(basic_graph, apps)
     assert result == {
@@ -35,8 +41,8 @@ def test_shortest_paths_basic_small(basic_graph):
 
 def test_shortest_paths_basic_long(basic_graph):
     apps = {
-        "A": {'src': "Alice", 'dst': "David"},
-        "B": {'src': "Bob", 'dst': "Charlie"},
+        "A": {"src": "Alice", "dst": "David"},
+        "B": {"src": "Bob", "dst": "Charlie"},
     }
     result = shortest_paths(basic_graph, apps)
     assert result == {
@@ -226,3 +232,123 @@ def test_hyperperiod_basic():
 
     periods = {"Alice": 4.0, "Bob": 6.0, "Charlie": 10.0}
     assert hyperperiod(periods) == 60.0
+
+
+def test_find_feasible_path_basic():
+    edges = [
+        ("Alice", "Bob"),
+        ("Bob", "Charlie"),
+        ("Charlie", "David"),
+    ]
+
+    fidelities = {
+        ("Alice", "Bob"): 0.9,
+        ("Bob", "Alice"): 0.9,
+        ("Bob", "Charlie"): 0.9,
+        ("Charlie", "Bob"): 0.9,
+        ("Charlie", "David"): 0.9,
+        ("David", "Charlie"): 0.9,
+    }
+
+    app_requests = {
+        "A": {
+            "src": "Alice",
+            "dst": "Charlie",
+            "min_fidelity": 0.8,
+            "epr": 2,
+            "period": 10.0,
+        },
+        "B": {
+            "src": "Bob",
+            "dst": "David",
+            "min_fidelity": 0.8,
+            "epr": 1,
+            "period": 15.0,
+        },
+    }
+
+    result = find_feasible_path(
+        edges=edges,
+        app_requests=app_requests,
+        fidelities=fidelities,
+        routing_mode="shortest",
+    )
+
+    assert result["A"] == ["Alice", "Bob", "Charlie"]
+    assert result["B"] == ["Bob", "Charlie", "David"]
+
+
+def test_gml_data():
+    rng = np.random.default_rng(seed=42)
+    gml_file = "configurations/network/Dumbbell.gml"
+    nodes, edges, distances, fidelities = gml_data(gml_file, rng)
+
+    assert len(nodes) > 0
+    assert len(edges) > 0
+    assert len(distances) > 0
+    assert len(fidelities) > 0
+    assert len(distances) == len(edges)
+    assert len(fidelities) == len(edges)
+
+
+def test_generate_n_apps():
+    rng = np.random.default_rng(seed=42)
+    nodes = ["Alice", "Bob", "Charlie", "David"]
+    n_apps = 3
+    inst_range = (1, 5)
+    epr_range = (1, 3)
+    period_range = (10.0, 20.0)
+    fidelity_range = (0.7, 0.95)
+    list_policies = ["policy1", "policy2"]
+
+    apps = generate_n_apps(
+        nodes=nodes,
+        n_apps=n_apps,
+        inst_range=inst_range,
+        epr_range=epr_range,
+        period_range=period_range,
+        fidelity_range=fidelity_range,
+        list_policies=list_policies,
+        rng=rng,
+    )
+    assert len(apps) == n_apps
+
+
+def test_save_results():
+    df = pd.DataFrame(
+        {
+            "pga": ["A1"],
+            "arrival_time": [0.0],
+            "start_time": [0.0],
+            "burst_time": [5.0],
+            "completion_time": [5.0],
+            "turnaround_time": [5.0],
+            "waiting_time": [0.0],
+            "status": ["completed"],
+        }
+    )
+    pga_names = ["A1"]
+    pga_release_times = {"A1": 0.0}
+    app_specs = {
+        "A": {
+            "src": "Alice",
+            "dst": "Bob",
+            "instances": 1,
+            "epr": 1,
+            "period": 10.0,
+            "policy": "deadline",
+        },
+    }
+    n_edges = 3
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        save_results(
+            df=df,
+            pga_names=pga_names,
+            pga_release_times=pga_release_times,
+            app_specs=app_specs,
+            n_edges=n_edges,
+            output_dir=tmpdir,
+        )
+        csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
+        assert len(csv_files) > 0
