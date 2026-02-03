@@ -78,6 +78,21 @@ def build_metric_specs(
         {
             "key": "avg_min_fidelity",
             "ylabel": "Average minimum fidelity",
+        },
+        {
+            "key": "defer_prob",
+            "ylabel": "PGA defered at most 1 time (%)",
+            "percentage": True,
+        },
+        {
+            "key": "retry_prob",
+            "ylabel": "PGA retried at most 1 time  (%)",
+            "percentage": True,
+        },
+        {
+            "key": "drop_ratio",
+            "ylabel": "Drop ratio (%)",
+            "percentage": True,
         }
     ]
 
@@ -420,7 +435,7 @@ if __name__ == "__main__":
         },
         config="configurations/network/Dumbbell.gml",
         n_apps_values=n_apps_values,
-        keep_seed_outputs=True,
+        keep_seed_outputs=False,
     )
 
     plot_metrics_vs_ppacket(

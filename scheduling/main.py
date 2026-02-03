@@ -90,6 +90,7 @@ def run_simulation(
     arrival_rate: float | None = None,
     routing: str = "shortest",
     capacity_threshold: float = 0.8,
+    save_csv: bool = True,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -253,9 +254,10 @@ def run_simulation(
     }
     app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
     app_requests_df["admitted"] = app_requests_df["app"].isin(app_specs)
-    app_requests_df.to_csv(
-        os.path.join(output_dir, "app_requests.csv"), index=False
-    )
+    if save_csv:
+        app_requests_df.to_csv(
+            os.path.join(output_dir, "app_requests.csv"), index=False
+        )
 
     if scheduler == "dynamic":
         (
@@ -320,6 +322,7 @@ def run_simulation(
         admitted_apps=admitted_apps,
         total_apps=total_apps,
         output_dir=output_dir,
+        save_csv=save_csv,
     )
     return feasible, df, durations, link_utilization, link_waiting
 

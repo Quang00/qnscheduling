@@ -321,6 +321,7 @@ def save_results(
     admitted_apps: int | None = None,
     total_apps: int | None = None,
     output_dir: str = "results",
+    save_csv: bool = True,
 ) -> None:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
@@ -436,11 +437,12 @@ def save_results(
     completion_max = df["completion_time"].max()
     makespan = completion_max - arrival_min
 
-    csv_path = os.path.join(output_dir, "pga_results.csv")
-    df.to_csv(csv_path, index=False)
+    if save_csv:
+        csv_path = os.path.join(output_dir, "pga_results.csv")
+        df.to_csv(csv_path, index=False)
 
-    print("\n=== Preview PGA Results ===")
-    print(df.head(20).to_string(index=False))
+        print("\n=== Preview PGA Results ===")
+        print(df.head(20).to_string(index=False))
 
     avg_link_utilization = float("nan")
     p90_link_utilization = float("nan")
@@ -474,11 +476,12 @@ def save_results(
         )
         total_busy_time = busy_time_sum
 
-        link_util_path = os.path.join(output_dir, "link_utilization.csv")
-        link_util_df.to_csv(link_util_path, index=False)
+        if save_csv:
+            link_util_path = os.path.join(output_dir, "link_utilization.csv")
+            link_util_df.to_csv(link_util_path, index=False)
 
-        print("\n=== Link Utilization ===")
-        print(link_util_df.to_string(index=False))
+            print("\n=== Link Utilization ===")
+            print(link_util_df.to_string(index=False))
 
     if link_waiting:
         waiting_rows = [
@@ -512,11 +515,12 @@ def save_results(
         if not avg_wait_series.empty:
             p90_link_avg_wait = float(avg_wait_series.quantile(0.9))
             p95_link_avg_wait = float(avg_wait_series.quantile(0.95))
-        link_waiting_path = os.path.join(output_dir, "link_waiting.csv")
-        waiting_df.to_csv(link_waiting_path, index=False)
+        if save_csv:
+            link_waiting_path = os.path.join(output_dir, "link_waiting.csv")
+            waiting_df.to_csv(link_waiting_path, index=False)
 
-        print("\n=== Link Waiting ===")
-        print(waiting_df.to_string(index=False))
+            print("\n=== Link Waiting ===")
+            print(waiting_df.to_string(index=False))
 
     total = len(df)
     admission_rate = float("nan")
@@ -690,8 +694,9 @@ def save_results(
         on="task_name",
         how="left",
     )
-    per_task_path = os.path.join(output_dir, "summary_per_app.csv")
-    per_task_df.to_csv(per_task_path, index=False)
+    if save_csv:
+        per_task_path = os.path.join(output_dir, "summary_per_app.csv")
+        per_task_df.to_csv(per_task_path, index=False)
 
 
 def gml_data(

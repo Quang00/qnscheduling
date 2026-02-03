@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import os
+import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from contextlib import redirect_stdout
@@ -46,6 +47,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
     sim_kwargs.update({"p_packet": p_packet, "seed": run_seed})
     sim_kwargs["output_dir"] = sd_dir
     sim_kwargs["n_apps"] = n_apps_int
+    sim_kwargs["save_csv"] = keep_seed_outputs
 
     with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
         feasible, df, durations, link_util, link_waiting = run_simulation(
@@ -151,6 +153,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         **lk_util_stats,
         **lk_wait_stats,
     }
+    if not keep_seed_outputs and sd_dir.startswith(tempfile.gettempdir()):
+        shutil.rmtree(sd_dir, ignore_errors=True)
     return result
 
 
