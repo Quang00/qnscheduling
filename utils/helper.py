@@ -592,7 +592,6 @@ def save_results(
     )
 
     print("\n=== Summary ===")
-    print(f"Admission rate   : {admission_rate:.4f}")
     print(f"Total PGAs       : {total}")
 
     tmp = df.copy()
@@ -616,9 +615,10 @@ def save_results(
         n_failed = int(row.get("failed", 0))
         print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
 
+    print(f"Admission rate   : {admission_rate:.4f}")
     print(f"Completion time  : {makespan:.4f}")
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
-    print(f"Completed ratio  : {completed_ratio:.4f}")
+    print(f"Completion ratio : {completed_ratio:.4f}")
     print(f"Failed ratio     : {failed_ratio:.4f}")
     print(f"Deadline miss rate : {deadline_miss_rate:.4f}")
     print(f"Drop ratio       : {drop_ratio:.4f}")

@@ -152,7 +152,6 @@ def run_simulation(
         }
     else:
         pga_rel_times = {app: 0.0 for app in app_specs.keys()}
-    print("Arrival times:", pga_rel_times)
 
     # Find feasible paths for each application based on fidelity/routing mode
     app_requests = {
@@ -205,26 +204,14 @@ def run_simulation(
     }
     admitted_specs = {app: app_specs[app] for app in admitted_paths.keys()}
     admitted_apps = len(admitted_specs)
-    admission_rate = (
-        admitted_apps / total_apps
-        if total_apps and total_apps > 0
-        else float("nan")
-    )
-    if total_apps:
-        print(f"Admission rate: {admission_rate:.4f}")
 
     if admitted_apps == 0:
         return False, None, {}, {}, {}
 
-    print("Edges Fidelities:", fidelities)
-    print("Application requests:", app_specs)
-
     app_specs = admitted_specs
     paths = admitted_paths
-    print("Paths:", paths)
 
     parallel_map = parallelizable_tasks(paths)
-    print("Parallelizable applications:", parallel_map)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
@@ -237,10 +224,8 @@ def run_simulation(
         p_gen,
         time_slot_duration,
     )
-    print("Durations:", durations)
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
-    print("Periods:", pga_periods)
 
     pga_parameters = app_params_sim(
         paths,
@@ -297,7 +282,6 @@ def run_simulation(
             parallel_map,
             hyperperiod_cycles,
         )
-        print("Hyperperiod cycles:", hyperperiod_cycles)
 
         if not feasible:
             print("Schedule", schedule)
