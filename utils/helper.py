@@ -420,18 +420,6 @@ def save_results(
     )
     completed_total = int((final["status"] == "completed").sum())
     drop_total = int((final["status"] == "drop").sum())
-    deadline_mask = (
-        final.get("deadline").notna() if "deadline" in final else None
-    )
-    if deadline_mask is None:
-        miss_total = 0
-        tot_deadline_reqs = 0
-    else:
-        tot_deadline_reqs = int(deadline_mask.sum())
-        miss_total = int(
-            ((final["status"] != "completed") & deadline_mask).sum()
-        )
-    failed_total = int((final["status"] == "failed").sum())
 
     arrival_min = df["arrival_time"].min()
     completion_max = df["completion_time"].max()
@@ -560,10 +548,7 @@ def save_results(
     )
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
-    deadline_miss_rate = (
-        miss_total / tot_deadline_reqs if tot_deadline_reqs else float("nan")
-    )
-    failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
+    failed_ratio = 1 - completed_ratio - drop_ratio
     defer_count = len(df.loc[df["status"] == "defer"])
     retry_count = len(df.loc[df["status"] == "retry"])
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
@@ -612,7 +597,6 @@ def save_results(
     print(f"Throughput       : {throughput:.4f} completed PGAs/s")
     print(f"Completion ratio : {completed_ratio:.4f}")
     print(f"Failed ratio     : {failed_ratio:.4f}")
-    print(f"Deadline miss rate : {deadline_miss_rate:.4f}")
     print(f"Drop ratio       : {drop_ratio:.4f}")
     print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
     print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
@@ -639,11 +623,9 @@ def save_results(
                 "throughput": float(throughput),
                 "completed_ratio": float(completed_ratio),
                 "failed_ratio": float(failed_ratio),
-                "deadline_miss_rate": float(deadline_miss_rate),
                 "drop_ratio": float(drop_ratio),
                 "avg_defer_per_pga": float(avg_defer_per_pga),
                 "avg_retry_per_pga": float(avg_retry_per_pga),
-                "deadline_miss": int(miss_total),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),
                 "avg_turnaround_time": float(avg_turnaround),

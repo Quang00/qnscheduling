@@ -67,8 +67,8 @@ def build_metric_specs(
             "ylabel": "95th percentile link average wait (s)",
         },
         {
-            "key": "deadline_miss_rate",
-            "ylabel": "Deadline miss rate (%)",
+            "key": "drop_ratio",
+            "ylabel": "Drop ratio (%)",
             "percentage": True,
         },
         {

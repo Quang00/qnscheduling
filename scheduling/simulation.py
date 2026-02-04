@@ -661,8 +661,6 @@ def simulate_dynamic(
                     )
                 )
             else:
-                if status == "failed":
-                    result["status"] = "drop"
                 if inst_req[app] > completed_instances[app]:
                     enqueue_release(app)
 
