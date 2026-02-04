@@ -564,29 +564,18 @@ def save_results(
         miss_total / tot_deadline_reqs if tot_deadline_reqs else float("nan")
     )
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
-    defer_prob = (
-        df.loc[df["status"] == "defer", "pga"].nunique() / tot_reqs
-        if tot_reqs
-        else float("nan")
-    )
-    retry_prob = (
-        df.loc[df["status"] == "retry", "pga"].nunique() / tot_reqs
-        if tot_reqs
-        else float("nan")
-    )
-    admitted_apps = completed_final["pga"].astype(str).str.replace(
-        r"\d+$", "", regex=True
-    ).unique()
-    admitted_hops = params.loc[params["task"].isin(admitted_apps), "hops"]
+    defer_count = len(df.loc[df["status"] == "defer"])
+    retry_count = len(df.loc[df["status"] == "retry"])
+    avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
+    avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
     avg_hops = (
-        admitted_hops.mean()
-        if not admitted_hops.empty
+        params["hops"].mean()
+        if not params.empty
         else float("nan")
     )
     admitted_min_fidelities = [
         app_specs[app].get("min_fidelity", float("nan"))
-        for app in admitted_apps
-        if app in app_specs
+        for app in app_specs.keys()
     ]
     avg_min_fidelity = (
         float(np.mean(admitted_min_fidelities))
@@ -625,8 +614,8 @@ def save_results(
     print(f"Failed ratio     : {failed_ratio:.4f}")
     print(f"Deadline miss rate : {deadline_miss_rate:.4f}")
     print(f"Drop ratio       : {drop_ratio:.4f}")
-    print(f"Deferral prob    : {defer_prob:.4f}")
-    print(f"Retry prob       : {retry_prob:.4f}")
+    print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
+    print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
     print(f"Avg waiting time : {avg_wait:.4f}")
     print(f"Max waiting time : {max_wait:.4f}")
     print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
@@ -652,10 +641,8 @@ def save_results(
                 "failed_ratio": float(failed_ratio),
                 "deadline_miss_rate": float(deadline_miss_rate),
                 "drop_ratio": float(drop_ratio),
-                "defer_prob": float(defer_prob),
-                "retry_prob": float(retry_prob),
-                "defer_ratio": float(defer_prob),
-                "retry_ratio": float(retry_prob),
+                "avg_defer_per_pga": float(avg_defer_per_pga),
+                "avg_retry_per_pga": float(avg_retry_per_pga),
                 "deadline_miss": int(miss_total),
                 "avg_waiting_time": float(avg_wait),
                 "max_waiting_time": float(max_wait),

@@ -80,20 +80,13 @@ def build_metric_specs(
             "ylabel": "Average minimum fidelity",
         },
         {
-            "key": "defer_prob",
-            "ylabel": "PGA defered at most 1 time (%)",
-            "percentage": True,
+            "key": "avg_defer_per_pga",
+            "ylabel": "Average deferrals per PGA",
         },
         {
-            "key": "retry_prob",
-            "ylabel": "PGA retried at most 1 time  (%)",
-            "percentage": True,
+            "key": "avg_retry_per_pga",
+            "ylabel": "Average retries per PGA",
         },
-        {
-            "key": "drop_ratio",
-            "ylabel": "Drop ratio (%)",
-            "percentage": True,
-        }
     ]
 
     specs = []
