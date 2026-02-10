@@ -2,7 +2,7 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
 def main():
-    sweep_values = [0.9]
+    ppacket_values = [0.9]
     n_apps_values = [50, 75, 100, 125, 150, 175, 200]
     topology = "configurations/network/Garr201201.gml"
     simulations_per_point = 200
@@ -59,7 +59,7 @@ def main():
         print(f"Running {scenario['name']}:")
 
         df, raw_csv_path = run_ppacket_sweep_to_csv(
-            ppacket_values=sweep_values,
+            ppacket_values=ppacket_values,
             simulations_per_point=simulations_per_point,
             simulation_kwargs=sim_kwargs,
             config=topology,

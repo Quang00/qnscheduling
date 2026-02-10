@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
@@ -168,10 +169,8 @@ def render_plot(
         summary_df["x_plot"] = summary_df[x_var]
 
     if group_column:
-        summary_df["group_display"] = (
-            summary_df[group_column]
-            .map(group_labels)
-            .fillna(summary_df[group_column].astype(str))
+        summary_df["group_display"] = summary_df[group_column].apply(
+            lambda x: group_labels.get(x, group_labels.get(str(x), str(x)))
         )
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
@@ -330,7 +329,7 @@ def plot_metrics_vs_ppacket(
 
 
 def plot_metrics_vs_load(
-    raw_csv_path: str,
+    path: str | Sequence[str],
     save_path: str | None = None,
     figsize: tuple[float, float] = (7, 4.5),
     dpi: int = 600,
@@ -340,35 +339,70 @@ def plot_metrics_vs_load(
     p_packet_values: Sequence[float] | None = None,
     scheduler: str | None = None,
     create_individual: bool = False,
+    multi: bool = False,
 ) -> pd.DataFrame:
-    results_df = pd.read_csv(raw_csv_path)
-    run_dir = os.path.dirname(raw_csv_path) or "."
-
-    if p_packet_values is None:
-        pp_list = results_df["p_packet"].dropna().unique().tolist()
-        pp_list.sort()
+    """Example usage:
+    df = plot_metrics_vs_load(
+        raw_csv_path=[
+            "1_raw.csv",
+            "2_raw.csv",
+            "3_raw.csv",
+            "4_raw.csv",
+        ],
+        multi=True,
+        gp_labels={
+            "1": "Dijkstra",
+            "2": "Dijkstra + fidelity",
+            "3": "Capacity 0.8",
+            "4": "Capacity 1.0",
+        },
+    )
+    """
+    if multi:
+        paths = path if isinstance(path, (list, tuple)) else [path]
+        dfs = [pd.read_csv(path) for path in paths]
+        results_df = pd.concat(dfs, ignore_index=True)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        run_dir = os.path.join("results", timestamp)
+        os.makedirs(run_dir, exist_ok=True)
+        if p_packet_values is None:
+            val_list = results_df["scenario"].dropna().unique().tolist()
+            val_list.sort()
+        else:
+            val_list = list(p_packet_values)
+        value_label = str(val_list[0]) if len(val_list) == 1 else "varied"
+        def_gp = "scenario"
+        file_prefix = "scenario"
+        dft_labels = {v: f"{v}" for v in val_list}
     else:
-        pp_list = [float(v) for v in p_packet_values]
+        results_df = pd.read_csv(path)
+        run_dir = os.path.dirname(path) or "."
+        if p_packet_values is None:
+            val_list = results_df["p_packet"].dropna().unique().tolist()
+            val_list.sort()
+        else:
+            val_list = [float(v) for v in p_packet_values]
+        value_label = str(val_list[0]) if len(val_list) == 1 else "varied"
+        def_gp = "p_packet"
+        file_prefix = "p_packet"
+        dft_labels = {v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in val_list}
 
-    pp_label = str(pp_list[0]) if len(pp_list) == 1 else "varied"
     scheduler_value = scheduler or "dynamic"
     sch_suffix = scheduler_value.title()
 
     if not save_path:
         save_path = os.path.join(
             run_dir,
-            f"admission_rate_vs_load_p_packet_{pp_label}_{sch_suffix}.png",
+            f"admission_rate_{file_prefix}_{value_label}_{sch_suffix}.png",
         )
-    if not group_column and len(pp_list) > 1:
-        group_column = "p_packet"
-    if not gp_labels and group_column == "p_packet":
-        gp_labels = {v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in pp_list}
+    if not group_column and len(val_list) > 1:
+        group_column = def_gp
+    if not gp_labels and group_column == def_gp:
+        gp_labels = dft_labels
 
     plt_map = None
     if group_column:
-        keys = (
-            pp_list if group_column == "p_packet" else list(gp_labels.keys())
-        )
+        keys = val_list if group_column == def_gp else list(gp_labels.keys())
         plt = (
             list(group_palette)
             if group_palette
@@ -377,7 +411,7 @@ def plot_metrics_vs_load(
         plt_map = {str(k): plt[i % len(plt)] for i, k in enumerate(keys)}
 
     metrics_to_plot = build_metric_specs(
-        v_label=pp_label,
+        v_label=value_label,
         save_path=save_path,
         run_dir=run_dir,
         sch_suffix=sch_suffix,
@@ -386,7 +420,7 @@ def plot_metrics_vs_load(
         group_labels=gp_labels,
         group_palette=group_palette,
         group_palette_map=plt_map,
-        individual_values=pp_list if len(pp_list) > 1 else None,
+        individual_values=val_list if len(val_list) > 1 else None,
         create_individual=create_individual,
     )
 
