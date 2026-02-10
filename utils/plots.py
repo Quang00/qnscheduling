@@ -343,7 +343,7 @@ def plot_metrics_vs_load(
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
-        raw_csv_path=[
+        path=[
             "1_raw.csv",
             "2_raw.csv",
             "3_raw.csv",
@@ -360,7 +360,7 @@ def plot_metrics_vs_load(
     """
     if multi:
         paths = path if isinstance(path, (list, tuple)) else [path]
-        dfs = [pd.read_csv(path) for path in paths]
+        dfs = [pd.read_csv(p) for p in paths]
         results_df = pd.concat(dfs, ignore_index=True)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         run_dir = os.path.join("results", timestamp)
