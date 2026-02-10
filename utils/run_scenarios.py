@@ -21,22 +21,26 @@ def main():
 
     scenarios = [
         {
+            "id": 1,
             "name": "shortest_no-fid",
             "routing": "shortest",
             "fidelity_range": (0.0, 0.0),
         },
         {
+            "id": 2,
             "name": "shortest_with-fid",
             "routing": "shortest",
             "fidelity_range": (0.6, 0.85),
         },
         {
+            "id": 3,
             "name": "capacity_with-fid_cap-0.8",
             "routing": "capacity",
             "fidelity_range": (0.6, 0.85),
             "capacity_threshold": 0.8,
         },
         {
+            "id": 4,
             "name": "capacity_with-fid_cap-1.0",
             "routing": "capacity",
             "fidelity_range": (0.6, 0.85),
@@ -54,7 +58,7 @@ def main():
 
         print(f"Running {scenario['name']}:")
 
-        _, raw_csv_path = run_ppacket_sweep_to_csv(
+        df, raw_csv_path = run_ppacket_sweep_to_csv(
             ppacket_values=sweep_values,
             simulations_per_point=simulations_per_point,
             simulation_kwargs=sim_kwargs,
@@ -62,6 +66,8 @@ def main():
             n_apps_values=n_apps_values,
             keep_seed_outputs=False,
         )
+        df.insert(0, "scenario", scenario["id"])
+        df.to_csv(raw_csv_path, index=False)
 
         print(f"Done: {scenario['name']} -> {raw_csv_path}")
 
