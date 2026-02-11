@@ -174,7 +174,7 @@ def run_simulation(
     routing_mode = str(routing)
     admitted_specs = {}
 
-    if routing_mode == "capacity":
+    if routing_mode in ["capacity", "random"]:
         paths = find_feasible_path(
             edges,
             app_requests,
@@ -187,6 +187,7 @@ def run_simulation(
             p_swap=p_swap,
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
+            rng=rng,
         )
     else:
         if not fidelity_enabled:
@@ -447,10 +448,11 @@ def main():
         "--routing",
         "-r",
         type=str,
-        choices=["shortest", "capacity"],
+        choices=["shortest", "capacity", "random"],
         default="shortest",
         help=(
-            "Routing: 'shortest' (Dijkstra) or 'capacity' (capacity-aware)."
+            "Routing: 'shortest' (Dijkstra), 'capacity' (capacity-aware),"
+            "or 'random'."
         ),
     )
     parser.add_argument(

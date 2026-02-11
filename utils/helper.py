@@ -62,6 +62,7 @@ def find_feasible_path(
     p_swap: float = 0.6,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
+    rng: np.random.Generator | None = None,
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
     based on minimum fidelity threshold. The fidelity constraint is transformed
@@ -108,7 +109,7 @@ def find_feasible_path(
     base_graph = nx.Graph()
     base_graph.add_edges_from(edges)
     ret = {}
-    capacity = defaultdict(float)
+    cap = defaultdict(float)
 
     apps_ordered = list(app_requests.keys())
     if pga_rel_times is not None:
@@ -130,7 +131,7 @@ def find_feasible_path(
             usable_edges = [
                 (u, v)
                 for (u, v) in edges
-                if capacity[tuple(sorted((u, v)))] < capacity_threshold
+                if cap[tuple(sorted((u, v)))] < capacity_threshold
             ]
             G = nx.Graph()
             G.add_edges_from(usable_edges)
@@ -147,44 +148,58 @@ def find_feasible_path(
             math.log((4 * min_fidelity - 1) / 3)
             / math.log((4 * initial_fidelity - 1) / 3)
         )
-        for path in nx.shortest_simple_paths(G, src, dst):
-            L = len(path) - 1
-            if L > L_max:
+        if routing_mode == "random":
+            selected_path = None
+            seen = 0
+            for path in nx.shortest_simple_paths(G, src, dst):
+                L = len(path) - 1
+                if L > L_max:
+                    break
+                seen += 1
+                if rng.integers(seen) == 0:
+                    selected_path = path
+            if selected_path is None:
+                ret[app] = None
                 continue
+        else:
+            for path in nx.shortest_simple_paths(G, src, dst):
+                L = len(path) - 1
+                if L > L_max:
+                    break
+                if routing_mode == "capacity":
+                    n_swaps = max(0, len(path) - 2)
+                    pga_duration = duration_pga(
+                        p_packet=p_packet,
+                        epr_pairs=req['epr'],
+                        n_swap=n_swaps,
+                        memory=memory,
+                        p_swap=p_swap,
+                        p_gen=p_gen,
+                        time_slot_duration=time_slot_duration,
+                    )
+                    delta = float(pga_duration) / float(req['period'])
+                    links = [
+                        tuple(sorted((u, v)))
+                        for u, v in zip(path[:-1], path[1:], strict=False)
+                    ]
+                    if any(
+                        cap[lk] + delta > capacity_threshold for lk in links
+                    ):
+                        continue
+                    selected_delta = delta
+                selected_path = path
+                break
+
+            if selected_path is None:
+                ret[app] = None
+                continue
+
             if routing_mode == "capacity":
-                n_swaps = max(0, len(path) - 2)
-                pga_duration = duration_pga(
-                    p_packet=p_packet,
-                    epr_pairs=req['epr'],
-                    n_swap=n_swaps,
-                    memory=memory,
-                    p_swap=p_swap,
-                    p_gen=p_gen,
-                    time_slot_duration=time_slot_duration,
-                )
-                delta = float(pga_duration) / float(req['period'])
-                links = [
-                    tuple(sorted((u, v)))
-                    for u, v in zip(path[:-1], path[1:], strict=False)
-                ]
-                if any(
-                    capacity[lk] + delta > capacity_threshold for lk in links
+                for u, v in zip(
+                    selected_path[:-1], selected_path[1:], strict=False
                 ):
-                    continue
-                selected_delta = delta
-            selected_path = path
-            break
-
-        if selected_path is None:
-            ret[app] = None
-            continue
-
-        if routing_mode == "capacity":
-            for u, v in zip(
-                selected_path[:-1], selected_path[1:], strict=False
-            ):
-                link = tuple(sorted((u, v)))
-                capacity[link] += selected_delta
+                    link = tuple(sorted((u, v)))
+                    cap[link] += selected_delta
         ret[app] = selected_path
     return ret
 
