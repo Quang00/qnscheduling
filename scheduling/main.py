@@ -448,11 +448,11 @@ def main():
         "--routing",
         "-r",
         type=str,
-        choices=["shortest", "capacity", "random"],
+        choices=["shortest", "capacity", "random", "degree"],
         default="shortest",
         help=(
             "Routing: 'shortest' (Dijkstra), 'capacity' (capacity-aware),"
-            "or 'random'."
+            "'random' (random path), or 'degree' (degree-aware)."
         ),
     )
     parser.add_argument(

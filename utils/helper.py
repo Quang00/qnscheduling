@@ -149,7 +149,6 @@ def find_feasible_path(
             / math.log((4 * initial_fidelity - 1) / 3)
         )
         if routing_mode == "random":
-            selected_path = None
             seen = 0
             for path in nx.shortest_simple_paths(G, src, dst):
                 L = len(path) - 1
@@ -158,9 +157,17 @@ def find_feasible_path(
                 seen += 1
                 if rng.integers(seen) == 0:
                     selected_path = path
-            if selected_path is None:
-                ret[app] = None
-                continue
+        elif routing_mode == "degree":
+            best_score = None
+            for path in nx.shortest_simple_paths(G, src, dst):
+                L = len(path) - 1
+                if L > L_max:
+                    break
+                internal = path[1:-1]
+                score = max((G.degree(v) for v in internal), default=0)
+                if best_score is None or score < best_score:
+                    best_score = score
+                    selected_path = path
         else:
             for path in nx.shortest_simple_paths(G, src, dst):
                 L = len(path) - 1
