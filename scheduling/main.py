@@ -90,6 +90,7 @@ def run_simulation(
     routing: str = "shortest",
     capacity_threshold: float = 0.8,
     save_csv: bool = True,
+    verbose: bool = True,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -117,10 +118,14 @@ def run_simulation(
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
     Returns:
-        tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict]: A tuple
-            indicating whether the schedule is feasible, the resulting PGA
-            DataFrame when feasible, the PGA durations per application, the
-            per-link utilization metrics, and the per-link waiting metrics.
+        tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict, dict]:
+            A tuple containing:
+            - bool: whether the schedule is feasible
+            - pd.DataFrame | None: the resulting PGA DataFrame when feasible
+            - dict[str, float]: the PGA durations per application
+            - dict: the per-link utilization metrics
+            - dict: the per-link waiting metrics
+            - dict[str, float]: summary metrics dictionary
     """
     rng = np.random.default_rng(seed)
 
@@ -207,7 +212,7 @@ def run_simulation(
     admitted_apps = len(admitted_specs)
 
     if admitted_apps == 0:
-        return False, None, {}, {}, {}
+        return False, None, {}, {}, {}, {}
 
     app_specs = admitted_specs
     paths = admitted_paths
@@ -241,7 +246,8 @@ def run_simulation(
     policies = {name: spec["policy"] for name, spec in app_specs.items()}
 
     # Run simulation
-    os.makedirs(output_dir, exist_ok=True)
+    if save_csv:
+        os.makedirs(output_dir, exist_ok=True)
 
     app_requests_df = (
         pd.DataFrame.from_dict(app_requests, orient="index")
@@ -286,10 +292,12 @@ def run_simulation(
         )
 
         if not feasible:
-            print("Schedule", schedule)
-            return False, None, durations, {}, {}
+            if verbose:
+                print("Schedule", schedule)
+            return False, None, durations, {}, {}, {}
 
-        print("Preview Schedule:", schedule[: n_apps * 2])
+        if verbose:
+            print("Preview Schedule:", schedule[: n_apps * 2])
 
         (
             df,
@@ -309,7 +317,7 @@ def run_simulation(
         )
 
     # Save results
-    save_results(
+    summary = save_results(
         df,
         pga_names,
         pga_release_times,
@@ -323,8 +331,9 @@ def run_simulation(
         total_apps=total_apps,
         output_dir=output_dir,
         save_csv=save_csv,
+        verbose=verbose,
     )
-    return feasible, df, durations, link_utilization, link_waiting
+    return feasible, df, durations, link_utilization, link_waiting, summary
 
 
 def main():

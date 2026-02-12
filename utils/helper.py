@@ -239,7 +239,8 @@ def save_results(
     total_apps: int | None = None,
     output_dir: str = "results",
     save_csv: bool = True,
-) -> None:
+    verbose: bool = True,
+) -> Dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
 
@@ -275,8 +276,16 @@ def save_results(
         link_waiting (Dict | None): Dictionary mapping links to waiting
             metrics (total waiting time and number of PGAs that waited).
         output_dir (str): Directory where the results CSV file will be saved.
+        save_csv (bool): Whether to save results to CSV files.
+        verbose (bool): Whether to print summary statistics to stdout.
+
+    Returns:
+        Dict[str, float]: Dictionary containing summary metrics including
+            admission_rate, makespan, throughput, completion ratios, and
+            utilization statistics.
     """
-    os.makedirs(output_dir, exist_ok=True)
+    if save_csv:
+        os.makedirs(output_dir, exist_ok=True)
 
     missing = set(pga_names) - set(df["pga"])
     if missing:
@@ -347,8 +356,9 @@ def save_results(
         csv_path = os.path.join(output_dir, "pga_results.csv")
         df.to_csv(csv_path, index=False)
 
-        print("\n=== Preview PGA Results ===")
-        print(df.head(20).to_string(index=False))
+        if verbose:
+            print("\n=== Preview PGA Results ===")
+            print(df.head(20).to_string(index=False))
 
     avg_link_utilization = float("nan")
     p90_link_utilization = float("nan")
@@ -386,8 +396,9 @@ def save_results(
             link_util_path = os.path.join(output_dir, "link_utilization.csv")
             link_util_df.to_csv(link_util_path, index=False)
 
-            print("\n=== Link Utilization ===")
-            print(link_util_df.to_string(index=False))
+            if verbose:
+                print("\n=== Link Utilization ===")
+                print(link_util_df.to_string(index=False))
 
     if link_waiting:
         waiting_rows = [
@@ -425,8 +436,9 @@ def save_results(
             link_waiting_path = os.path.join(output_dir, "link_waiting.csv")
             waiting_df.to_csv(link_waiting_path, index=False)
 
-            print("\n=== Link Waiting ===")
-            print(waiting_df.to_string(index=False))
+            if verbose:
+                print("\n=== Link Waiting ===")
+                print(waiting_df.to_string(index=False))
 
     total = len(df)
     admission_rate = float("nan")
@@ -486,8 +498,9 @@ def save_results(
         else float("nan")
     )
 
-    print("\n=== Summary ===")
-    print(f"Total PGAs       : {total}")
+    if verbose:
+        print("\n=== Summary ===")
+        print(f"Total PGAs       : {total}")
 
     tmp = df.copy()
     tmp["task"] = tmp["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
@@ -504,65 +517,67 @@ def save_results(
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
-    for task in tasks_sorted:
-        row = per_task.loc[task]
-        n_completed = int(row.get("completed", 0))
-        n_failed = int(row.get("failed", 0))
-        print(f"    {task:<4} completed: {n_completed}, failed: {n_failed}")
+    if verbose:
+        for task in tasks_sorted:
+            row = per_task.loc[task]
+            completed = int(row.get("completed", 0))
+            failed = int(row.get("failed", 0))
+            print(f"    {task:<4} completed: {completed}, failed: {failed}")
 
-    print(f"Admission rate   : {admission_rate:.4f}")
-    print(f"Completion time  : {makespan:.4f}")
-    print(f"Throughput       : {throughput:.4f} completed PGAs/s")
-    print(f"Completion ratio : {completed_ratio:.4f}")
-    print(f"Failed ratio     : {failed_ratio:.4f}")
-    print(f"Drop ratio       : {drop_ratio:.4f}")
-    print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
-    print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
-    print(f"Avg waiting time : {avg_wait:.4f}")
-    print(f"Max waiting time : {max_wait:.4f}")
-    print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
-    print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
-    print(f"Avg turnaround   : {avg_turnaround:.4f}")
-    print(f"Max turnaround   : {max_turnaround:.4f}")
-    print(f"Avg hops         : {avg_hops:.4f}")
-    print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
-    print(f"Avg PGA duration : {avg_pga_duration:.4f}")
-    print(f"Total busy time  : {total_busy_time:.4f}")
-    print(f"Avg link utilization : {avg_link_utilization:.4f}")
-    print(f"P90 link utilization : {p90_link_utilization:.4f}")
-    print(f"P95 link utilization : {p95_link_utilization:.4f}")
-    print(f"Useful utilization : {useful_util:.4f}")
+        print(f"Admission rate   : {admission_rate:.4f}")
+        print(f"Completion time  : {makespan:.4f}")
+        print(f"Throughput       : {throughput:.4f} completed PGAs/s")
+        print(f"Completion ratio : {completed_ratio:.4f}")
+        print(f"Failed ratio     : {failed_ratio:.4f}")
+        print(f"Drop ratio       : {drop_ratio:.4f}")
+        print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
+        print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
+        print(f"Avg waiting time : {avg_wait:.4f}")
+        print(f"Max waiting time : {max_wait:.4f}")
+        print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
+        print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
+        print(f"Avg turnaround   : {avg_turnaround:.4f}")
+        print(f"Max turnaround   : {max_turnaround:.4f}")
+        print(f"Avg hops         : {avg_hops:.4f}")
+        print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
+        print(f"Avg PGA duration : {avg_pga_duration:.4f}")
+        print(f"Total busy time  : {total_busy_time:.4f}")
+        print(f"Avg link utilization : {avg_link_utilization:.4f}")
+        print(f"P90 link utilization : {p90_link_utilization:.4f}")
+        print(f"P95 link utilization : {p95_link_utilization:.4f}")
+        print(f"Useful utilization : {useful_util:.4f}")
 
-    overall_df = pd.DataFrame(
-        [
-            {
-                "admission_rate": float(admission_rate),
-                "makespan": float(makespan),
-                "throughput": float(throughput),
-                "completed_ratio": float(completed_ratio),
-                "failed_ratio": float(failed_ratio),
-                "drop_ratio": float(drop_ratio),
-                "avg_defer_per_pga": float(avg_defer_per_pga),
-                "avg_retry_per_pga": float(avg_retry_per_pga),
-                "avg_waiting_time": float(avg_wait),
-                "max_waiting_time": float(max_wait),
-                "avg_turnaround_time": float(avg_turnaround),
-                "max_turnaround_time": float(max_turnaround),
-                "avg_hops": float(avg_hops),
-                "avg_min_fidelity": float(avg_min_fidelity),
-                "avg_pga_duration": float(avg_pga_duration),
-                "total_busy_time": float(total_busy_time),
-                "avg_link_utilization": float(avg_link_utilization),
-                "p90_link_utilization": float(p90_link_utilization),
-                "p95_link_utilization": float(p95_link_utilization),
-                "p90_link_avg_wait": float(p90_link_avg_wait),
-                "p95_link_avg_wait": float(p95_link_avg_wait),
-                "useful_utilization": float(useful_util),
-            }
-        ]
-    )
-    overall_path = os.path.join(output_dir, "summary.csv")
-    overall_df.to_csv(overall_path, index=False)
+    summary_metrics = {
+        "admission_rate": float(admission_rate),
+        "makespan": float(makespan),
+        "throughput": float(throughput),
+        "completed_ratio": float(completed_ratio),
+        "failed_ratio": float(failed_ratio),
+        "drop_ratio": float(drop_ratio),
+        "avg_defer_per_pga": float(avg_defer_per_pga),
+        "avg_retry_per_pga": float(avg_retry_per_pga),
+        "avg_waiting_time": float(avg_wait),
+        "max_waiting_time": float(max_wait),
+        "avg_turnaround_time": float(avg_turnaround),
+        "max_turnaround_time": float(max_turnaround),
+        "avg_hops": float(avg_hops),
+        "avg_min_fidelity": float(avg_min_fidelity),
+        "avg_pga_duration": float(avg_pga_duration),
+        "total_busy_time": float(total_busy_time),
+        "avg_link_utilization": float(avg_link_utilization),
+        "p90_link_utilization": float(p90_link_utilization),
+        "p95_link_utilization": float(p95_link_utilization),
+        "p90_link_avg_wait": float(p90_link_avg_wait),
+        "p95_link_avg_wait": float(p95_link_avg_wait),
+        "useful_utilization": float(useful_util),
+        "completed_count": int(completed_total),
+        "total_pgas": int(tot_reqs),
+    }
+
+    if save_csv:
+        overall_df = pd.DataFrame([summary_metrics])
+        overall_path = os.path.join(output_dir, "summary.csv")
+        overall_df.to_csv(overall_path, index=False)
 
     for col in ["defer", "retry", "drop"]:
         if col not in per_task.columns:
@@ -584,6 +599,8 @@ def save_results(
     if save_csv:
         per_task_path = os.path.join(output_dir, "summary_per_app.csv")
         per_task_df.to_csv(per_task_path, index=False)
+
+    return summary_metrics
 
 
 # =============================================================================
