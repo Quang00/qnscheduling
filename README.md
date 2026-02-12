@@ -129,7 +129,7 @@ python -m scheduling.main
 ### Dynamic scheduler (online)
 ```bash
 python -m scheduling.main \
-  --config configurations/network/Dumbbell.gml \
+  --config configurations/network/basic/Dumbbell.gml \
   --apps 2 \
   --inst 2 2 \
   --epr 2 2 \
@@ -149,7 +149,7 @@ python -m scheduling.main \
 ### Static scheduler (offline)
 ```bash
 python -m scheduling.main \
-  --config configurations/network/Dumbbell.gml \
+  --config configurations/network/basic/Dumbbell.gml \
   --apps 2 \
   --inst 2 2 \
   --epr 2 2 \
@@ -169,7 +169,7 @@ python -m scheduling.main \
 ### Dynamic scheduler + routing capacity-aware
 ```bash
 python -m scheduling.main \
-  --config configurations/network/Dumbbell.gml \
+  --config configurations/network/basic/Dumbbell.gml \
   --apps 2 \
   --inst 2 2 \
   --epr 2 2 \
@@ -187,6 +187,32 @@ python -m scheduling.main \
   --arrival-rate 1.0 \
   --output results
 ```
+
+## Network topology
+
+The network topology configurations are stored as `.gml` files in `configurations/network/`.
+
+- `configurations/network/basic/`: Simple topologies for testing
+  - `Chain.gml`: Linear chain topology (5 nodes)
+  - `Dumbbell.gml`: Dumbbell topology
+
+- `configurations/network/advanced/`: Real-world network topologies from Internet Topology Zoo.
+
+Each `.gml` file contains:
+- **Graph metadata**: name, directed flag, statistics (nodes, links, degree)
+- **Nodes**: id, label, longitude (lon), latitude (lat) for geographic positioning
+- **Edges**: source, target, distance (dist)
+
+### Visualizing topologies
+
+To plot and visualize a network topology:
+
+```bash
+python utils/plot_graph.py
+```
+
+Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Chain.gml`).
+
 
 ## Acknowledgements
 
