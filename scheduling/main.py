@@ -498,7 +498,7 @@ def main():
     run_dir = os.path.join(seed_dir, f"run{run_number}")
 
     t0 = time.perf_counter()
-    feasible, _, _, _, _ = run_simulation(
+    feasible, _, _, _, _, _ = run_simulation(
         config=args.config,
         n_apps=args.apps,
         inst_range=args.inst,

@@ -79,6 +79,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p95_link_utilization": float("nan"),
         "p90_link_avg_wait": float("nan"),
         "p95_link_avg_wait": float("nan"),
+        "p90_avg_queue_length": float("nan"),
+        "p95_avg_queue_length": float("nan"),
     }
 
     if summary:
@@ -103,15 +105,23 @@ def simulate_one_ppacket(args: tuple) -> dict:
     lk_wait_stats = {}
     if link_waiting:
         avg_wait_values = []
+        avg_queue = []
+        makespan = summary_metrics.get("makespan", 0.0)
         for waiting in link_waiting.values():
             total_wait = waiting.get("total_waiting_time", 0.0)
             pga_waited = waiting.get("pga_waited", 0)
             if pga_waited > 0:
                 avg_wait_values.append(total_wait / pga_waited)
+            if makespan > 0:
+                avg_queue.append(total_wait / makespan)
         if avg_wait_values:
             lk_wait_stats["max_link_avg_wait"] = float(max(avg_wait_values))
             lk_wait_stats["min_link_avg_wait"] = float(min(avg_wait_values))
             lk_wait_stats["std_link_avg_wait"] = float(np.std(avg_wait_values))
+        if avg_queue:
+            lk_wait_stats["max_avg_queue_length"] = float(max(avg_queue))
+            lk_wait_stats["min_avg_queue_length"] = float(min(avg_queue))
+            lk_wait_stats["std_avg_queue_length"] = float(np.std(avg_queue))
 
     result = {
         "p_packet": p_packet,
