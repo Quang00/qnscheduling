@@ -11,6 +11,9 @@ import pandas as pd
 from openpyxl.utils import get_column_letter
 
 
+# =============================================================================
+# Parallelization
+# =============================================================================
 def parallelizable_tasks(
     paths_for_each_apps: dict[str, List[str] | None],
 ) -> dict[str, set[str]]:
@@ -64,6 +67,9 @@ def parallelizable_tasks(
     return parallelizable_applications
 
 
+# =============================================================================
+# Helper simulation functions
+# =============================================================================
 def app_params_sim(
     paths: dict[str, list[str]],
     app_specs: dict[str, dict[str, Any]],
@@ -104,6 +110,92 @@ def app_params_sim(
     return sim_params
 
 
+def build_default_sim_args(config: str, args: dict | None) -> dict:
+    default_args = {
+        "config": config,
+        "inst_range": (100, 100),
+        "epr_range": (2, 2),
+        "period_range": (1, 1),
+        "hyperperiod_cycles": 1000,
+        "memory": 1000,
+        "p_swap": 0.6,
+        "p_gen": 1e-3,
+        "fidelity_range": (0.6, 0.9),
+        "routing": "capacity",
+        "capacity_threshold": 0.8,
+        "time_slot_duration": 1e-4,
+    }
+    if args:
+        default_args.update(args)
+    return default_args
+
+
+def build_tasks(
+    ppacket_values: Iterable[float],
+    simulations_per_point: int,
+    seed_start: int,
+    run_dir: str,
+    default_kwargs: dict,
+    n_apps_values: Iterable[int],
+    keep_seed_outputs: bool = True,
+) -> list[tuple[Any, ...]]:
+    tasks = []
+    seed_pool = [
+        seed_start + offset for offset in range(simulations_per_point)
+    ]
+    n_apps_list = list(n_apps_values)
+    if not n_apps_list:
+        raise ValueError("n_apps_values must contain at least one value")
+    for n_apps in n_apps_list:
+        for p_packet in ppacket_values:
+            for run_seed in seed_pool:
+                tasks.append(
+                    (
+                        p_packet,
+                        run_seed,
+                        run_dir,
+                        default_kwargs,
+                        int(n_apps),
+                        keep_seed_outputs,
+                    )
+                )
+    return tasks
+
+
+# =============================================================================
+# Tracking
+# =============================================================================
+def compute_link_utilization(
+    link_busy: Dict[Tuple[str, str], float],
+    min_start: float,
+    max_completion: float,
+) -> Dict[Tuple[str, str], Dict[str, float]]:
+    if not link_busy:
+        return {}
+
+    horizon = 0.0
+    if (
+        np.isfinite(min_start)
+        and np.isfinite(max_completion)
+        and max_completion > min_start
+    ):
+        horizon = max_completion - min_start
+
+    if horizon > 0.0:
+        return {
+            link: {
+                "busy_time": busy,
+                "utilization": busy / horizon,
+            }
+            for link, busy in link_busy.items()
+        }
+
+    return {
+        link: {"busy_time": busy, "utilization": 0.0}
+        for link, busy in link_busy.items()
+    }
+
+
 def track_link_waiting(
     route_links: List[Tuple[str, str]] | None,
     waiting_time: float,
@@ -130,6 +222,9 @@ def track_link_waiting(
         pga_wait["pga_waited"] = pga_wait["pga_waited"] + 1
 
 
+# =============================================================================
+# Results saving and summary
+# =============================================================================
 def save_results(
     df: pd.DataFrame,
     pga_names: List[str],
@@ -491,6 +586,9 @@ def save_results(
         per_task_df.to_csv(per_task_path, index=False)
 
 
+# =============================================================================
+# Application and network generation
+# =============================================================================
 def gml_data(
     gml_file: str,
     rng: np.random.Generator,
@@ -583,6 +681,9 @@ def generate_n_apps(
     return apps
 
 
+# =============================================================================
+# Directory management
+# =============================================================================
 def ppacket_dirname(value: float) -> str:
     label = f"{value:.6f}".rstrip("0").rstrip(".")
     if not label:
@@ -604,86 +705,3 @@ def prepare_run_dir(
             subdir = os.path.join(run_dir, ppacket_dirname(p_val))
             os.makedirs(subdir, exist_ok=True)
     return run_dir, timestamp
-
-
-def build_default_sim_args(config: str, args: dict | None) -> dict:
-    default_args = {
-        "config": config,
-        "inst_range": (100, 100),
-        "epr_range": (2, 2),
-        "period_range": (1, 1),
-        "hyperperiod_cycles": 1000,
-        "memory": 1000,
-        "p_swap": 0.6,
-        "p_gen": 1e-3,
-        "fidelity_range": (0.6, 0.9),
-        "routing": "capacity",
-        "capacity_threshold": 0.8,
-        "time_slot_duration": 1e-4,
-    }
-    if args:
-        default_args.update(args)
-    return default_args
-
-
-def build_tasks(
-    ppacket_values: Iterable[float],
-    simulations_per_point: int,
-    seed_start: int,
-    run_dir: str,
-    default_kwargs: dict,
-    n_apps_values: Iterable[int],
-    keep_seed_outputs: bool = True,
-) -> list[tuple[Any, ...]]:
-    tasks = []
-    seed_pool = [
-        seed_start + offset for offset in range(simulations_per_point)
-    ]
-    n_apps_list = list(n_apps_values)
-    if not n_apps_list:
-        raise ValueError("n_apps_values must contain at least one value")
-    for n_apps in n_apps_list:
-        for p_packet in ppacket_values:
-            for run_seed in seed_pool:
-                tasks.append(
-                    (
-                        p_packet,
-                        run_seed,
-                        run_dir,
-                        default_kwargs,
-                        int(n_apps),
-                        keep_seed_outputs,
-                    )
-                )
-    return tasks
-
-
-def compute_link_utilization(
-    link_busy: Dict[Tuple[str, str], float],
-    min_start: float,
-    max_completion: float,
-) -> Dict[Tuple[str, str], Dict[str, float]]:
-    if not link_busy:
-        return {}
-
-    horizon = 0.0
-    if (
-        np.isfinite(min_start)
-        and np.isfinite(max_completion)
-        and max_completion > min_start
-    ):
-        horizon = max_completion - min_start
-
-    if horizon > 0.0:
-        return {
-            link: {
-                "busy_time": busy,
-                "utilization": busy / horizon,
-            }
-            for link, busy in link_busy.items()
-        }
-
-    return {
-        link: {"busy_time": busy, "utilization": 0.0}
-        for link, busy in link_busy.items()
-    }

@@ -1,6 +1,6 @@
 import pytest
 
-from scheduling.static import edf_parallel_static
+from scheduling.static import edf_parallel_static, hyperperiod
 
 
 @pytest.fixture
@@ -83,3 +83,16 @@ def test_deadline_miss(patch_hyperperiod):
     parallel = {"A": set(), "B": set()}
     is_feasible, _ = edf_parallel_static(rel, periods, durations, parallel, 1)
     assert is_feasible is False
+
+
+def test_hyperperiod_empty_and_negative():
+    assert hyperperiod({}) == 0.0
+    assert hyperperiod({"Alice": 0.0, "Bob": -1.0}) == 0.0
+
+
+def test_hyperperiod_basic():
+    periods = {"Alice": 10.0, "Bob": 10.0}
+    assert hyperperiod(periods) == 10.0
+
+    periods = {"Alice": 4.0, "Bob": 6.0, "Charlie": 10.0}
+    assert hyperperiod(periods) == 60.0
