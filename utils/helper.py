@@ -783,26 +783,6 @@ def generate_n_apps(
     return apps
 
 
-def edges_delay(
-    distances: dict[tuple, float], c_fiber: float = 200_000.0
-) -> dict[tuple, float]:
-    """Compute the delay for each edge based on its distance.
-
-    Args:
-        distances (dict[tuple, float]): A dictionary mapping edges (as tuples)
-        to their distances.
-        c_fiber (float, optional): Speed of light in fiber (in km/s).
-
-    Returns:
-        dict[tuple, float]: A dictionary mapping edges (as tuples) to their
-        delays.
-    """
-    delay_map = {(a, b): dist / c_fiber for (a, b), dist in distances.items()}
-    for (a, b), delay in list(delay_map.items()):
-        delay_map[(b, a)] = delay
-    return delay_map
-
-
 def _lcm(a: int, b: int) -> int:
     """Compute the least common multiple (LCM) of two integers.
 

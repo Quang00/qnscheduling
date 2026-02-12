@@ -6,7 +6,6 @@ import pandas as pd
 import pytest
 
 from utils.helper import (
-    edges_delay,
     find_feasible_path,
     generate_n_apps,
     gml_data,
@@ -189,36 +188,6 @@ def test_save_results_basic(tmp_path):
     assert b0_row["instances"] == 1
     assert b0_row["pairs_requested"] == 1
     assert b0_row["policy"] == "deadline"
-
-
-def edges_delay_basic():
-    distances = {("Alice", "Bob"): 1000.0, ("Bob", "Charlie"): 500.0}
-    result = edges_delay(distances)
-
-    expected_ab = 1000.0 / 200_000.0
-    expected_bc = 500.0 / 200_000.0
-
-    assert result[("Alice", "Bob")] == expected_ab
-    assert result[("Bob", "Alice")] == expected_ab
-    assert result[("Bob", "Charlie")] == expected_bc
-    assert result[("Charlie", "Bob")] == expected_bc
-
-    assert set(result.keys()) == {
-        ("Alice", "Bob"),
-        ("Bob", "Alice"),
-        ("Bob", "Charlie"),
-        ("Charlie", "Bob"),
-    }
-
-
-def test_edges_delay_empty():
-    assert edges_delay({}) == {}
-
-
-def test_zero_distance_gives_zero_delay():
-    distances = {("Alice", "Bob"): 0.0}
-    res = edges_delay(distances)
-    assert res == {("Alice", "Bob"): 0.0, ("Bob", "Alice"): 0.0}
 
 
 def test_hyperperiod_empty_and_negative():
