@@ -42,6 +42,141 @@ def shortest_paths(
     }
 
 
+def _max_path_length(min_fidelity: float, initial_fidelity: float) -> int:
+    return math.floor(
+        math.log((4 * min_fidelity - 1) / 3)
+        / math.log((4 * initial_fidelity - 1) / 3)
+    )
+
+
+def _build_graph(
+    routing_mode: str,
+    edges: List[Tuple[str, str]],
+    base_graph: nx.Graph,
+    cap: Dict[Tuple[str, str], float],
+    capacity_threshold: float,
+) -> nx.Graph:
+    if routing_mode == "capacity":
+        usable_edges = [
+            (u, v)
+            for (u, v) in edges
+            if cap[tuple(sorted((u, v)))] < capacity_threshold
+        ]
+        G = nx.Graph()
+        G.add_edges_from(usable_edges)
+        return G
+    return base_graph
+
+
+def yen_random(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+    rng: np.random.Generator,
+) -> List[str] | None:
+    seen = 0
+    selected_path = None
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+        seen += 1
+        if rng.integers(seen) == 0:
+            selected_path = path
+    return selected_path
+
+
+def hub_aware(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+) -> List[str] | None:
+    best_score = None
+    selected_path = None
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+        internal = path[1:-1]
+        score = max((G.degree(v) for v in internal), default=0)
+        if best_score is None or score < best_score:
+            best_score = score
+            selected_path = path
+    return selected_path
+
+
+def capacity_aware(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+    req: Dict[str, Any],
+    cap: Dict[Tuple[str, str], float],
+    capacity_threshold: float,
+    p_packet: float | None,
+    memory: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+) -> Tuple[List[str] | None, float]:
+    selected_path = None
+    selected_delta = 0.0
+
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+
+        n_swaps = max(0, len(path) - 2)
+        pga_duration = duration_pga(
+            p_packet=p_packet,
+            epr_pairs=req["epr"],
+            n_swap=n_swaps,
+            memory=memory,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
+        )
+        delta = float(pga_duration) / float(req["period"])
+        links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        if any(cap[lk] + delta > capacity_threshold for lk in links):
+            continue
+        selected_delta = delta
+        selected_path = path
+        break
+
+    return selected_path, selected_delta
+
+
+def fidelity_shortest(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+) -> List[str] | None:
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+        return path
+    return None
+
+
+def _update_capacity(
+    path: List[str],
+    delta: float,
+    cap: Dict[Tuple[str, str], float],
+) -> None:
+    for u, v in zip(path[:-1], path[1:], strict=False):
+        link = tuple(sorted((u, v)))
+        cap[link] += delta
+
+
 def find_feasible_path(
     edges: List[Tuple[str, str]],
     app_requests: Dict[str, Dict[str, Any]],
@@ -75,9 +210,13 @@ def find_feasible_path(
         fidelities (Dict[Tuple[str, str], float]): Per-edge fidelities in
             the quantum network, where keys are directed edges (src, dst) and
             values are the fidelities of those edges.
-        routing_mode (str, optional): Routing mode, either "shortest" or
-            "capacity". In "capacity" mode, edges that have reached the
-            capacity threshold are excluded from path selection.
+        routing_mode (str, optional): Routing mode, either "shortest", "random"
+            , "degree", or "capacity". In "capacity" mode, edges that have
+            reached the capacity threshold are excluded from path selection. In
+            "random" mode, a random path is selected among all shortest paths
+            that meet the fidelity requirement. In "degree" mode, the path with
+            the lowest maximum degree of internal nodes is selected among all
+            shortest paths that meet the fidelity requirement.
         capacity_threshold (float, optional): Capacity threshold for edges in
             "capacity" routing mode. Edges with utilization above this
             threshold are excluded from path selection.
@@ -97,6 +236,13 @@ def find_feasible_path(
         source to destination for that application, or None if no feasible
         path exists.
     """
+    if fidelities is None or not fidelities:
+        print(
+            "Please provide per-edge fidelities "
+            "with CLI (e.g., \"-f 0.6 0.85\")"
+        )
+        return {app: None for app in app_requests.keys()}
+
     initial_fidelity = min(fidelities.values())
     base_graph = nx.Graph()
     base_graph.add_edges_from(edges)
@@ -119,85 +265,41 @@ def find_feasible_path(
             ret[app] = None
             continue
 
-        if routing_mode == "capacity":
-            usable_edges = [
-                (u, v)
-                for (u, v) in edges
-                if cap[tuple(sorted((u, v)))] < capacity_threshold
-            ]
-            G = nx.Graph()
-            G.add_edges_from(usable_edges)
-        else:
-            G = base_graph
+        G = _build_graph(
+            routing_mode, edges, base_graph, cap, capacity_threshold
+        )
 
         if not nx.has_path(G, src, dst):
             ret[app] = None
             continue
 
-        selected_path = None
-        selected_delta = 0.0
-        L_max = math.floor(
-            math.log((4 * min_fidelity - 1) / 3)
-            / math.log((4 * initial_fidelity - 1) / 3)
-        )
-        if routing_mode == "random":
-            seen = 0
-            for path in nx.shortest_simple_paths(G, src, dst):
-                L = len(path) - 1
-                if L > L_max:
-                    break
-                seen += 1
-                if rng.integers(seen) == 0:
-                    selected_path = path
-        elif routing_mode == "degree":
-            best_score = None
-            for path in nx.shortest_simple_paths(G, src, dst):
-                L = len(path) - 1
-                if L > L_max:
-                    break
-                internal = path[1:-1]
-                score = max((G.degree(v) for v in internal), default=0)
-                if best_score is None or score < best_score:
-                    best_score = score
-                    selected_path = path
-        else:
-            for path in nx.shortest_simple_paths(G, src, dst):
-                L = len(path) - 1
-                if L > L_max:
-                    break
-                if routing_mode == "capacity":
-                    n_swaps = max(0, len(path) - 2)
-                    pga_duration = duration_pga(
-                        p_packet=p_packet,
-                        epr_pairs=req["epr"],
-                        n_swap=n_swaps,
-                        memory=memory,
-                        p_swap=p_swap,
-                        p_gen=p_gen,
-                        time_slot_duration=time_slot_duration,
-                    )
-                    delta = float(pga_duration) / float(req["period"])
-                    links = [
-                        tuple(sorted((u, v)))
-                        for u, v in zip(path[:-1], path[1:], strict=False)
-                    ]
-                    if any(
-                        cap[lk] + delta > capacity_threshold for lk in links
-                    ):
-                        continue
-                    selected_delta = delta
-                selected_path = path
-                break
+        L_max = _max_path_length(min_fidelity, initial_fidelity)
 
+        if routing_mode == "random":
+            selected_path = yen_random(G, src, dst, L_max, rng)
+        elif routing_mode == "degree":
+            selected_path = hub_aware(G, src, dst, L_max)
+        elif routing_mode == "capacity":
+            selected_path, selected_delta = capacity_aware(
+                G,
+                src,
+                dst,
+                L_max,
+                req,
+                cap,
+                capacity_threshold,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+            )
             if selected_path is None:
                 ret[app] = None
                 continue
+            _update_capacity(selected_path, selected_delta, cap)
+        else:
+            selected_path = fidelity_shortest(G, src, dst, L_max)
 
-            if routing_mode == "capacity":
-                for u, v in zip(
-                    selected_path[:-1], selected_path[1:], strict=False
-                ):
-                    link = tuple(sorted((u, v)))
-                    cap[link] += selected_delta
         ret[app] = selected_path
     return ret
