@@ -366,6 +366,7 @@ def save_results(
     total_busy_time = float("nan")
     p90_link_avg_wait = float("nan")
     p95_link_avg_wait = float("nan")
+    avg_queue_length = float("nan")
     p90_avg_queue_length = float("nan")
     p95_avg_queue_length = float("nan")
     link_waiting_path = None
@@ -439,6 +440,7 @@ def save_results(
             waiting_df.get("avg_queue_length"), errors="coerce"
         ).dropna()
         if not avg_queue_series.empty:
+            avg_queue_length = float(avg_queue_series.mean())
             p90_avg_queue_length = float(avg_queue_series.quantile(0.9))
             p95_avg_queue_length = float(avg_queue_series.quantile(0.95))
         if save_csv:
@@ -543,7 +545,7 @@ def save_results(
         print(f"Max waiting time : {max_wait:.4f}")
         print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
         print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
-        print(f"Avg queue length : {avg_queue_series.mean():.4f}")
+        print(f"Avg queue length : {avg_queue_length:.4f}")
         print(f"P90 avg_queue_length : {p90_avg_queue_length:.4f}")
         print(f"P95 avg_queue_length : {p95_avg_queue_length:.4f}")
         print(f"Avg turnaround   : {avg_turnaround:.4f}")
@@ -578,6 +580,7 @@ def save_results(
         "p95_link_utilization": float(p95_link_utilization),
         "p90_link_avg_wait": float(p90_link_avg_wait),
         "p95_link_avg_wait": float(p95_link_avg_wait),
+        "avg_queue_length": float(avg_queue_length),
         "p90_avg_queue_length": float(p90_avg_queue_length),
         "p95_avg_queue_length": float(p95_avg_queue_length),
     }

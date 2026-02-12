@@ -79,6 +79,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p95_link_utilization": float("nan"),
         "p90_link_avg_wait": float("nan"),
         "p95_link_avg_wait": float("nan"),
+        "avg_queue_length": float("nan"),
         "p90_avg_queue_length": float("nan"),
         "p95_avg_queue_length": float("nan"),
     }
@@ -119,6 +120,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
             lk_wait_stats["min_link_avg_wait"] = float(min(avg_wait_values))
             lk_wait_stats["std_link_avg_wait"] = float(np.std(avg_wait_values))
         if avg_queue:
+            lk_wait_stats["avg_avg_queue_length"] = float(np.mean(avg_queue))
             lk_wait_stats["max_avg_queue_length"] = float(max(avg_queue))
             lk_wait_stats["min_avg_queue_length"] = float(min(avg_queue))
             lk_wait_stats["std_avg_queue_length"] = float(np.std(avg_queue))

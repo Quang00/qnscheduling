@@ -50,12 +50,13 @@ def build_metric_specs(
             "percentage": True,
         },
         {
-            "key": "avg_waiting_time",
-            "ylabel": "Average waiting time (s)",
-        },
-        {
             "key": "avg_link_utilization",
             "ylabel": "Average link utilization (%)",
+            "percentage": True,
+        },
+        {
+            "key": "p90_link_utilization",
+            "ylabel": "90th percentile link utilization (%)",
             "percentage": True,
         },
         {
@@ -64,8 +65,28 @@ def build_metric_specs(
             "percentage": True,
         },
         {
+            "key": "avg_waiting_time",
+            "ylabel": "Average waiting time (s)",
+        },
+        {
+            "key": "p90_link_avg_wait",
+            "ylabel": "90th percentile link average wait (s)",
+        },
+        {
             "key": "p95_link_avg_wait",
             "ylabel": "95th percentile link average wait (s)",
+        },
+        {
+            "key": "avg_queue_length",
+            "ylabel": "Average queue length",
+        },
+        {
+            "key": "p90_avg_queue_length",
+            "ylabel": "90th percentile average queue length",
+        },
+        {
+            "key": "p95_avg_queue_length",
+            "ylabel": "95th percentile average queue length",
         },
         {
             "key": "drop_ratio",
@@ -79,6 +100,10 @@ def build_metric_specs(
         {
             "key": "avg_min_fidelity",
             "ylabel": "Average minimum fidelity",
+        },
+        {
+            "key": "avg_pga_duration",
+            "ylabel": "Average PGA duration (s)",
         },
         {
             "key": "avg_defer_per_pga",
