@@ -442,6 +442,7 @@ def save_results(
     )
     completed_total = int((final["status"] == "completed").sum())
     drop_total = int((final["status"] == "drop").sum())
+    failed_total = int((final["status"] == "failed").sum())
 
     arrival_min = df["arrival_time"].min()
     completion_max = df["completion_time"].max()
@@ -565,12 +566,12 @@ def save_results(
         if not completed_final.empty
         else float("nan")
     )
-    total_pga_duration = (
-        float(np.sum(pga_durations)) if pga_durations.size else float("nan")
+    avg_pga_duration = (
+        float(np.sum(pga_durations)) / tot_reqs
     )
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
-    failed_ratio = 1 - completed_ratio - drop_ratio
+    failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
     defer_count = len(df.loc[df["status"] == "defer"])
     retry_count = len(df.loc[df["status"] == "retry"])
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
@@ -630,7 +631,7 @@ def save_results(
     print(f"Max turnaround   : {max_turnaround:.4f}")
     print(f"Avg hops         : {avg_hops:.4f}")
     print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
-    print(f"Total PGA duration : {total_pga_duration:.4f}")
+    print(f"Avg PGA duration : {avg_pga_duration:.4f}")
     print(f"Total busy time  : {total_busy_time:.4f}")
     print(f"Avg link utilization : {avg_link_utilization:.4f}")
     print(f"P90 link utilization : {p90_link_utilization:.4f}")
@@ -654,7 +655,7 @@ def save_results(
                 "max_turnaround_time": float(max_turnaround),
                 "avg_hops": float(avg_hops),
                 "avg_min_fidelity": float(avg_min_fidelity),
-                "total_pga_duration": float(total_pga_duration),
+                "avg_pga_duration": float(avg_pga_duration),
                 "total_busy_time": float(total_busy_time),
                 "avg_link_utilization": float(avg_link_utilization),
                 "p90_link_utilization": float(p90_link_utilization),

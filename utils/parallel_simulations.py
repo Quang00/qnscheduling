@@ -79,7 +79,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "max_turnaround_time": float("nan"),
         "avg_hops": float("nan"),
         "avg_min_fidelity": float("nan"),
-        "total_pga_duration": float("nan"),
+        "avg_pga_duration": float("nan"),
         "total_busy_time": float("nan"),
         "avg_link_utilization": float("nan"),
         "p90_link_utilization": float("nan"),
@@ -88,27 +88,14 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p95_link_avg_wait": float("nan"),
         "useful_utilization": float("nan"),
     }
-    summary_row = None
     summary_path = os.path.join(sd_dir, "summary.csv")
     if os.path.exists(summary_path):
         summary_df = pd.read_csv(summary_path)
         if not summary_df.empty:
             row = summary_df.iloc[0]
-            summary_row = row
             for key in summary_metrics:
                 if key in row:
                     summary_metrics[key] = float(row[key])
-
-    pga_duration_total = float("nan")
-    if summary_row is not None:
-        pga_duration_total = float(
-            summary_row.get("total_pga_duration", pga_duration_total)
-        )
-
-    if durations:
-        duration_vals = np.array(list(durations.values()), dtype=float)
-        if duration_vals.size:
-            pga_duration_total = float(duration_vals.sum())
 
     lk_util_stats = {}
     if link_util:
@@ -142,11 +129,9 @@ def simulate_one_ppacket(args: tuple) -> dict:
     result = {
         "p_packet": p_packet,
         "seed": run_seed,
-        "feasible": feasible,
         "completed": completed,
         "total_jobs": total,
         "n_apps": n_apps_int,
-        "pga_duration_total": pga_duration_total,
         **summary_metrics,
         **lk_util_stats,
         **lk_wait_stats,
