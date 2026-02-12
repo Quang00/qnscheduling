@@ -14,8 +14,9 @@
 This repository simulates on-demand entanglement packet scheduling using Packet Generation Attempts (PGAs) from the paper [[1]](#1).
 
 The simulator can:
+
 - Generates a batch of applications (src/dst, periods, number of packets, number of required EPR pairs)
-- Computes the budget time per-application PGA based on a network-layer model/entanglement swapping 
+- Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** or **dynamic online EDF-like**
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
 - Exports results and summary metrics as CSVs
@@ -26,13 +27,11 @@ A high-level workflow of the dynamic scheduler of entanglement packets:
   <img src="docs/dynamic_online_scheduler_pga.png" alt="Dynamic Online Scheduler" />
 </p>
 
-
 A toy example of the network-layer model with the two schedulers (with a linear chain A-B-C) and 3 apps/flows (1, 2, 3):
 
 <p align="center">
   <img src="docs/pga_detailed.png" alt="Model" />
 </p>
-
 
 ## Installation
 
@@ -59,6 +58,7 @@ pytest
 ## Scheduling modes and statuses
 
 ### Static scheduler (`--scheduler static`)
+
 - Builds a precomputed EDF schedule over a horizon.
 - Uses a conflict graph for concurrency: applications that share at least one link cannot overlap.
 - Feasibility checks:
@@ -68,11 +68,13 @@ pytest
 If infeasible, the run exits early (no result CSVs are written for that run).
 
 ### Dynamic scheduler (`--scheduler dynamic`)
+
 - Online EDF-like with dynamic arrival.
 - Arrivals are periodic by default; if `--arrival-rate` is provided, arrivals follow a Poisson process.
 - Can admit/schedule/defer/retry/drop.
 
 ### Status values (in `pga_results.csv`)
+
 - `completed`: generated required E2E EPR pairs within its budget time (PGA)
 - `failed`: ran but didn’t generate enough pairs by the end of its PGA
 - `retry`: failed attempt that is rescheduled again (dynamic)
@@ -127,6 +129,7 @@ python -m scheduling.main
 ## Example commands
 
 ### Dynamic scheduler (online)
+
 ```bash
 python -m scheduling.main \
   --config configurations/network/basic/Dumbbell.gml \
@@ -147,6 +150,7 @@ python -m scheduling.main \
 ```
 
 ### Static scheduler (offline)
+
 ```bash
 python -m scheduling.main \
   --config configurations/network/basic/Dumbbell.gml \
@@ -167,6 +171,7 @@ python -m scheduling.main \
 ```
 
 ### Dynamic scheduler + routing capacity-aware
+
 ```bash
 python -m scheduling.main \
   --config configurations/network/basic/Dumbbell.gml \
@@ -194,11 +199,13 @@ The network topology configurations are stored as `.gml` files in `configuration
 
 - `configurations/network/basic/`: Simple topologies for testing
   - `Chain.gml`: Linear chain topology (5 nodes)
+  - `Star.gml`: Star topology (7 nodes)
   - `Dumbbell.gml`: Dumbbell topology
 
 - `configurations/network/advanced/`: Real-world network topologies from Internet Topology Zoo.
 
 Each `.gml` file contains:
+
 - **Graph metadata**: name, directed flag, statistics (nodes, links, degree)
 - **Nodes**: id, label, longitude (lon), latitude (lat) for geographic positioning
 - **Edges**: source, target, distance (dist)
@@ -208,11 +215,14 @@ Each `.gml` file contains:
 To plot and visualize a network topology:
 
 ```bash
-python utils/plot_graph.py
+python -m utils/plots_graph.py
 ```
 
-Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Chain.gml`).
+Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
 
+| Basic                            | Advanced                            |
+| -------------------------------- | ----------------------------------- |
+| ![Basic topology](docs/star.png) | ![Advanced topology](docs/garr.png) |
 
 ## Acknowledgements
 
