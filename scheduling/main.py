@@ -59,8 +59,8 @@ import pandas as pd
 
 from scheduling.pga import compute_durations
 from scheduling.routing import find_feasible_path, shortest_paths
-from scheduling.scheduling import edf_parallel_static
 from scheduling.simulation import simulate_dynamic, simulate_static
+from scheduling.static import edf_parallel_static
 from utils.helper import (
     app_params_sim,
     generate_n_apps,

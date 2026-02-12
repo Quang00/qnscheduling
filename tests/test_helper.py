@@ -6,10 +6,10 @@ import pandas as pd
 import pytest
 
 from scheduling.routing import find_feasible_path, shortest_paths
+from scheduling.static import hyperperiod
 from utils.helper import (
     generate_n_apps,
     gml_data,
-    hyperperiod,
     parallelizable_tasks,
     save_results,
 )

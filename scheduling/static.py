@@ -1,20 +1,74 @@
 """
-Scheduling
-----------
-This module implements a feasibility test and scheduling algorithm for
-Packet Generation Attempts (PGAs) in a quantum network. It uses an Earliest
-Deadline First (EDF) approach to schedule PGAs while considering their
-parallelization capabilities. The schedule is constructed over a specified
-number of hyperperiod cycles that ensure PGAs are executed within their
-deadlines if feasible.
+Static Scheduling
+-----------------
+This module implements a static scheduling algorithm for Packet Generation
+Attempts (PGAs) in a quantum network. It uses an Earliest Deadline First
+(EDF) approach to schedule PGAs while considering their parallelization
+capabilities. The schedule is constructed over a specified number of
+hyperperiod cycles that ensure PGAs are executed within their deadlines
+if feasible.
 """
 
-from math import floor
+from fractions import Fraction
+from functools import reduce
+from math import floor, gcd, isfinite
 from typing import Dict, List, Set, Tuple
 
-from utils.helper import hyperperiod
-
 EPS = 1e-12
+
+
+def _lcm(a: int, b: int) -> int:
+    """Compute the least common multiple (LCM) of two integers.
+
+    Args:
+        a (int): The first integer.
+        b (int): The second integer.
+
+    Returns:
+        int: The least common multiple of a and b.
+    """
+    return 0 if (a == 0 or b == 0) else abs(a // gcd(a, b) * b)
+
+
+def hyperperiod(periods: dict[str, float]) -> float:
+    """Compute the hyperperiod of a set of periods.
+
+    Args:
+        periods (dict[str, float]): A dictionary mapping PGA names to their
+        periods.
+
+    Returns:
+        float: The hyperperiod of the given periods.
+    """
+    positive_periods = [
+        float(period) for period in periods.values() if float(period) > 0.0
+    ]
+    if not positive_periods:
+        return 0.0
+
+    fracs = [
+        Fraction(period).limit_denominator() for period in positive_periods
+    ]
+    if not fracs:
+        return 0.0
+
+    D = reduce(_lcm, (frac.denominator for frac in fracs))
+    nums = [frac.numerator * (D // frac.denominator) for frac in fracs]
+    hyperperiod_ticks = reduce(_lcm, nums)
+
+    try:
+        value = hyperperiod_ticks / D
+    except OverflowError:
+        return max(positive_periods)
+
+    if not isfinite(value):
+        return max(positive_periods)
+
+    MAX_HYPERPERIOD_SECONDS = 1e6
+    if value > MAX_HYPERPERIOD_SECONDS:
+        return max(positive_periods)
+
+    return value
 
 
 def edf_parallel_static(

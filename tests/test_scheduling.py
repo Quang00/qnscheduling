@@ -1,6 +1,6 @@
 import pytest
 
-from scheduling.scheduling import edf_parallel_static
+from scheduling.static import edf_parallel_static
 
 
 @pytest.fixture

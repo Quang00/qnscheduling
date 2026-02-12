@@ -1,11 +1,8 @@
-import math
+
 import os
 import re
 from collections import defaultdict
 from datetime import datetime
-from fractions import Fraction
-from functools import reduce
-from math import gcd
 from typing import Any, Dict, Iterable, List, Tuple
 
 import networkx as nx
@@ -584,61 +581,6 @@ def generate_n_apps(
         }
 
     return apps
-
-
-def _lcm(a: int, b: int) -> int:
-    """Compute the least common multiple (LCM) of two integers.
-
-    Args:
-        a (int): The first integer.
-        b (int): The second integer.
-
-    Returns:
-        int: The least common multiple of a and b.
-    """
-    return 0 if (a == 0 or b == 0) else abs(a // gcd(a, b) * b)
-
-
-def hyperperiod(periods: dict[str, float]) -> float:
-    """Compute the hyperperiod of a set of periods.
-
-    Args:
-        periods (dict[str, float]): A dictionary mapping PGA names to their
-        periods.
-
-    Returns:
-        float: The hyperperiod of the given periods.
-    """
-    positive_periods = [
-        float(period) for period in periods.values() if float(period) > 0.0
-    ]
-    if not positive_periods:
-        return 0.0
-
-    fracs = [
-        Fraction(period).limit_denominator()
-        for period in positive_periods
-    ]
-    if not fracs:
-        return 0.0
-
-    D = reduce(_lcm, (frac.denominator for frac in fracs))
-    nums = [frac.numerator * (D // frac.denominator) for frac in fracs]
-    hyperperiod_ticks = reduce(_lcm, nums)
-
-    try:
-        value = hyperperiod_ticks / D
-    except OverflowError:
-        return max(positive_periods)
-
-    if not math.isfinite(value):
-        return max(positive_periods)
-
-    MAX_HYPERPERIOD_SECONDS = 1e6
-    if value > MAX_HYPERPERIOD_SECONDS:
-        return max(positive_periods)
-
-    return value
 
 
 def ppacket_dirname(value: float) -> str:
