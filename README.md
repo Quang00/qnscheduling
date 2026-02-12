@@ -15,7 +15,7 @@ This repository simulates on-demand entanglement packet scheduling using Packet 
 
 The simulator can:
 
-- Generates a batch of applications (src/dst, periods, number of packets, number of required EPR pairs)
+- Generates a batch of applications (source/destination nodes, periods, number of packets, number of required EPR pairs)
 - Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** or **dynamic online EDF-like**
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
@@ -148,7 +148,7 @@ To plot and visualize a network topology:
 python -m utils/plots_graph.py
 ```
 
-Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
+Then enter the path to the GML file (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
 
 | Basic                            | Advanced                            |
 | -------------------------------- | ----------------------------------- |
