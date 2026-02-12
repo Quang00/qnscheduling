@@ -5,7 +5,6 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Optional, Sequence
 
-import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
@@ -87,50 +86,11 @@ def simulate_one_ppacket(args: tuple) -> dict:
     if summary:
         summary_metrics.update(summary)
 
-    lk_util_stats = {}
-    if link_util:
-        util_values = [
-            metrics.get("utilization", 0.0)
-            for metrics in link_util.values()
-        ]
-        busy_values = [
-            metrics.get("busy_time", 0.0)
-            for metrics in link_util.values()
-        ]
-        if util_values:
-            lk_util_stats["max_link_utilization"] = float(max(util_values))
-            lk_util_stats["min_link_utilization"] = float(min(util_values))
-            lk_util_stats["std_link_utilization"] = float(np.std(util_values))
-            lk_util_stats["total_link_busy_time"] = float(sum(busy_values))
-
-    lk_wait_stats = {}
-    if link_waiting:
-        avg_wait_values = []
-        avg_queue = []
-        makespan = summary_metrics.get("makespan", 0.0)
-        for waiting in link_waiting.values():
-            total_wait = waiting.get("total_waiting_time", 0.0)
-            pga_waited = waiting.get("pga_waited", 0)
-            if pga_waited > 0:
-                avg_wait_values.append(total_wait / pga_waited)
-            if makespan > 0:
-                avg_queue.append(total_wait / makespan)
-        if avg_wait_values:
-            lk_wait_stats["max_link_avg_wait"] = float(max(avg_wait_values))
-            lk_wait_stats["min_link_avg_wait"] = float(min(avg_wait_values))
-            lk_wait_stats["std_link_avg_wait"] = float(np.std(avg_wait_values))
-        if avg_queue:
-            lk_wait_stats["max_avg_queue_length"] = float(max(avg_queue))
-            lk_wait_stats["min_avg_queue_length"] = float(min(avg_queue))
-            lk_wait_stats["std_avg_queue_length"] = float(np.std(avg_queue))
-
     result = {
         "p_packet": p_packet,
         "seed": run_seed,
         "n_apps": n_apps_int,
         **summary_metrics,
-        **lk_util_stats,
-        **lk_wait_stats,
     }
 
     if not keep_seed_outputs and os.path.exists(sd_dir):
