@@ -120,6 +120,40 @@ Files written into the run folder:
 - `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
 - `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
 
+## Network topologies
+
+The network topology configurations are stored as `.gml` files in `configurations/network/`.
+
+- `configurations/network/basic/`: Simple topologies
+  - `Chain.gml`: Chain (5 nodes)
+  - `Mesh.gml`: Mesh (6 nodes)
+  - `Ring.gml`: Ring (7 nodes)
+  - `Star.gml`: Star (7 nodes)
+  - `Dumbbell.gml`: Dumbbell (8 nodes)
+  - `Grid.gml`: Grid 5x5
+
+- `configurations/network/advanced/`: Real-world network topologies from Internet Topology Zoo.
+
+Each `.gml` file contains:
+
+- **Graph metadata**: name, directed flag, statistics (nodes, links, degree)
+- **Nodes**: id, label, longitude (lon), latitude (lat) for geographic positioning
+- **Edges**: source, target, distance (dist)
+
+### Visualizing topologies
+
+To plot and visualize a network topology:
+
+```bash
+python -m utils/plots_graph.py
+```
+
+Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
+
+| Basic                            | Advanced                            |
+| -------------------------------- | ----------------------------------- |
+| ![Basic topology](docs/star.png) | ![Advanced topology](docs/garr.png) |
+
 ## Quick Start
 
 ```bash
@@ -192,37 +226,6 @@ python -m scheduling.main \
   --arrival-rate 1.0 \
   --output results
 ```
-
-## Network topology
-
-The network topology configurations are stored as `.gml` files in `configurations/network/`.
-
-- `configurations/network/basic/`: Simple topologies for testing
-  - `Chain.gml`: Linear chain topology (5 nodes)
-  - `Star.gml`: Star topology (7 nodes)
-  - `Dumbbell.gml`: Dumbbell topology
-
-- `configurations/network/advanced/`: Real-world network topologies from Internet Topology Zoo.
-
-Each `.gml` file contains:
-
-- **Graph metadata**: name, directed flag, statistics (nodes, links, degree)
-- **Nodes**: id, label, longitude (lon), latitude (lat) for geographic positioning
-- **Edges**: source, target, distance (dist)
-
-### Visualizing topologies
-
-To plot and visualize a network topology:
-
-```bash
-python -m utils/plots_graph.py
-```
-
-Then enter the path to the GML file when prompted (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
-
-| Basic                            | Advanced                            |
-| -------------------------------- | ----------------------------------- |
-| ![Basic topology](docs/star.png) | ![Advanced topology](docs/garr.png) |
 
 ## Acknowledgements
 
