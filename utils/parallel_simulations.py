@@ -3,7 +3,6 @@ import os
 import shutil
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import redirect_stdout
 from typing import Any, Optional, Sequence
 
 import numpy as np
@@ -41,25 +40,19 @@ def simulate_one_ppacket(args: tuple) -> dict:
         sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
         os.makedirs(sd_dir, exist_ok=True)
     else:
-        sd_dir = tempfile.mkdtemp(prefix=f"seed_{run_seed}_")
+        sd_dir = os.path.join(tempfile.gettempdir(), f"seed_{run_seed}")
 
     sim_kwargs = default_kwargs.copy()
     sim_kwargs.update({"p_packet": p_packet, "seed": run_seed})
     sim_kwargs["output_dir"] = sd_dir
     sim_kwargs["n_apps"] = n_apps_int
     sim_kwargs["save_csv"] = keep_seed_outputs
+    sim_kwargs["verbose"] = False
 
-    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-        feasible, df, durations, link_util, link_waiting = run_simulation(
-            **sim_kwargs
-        )
+    feasible, df, durations, link_util, link_waiting, summary = run_simulation(
+        **sim_kwargs
+    )
 
-    completed = 0
-    total = 0
-    if feasible and df is not None and not df.empty:
-        status_series = df["status"].astype(str)
-        completed = int((status_series == "completed").sum())
-        total = int(len(status_series))
     durations = durations or {}
 
     summary_metrics = {
@@ -86,16 +79,10 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p95_link_utilization": float("nan"),
         "p90_link_avg_wait": float("nan"),
         "p95_link_avg_wait": float("nan"),
-        "useful_utilization": float("nan"),
     }
-    summary_path = os.path.join(sd_dir, "summary.csv")
-    if os.path.exists(summary_path):
-        summary_df = pd.read_csv(summary_path)
-        if not summary_df.empty:
-            row = summary_df.iloc[0]
-            for key in summary_metrics:
-                if key in row:
-                    summary_metrics[key] = float(row[key])
+
+    if summary:
+        summary_metrics.update(summary)
 
     lk_util_stats = {}
     if link_util:
@@ -129,15 +116,16 @@ def simulate_one_ppacket(args: tuple) -> dict:
     result = {
         "p_packet": p_packet,
         "seed": run_seed,
-        "completed": completed,
-        "total_jobs": total,
         "n_apps": n_apps_int,
         **summary_metrics,
         **lk_util_stats,
         **lk_wait_stats,
     }
-    if not keep_seed_outputs and sd_dir.startswith(tempfile.gettempdir()):
-        shutil.rmtree(sd_dir, ignore_errors=True)
+
+    if not keep_seed_outputs and os.path.exists(sd_dir):
+        if sd_dir.startswith(tempfile.gettempdir()):
+            shutil.rmtree(sd_dir, ignore_errors=True)
+
     return result
 
 
@@ -147,7 +135,10 @@ def run_parallel_sims(
     show_progress: bool,
 ) -> list[dict[str, Any]]:
     mp_ctx = mp.get_context("spawn")
-    records: list[dict[str, Any]] = []
+    records = []
+    n_tasks = len(tasks)
+    size = max(1, n_tasks // (max_workers * 4))
+
     with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_ctx) as ex:
         if show_progress:
             futures = [ex.submit(simulate_one_ppacket, t) for t in tasks]
@@ -160,7 +151,7 @@ def run_parallel_sims(
                     records.append(fut.result())
                     pbar.update(1)
         else:
-            for rec in ex.map(simulate_one_ppacket, tasks, chunksize=1):
+            for rec in ex.map(simulate_one_ppacket, tasks, chunksize=size):
                 records.append(rec)
     return records
 

@@ -445,8 +445,6 @@ def save_results(
     if admitted_apps is not None and total_apps is not None and total_apps > 0:
         admission_rate = float(admitted_apps) / float(total_apps)
     completed_final = final.loc[final["status"] == "completed"]
-    completed_burst = completed_final["burst_time"].sum()
-    useful_util = completed_burst / makespan if makespan > 0 else float("nan")
     throughput = completed_total / makespan
     pga_durations = (
         np.array(list(durations.values()), dtype=float)
@@ -545,7 +543,6 @@ def save_results(
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
         print(f"P95 link utilization : {p95_link_utilization:.4f}")
-        print(f"Useful utilization : {useful_util:.4f}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
@@ -569,9 +566,6 @@ def save_results(
         "p95_link_utilization": float(p95_link_utilization),
         "p90_link_avg_wait": float(p90_link_avg_wait),
         "p95_link_avg_wait": float(p95_link_avg_wait),
-        "useful_utilization": float(useful_util),
-        "completed_count": int(completed_total),
-        "total_pgas": int(tot_reqs),
     }
 
     if save_csv:
