@@ -5,14 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from scheduling.routing import find_feasible_path, shortest_paths
 from utils.helper import (
-    find_feasible_path,
     generate_n_apps,
     gml_data,
     hyperperiod,
     parallelizable_tasks,
     save_results,
-    shortest_paths,
 )
 
 
