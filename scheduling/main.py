@@ -118,14 +118,10 @@ def run_simulation(
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
     Returns:
-        tuple[bool, pd.DataFrame | None, dict[str, float], dict, dict, dict]:
+        tuple[bool, dict]:
             A tuple containing:
             - bool: whether the schedule is feasible
-            - pd.DataFrame | None: the resulting PGA DataFrame when feasible
-            - dict[str, float]: the PGA durations per application
-            - dict: the per-link utilization metrics
-            - dict: the per-link waiting metrics
-            - dict[str, float]: summary metrics dictionary
+            - dict: summary metrics dictionary
     """
     rng = np.random.default_rng(seed)
 
@@ -212,7 +208,7 @@ def run_simulation(
     admitted_apps = len(admitted_specs)
 
     if admitted_apps == 0:
-        return False, None, {}, {}, {}, {}
+        return False, {}
 
     app_specs = admitted_specs
     paths = admitted_paths
@@ -294,7 +290,7 @@ def run_simulation(
         if not feasible:
             if verbose:
                 print("Schedule", schedule)
-            return False, None, durations, {}, {}, {}
+            return False, {}
 
         if verbose:
             print("Preview Schedule:", schedule[: n_apps * 2])
@@ -333,7 +329,7 @@ def run_simulation(
         save_csv=save_csv,
         verbose=verbose,
     )
-    return feasible, df, durations, link_utilization, link_waiting, summary
+    return feasible, summary
 
 
 def main():
@@ -498,7 +494,7 @@ def main():
     run_dir = os.path.join(seed_dir, f"run{run_number}")
 
     t0 = time.perf_counter()
-    feasible, _, _, _, _, _ = run_simulation(
+    feasible, _ = run_simulation(
         config=args.config,
         n_apps=args.apps,
         inst_range=args.inst,

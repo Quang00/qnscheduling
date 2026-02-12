@@ -48,11 +48,9 @@ def simulate_one_ppacket(args: tuple) -> dict:
     sim_kwargs["save_csv"] = keep_seed_outputs
     sim_kwargs["verbose"] = False
 
-    feasible, df, durations, link_util, link_waiting, summary = run_simulation(
+    feasible, summary = run_simulation(
         **sim_kwargs
     )
-
-    durations = durations or {}
 
     summary_metrics = {
         "admission_rate": float("nan"),
