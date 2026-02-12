@@ -344,17 +344,25 @@ def plot_metrics_vs_load(
     """Example usage:
     df = plot_metrics_vs_load(
         path=[
-            "1_raw.csv",
-            "2_raw.csv",
-            "3_raw.csv",
-            "4_raw.csv",
+            "1.csv",
+            "2.csv",
+            "3.csv",
+            "4.csv",
+            "5.csv",
+            "6.csv",
+            "7.csv",
+            "8.csv",
         ],
         multi=True,
         gp_labels={
             "1": "Dijkstra",
-            "2": "Dijkstra + fidelity",
-            "3": "Capacity 0.8",
-            "4": "Capacity 1.0",
+            "2": "Dijkstra (fidelity)",
+            "3": "Yen random",
+            "4": "Hub-aware",
+            "5": "Capacity-aware 0.8",
+            "6": "Capacity-aware 1.0",
+            "7": "Capacity-aware 2.0",
+            "8": "Capacity-aware 3.0",
         },
     )
     """

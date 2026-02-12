@@ -3,8 +3,8 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    n_apps_values = [50, 75, 100, 125, 150, 175, 200]
-    topology = "configurations/network/Garr201201.gml"
+    n_apps_values = [100, 200, 400, 600, 800, 1000]
+    topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
 
     base_kwargs = {
@@ -34,17 +34,43 @@ def main():
         },
         {
             "id": 3,
+            "name": "random_with-fid",
+            "routing": "random",
+            "fidelity_range": (0.6, 0.85),
+        },
+        {
+            "id": 4,
+            "name": "degree_with-fid",
+            "routing": "degree",
+            "fidelity_range": (0.6, 0.85),
+        },
+        {
+            "id": 5,
             "name": "capacity_with-fid_cap-0.8",
             "routing": "capacity",
             "fidelity_range": (0.6, 0.85),
             "capacity_threshold": 0.8,
         },
         {
-            "id": 4,
+            "id": 6,
             "name": "capacity_with-fid_cap-1.0",
             "routing": "capacity",
             "fidelity_range": (0.6, 0.85),
             "capacity_threshold": 1.0,
+        },
+        {
+            "id": 7,
+            "name": "capacity_with-fid_cap-2.0",
+            "routing": "capacity",
+            "fidelity_range": (0.6, 0.85),
+            "capacity_threshold": 2.0,
+        },
+        {
+            "id": 8,
+            "name": "capacity_with-fid_cap-3.0",
+            "routing": "capacity",
+            "fidelity_range": (0.6, 0.85),
+            "capacity_threshold": 3.0,
         },
     ]
 
