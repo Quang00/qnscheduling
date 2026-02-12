@@ -146,7 +146,7 @@ def test_save_results_basic(tmp_path):
 
 def test_gml_data():
     rng = np.random.default_rng(seed=42)
-    gml_file = "configurations/network/Dumbbell.gml"
+    gml_file = "configurations/network/basic/Dumbbell.gml"
     nodes, edges, distances, fidelities = gml_data(gml_file, rng)
 
     assert len(nodes) > 0
