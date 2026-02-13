@@ -20,10 +20,10 @@ scheduling.pga module
    :undoc-members:
    :show-inheritance:
 
-scheduling.scheduling module
-----------------------------
+scheduling.routing module
+-------------------------
 
-.. automodule:: scheduling.scheduling
+.. automodule:: scheduling.routing
    :members:
    :undoc-members:
    :show-inheritance:
@@ -32,6 +32,14 @@ scheduling.simulation module
 ----------------------------
 
 .. automodule:: scheduling.simulation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+scheduling.static module
+------------------------
+
+.. automodule:: scheduling.static
    :members:
    :undoc-members:
    :show-inheritance:
