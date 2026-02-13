@@ -197,20 +197,30 @@ def compute_link_utilization(
 
 
 def track_link_waiting(
-    route_links: List[Tuple[str, str]] | None,
     waiting_time: float,
     wait_acc: Dict[Tuple[str, str], Dict[str, float]],
+    blocking_links: List[Tuple[str, str]] | None = None,
 ) -> None:
     """Track waiting time statistics per link.
 
     Args:
-        route_links (List[Tuple[str, str]] | None): List of links.
         waiting_time (float): Waiting time per PGA.
         wait_acc (Dict[Tuple[str, str], Dict[str, float]]): Accumulator
         for waiting time statistics per link.
+        blocking_links (List[Tuple[str, str]] | None): The specific link(s)
+        that caused the waiting (with maximum busy time). If provided, waiting
+        time is distributed equally among these links.
     """
     wait = max(0.0, float(waiting_time))
-    for link in route_links:
+    if wait <= 0.0:
+        return
+    if blocking_links is None or len(blocking_links) == 0:
+        return
+
+    links_to_update = blocking_links
+    w = wait / len(blocking_links)
+
+    for link in links_to_update:
         pga_wait = wait_acc.setdefault(
             link,
             {
@@ -218,7 +228,7 @@ def track_link_waiting(
                 "pga_waited": 0,
             },
         )
-        pga_wait["total_waiting_time"] = pga_wait["total_waiting_time"] + wait
+        pga_wait["total_waiting_time"] = pga_wait["total_waiting_time"] + w
         pga_wait["pga_waited"] = pga_wait["pga_waited"] + 1
 
 

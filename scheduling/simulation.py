@@ -155,9 +155,16 @@ class PGA:
         attempts_run = 0
         pairs_generated = 0
         wait_until = 0.0
+        blocking_links = []
 
         for link in self.links:
-            wait_until = max(wait_until, self.resources.get(link, 0.0))
+            link_busy_time = self.resources.get(link, 0.0)
+            wait_until = max(wait_until, link_busy_time)
+
+        for link in self.links:
+            link_busy_time = self.resources.get(link, 0.0)
+            if abs(link_busy_time - wait_until) < EPS:
+                blocking_links.append(link)
 
         current_time = self.start
         t_budget = max(0.0, self.end - self.start)
@@ -218,6 +225,7 @@ class PGA:
             "pairs_generated": pairs_generated,
             "status": status,
             "deadline": self.deadline if self.policy == "deadline" else None,
+            "blocking_links": blocking_links,
         }
         self.log.append(result)
         return result
@@ -338,9 +346,9 @@ def simulate_static(
         result = pga.run()
         waiting_time = max(0.0, float(result.get("waiting_time", 0.0)))
         track_link_waiting(
-            pga_route_links.get(app),
             waiting_time,
             link_waiting,
+            blocking_links=result.get("blocking_links"),
         )
 
         pga_names.append(pga_name)
@@ -542,7 +550,11 @@ def simulate_dynamic(
                         }
                         log.append(result)
 
-                        track_link_waiting(route_links, wait, link_waiting)
+                        track_link_waiting(
+                            wait,
+                            link_waiting,
+                            blocking_links=None
+                        )
 
                     if inst_req[app] > completed_instances[app]:
                         enqueue_release(app)
@@ -599,7 +611,7 @@ def simulate_dynamic(
                 }
                 log.append(result)
                 track_link_waiting(
-                    route_links, result["waiting_time"], link_waiting
+                    result["waiting_time"], link_waiting, blocking_links=None
                 )
 
                 if duration > period + EPS:
@@ -633,7 +645,9 @@ def simulate_dynamic(
             result["waiting_time"] = max(0.0, start_time - rdy_t)
 
             track_link_waiting(
-                route_links, result.get("waiting_time", 0.0), link_waiting
+                result.get("waiting_time", 0.0),
+                link_waiting,
+                blocking_links=result.get("blocking_links"),
             )
 
             max_completion = max(max_completion, result["completion_time"])
