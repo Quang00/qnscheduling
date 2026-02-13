@@ -1,6 +1,16 @@
+from collections import defaultdict
+
+import networkx as nx
+import numpy as np
 import pytest
 
-from scheduling.routing import find_feasible_path, shortest_paths
+from scheduling.routing import (
+    capacity_aware,
+    find_feasible_path,
+    hub_aware,
+    shortest_paths,
+    yen_random,
+)
 
 
 @pytest.fixture
@@ -87,3 +97,90 @@ def test_find_feasible_path_basic():
 
     assert result["A"] == ["Alice", "Bob", "Charlie"]
     assert result["B"] == ["Bob", "Charlie", "David"]
+
+
+def test_yen_random():
+    G = nx.Graph()
+    G.add_edges_from(
+        [
+            ("A", "B"),
+            ("B", "C"),
+            ("A", "D"),
+            ("D", "C"),
+        ]
+    )
+
+    rng = np.random.default_rng(42)
+    path = yen_random(G, "A", "C", L_max=2, rng=rng)
+
+    assert path is not None
+
+
+def test_yen_random_no_path():
+    G = nx.Graph()
+    G.add_edges_from(
+        [
+            ("A", "B"),
+            ("B", "C"),
+            ("C", "D"),
+        ]
+    )
+
+    rng = np.random.default_rng(42)
+    path = yen_random(G, "A", "D", L_max=1, rng=rng)
+
+    assert path is None
+
+
+def test_hub_aware():
+    G = nx.Graph()
+    G.add_edges_from(
+        [
+            ("A", "B"),
+            ("B", "C"),
+            ("B", "D"),
+            ("B", "E"),
+            ("A", "F"),
+            ("F", "C"),
+        ]
+    )
+
+    path = hub_aware(G, "A", "C", L_max=2)
+    assert path == ["A", "F", "C"]
+
+
+def test_capacity_aware_threshold_exceeded():
+    G = nx.Graph()
+    G.add_edges_from(
+        [
+            ("A", "B"),
+            ("B", "C"),
+        ]
+    )
+
+    req = {
+        "epr": 1,
+        "period": 1.0,
+    }
+
+    cap = defaultdict(float)
+    cap[("A", "B")] = 0.95
+    cap[("B", "C")] = 0.95
+
+    path, delta = capacity_aware(
+        G=G,
+        src="A",
+        dst="C",
+        L_max=5,
+        req=req,
+        cap=cap,
+        capacity_threshold=0.99,
+        p_packet=0.6,
+        memory=1,
+        p_swap=0.6,
+        p_gen=0.001,
+        time_slot_duration=1e-4,
+    )
+
+    assert path is None
+    assert delta == 0.0

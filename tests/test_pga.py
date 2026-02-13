@@ -1,6 +1,6 @@
 import numpy as np
 
-from scheduling.pga import duration_pga, probability_e2e
+from scheduling.pga import compute_durations, duration_pga, probability_e2e
 
 
 def test_p_e2e_basic():
@@ -141,3 +141,60 @@ def test_duration_pga_monotonicity_wrt_params():
     assert more_swaps > base
     assert more_epr_pairs > base
     assert higher_ppacket > base
+
+
+def test_compute_durations():
+    paths = {
+        "A": ["Alice", "Bob", "Charlie"],
+        "B": ["Alice", "David"],
+        "C": None,
+        "D": ["Alice", "Bob", "Charlie", "David"],
+    }
+
+    epr_pairs = {
+        "A": 2,
+        "B": 1,
+        "C": 1,
+        "D": 3,
+    }
+
+    durations = compute_durations(
+        paths=paths,
+        epr_pairs=epr_pairs,
+        p_packet=0.6,
+        memory=1,
+        p_swap=0.6,
+        p_gen=0.001,
+        time_slot_duration=1e-4,
+    )
+
+    assert "A" in durations
+    assert "B" in durations
+    assert "C" not in durations
+    assert "D" in durations
+
+    assert durations["D"] > durations["A"] > durations["B"]
+
+
+def test_compute_durations_empty_paths():
+    paths = {
+        "A": None,
+        "B": None,
+    }
+
+    epr_pairs = {
+        "A": 1,
+        "B": 1,
+    }
+
+    durations = compute_durations(
+        paths=paths,
+        epr_pairs=epr_pairs,
+        p_packet=0.6,
+        memory=1,
+        p_swap=0.6,
+        p_gen=0.001,
+        time_slot_duration=1e-4,
+    )
+
+    assert durations == {}
