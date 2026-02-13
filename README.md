@@ -145,7 +145,7 @@ Each `.gml` file contains:
 To plot and visualize a network topology:
 
 ```bash
-python -m utils/plots_graph.py
+python -m utils.plots_graph
 ```
 
 Then enter the path to the GML file (e.g., `configurations/network/basic/Star.gml`, `configurations/network/advanced/Garr201201.gml`).
