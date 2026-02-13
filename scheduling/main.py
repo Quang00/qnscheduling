@@ -162,6 +162,7 @@ def run_simulation(
             "min_fidelity": spec.get("min_fidelity", 0.0),
             "epr": spec.get("epr", 0),
             "period": spec.get("period", 0.0),
+            "arrival_time": pga_rel_times[name],
         }
         for name, spec in app_specs.items()
     }
