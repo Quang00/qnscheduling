@@ -342,7 +342,7 @@ def main():
         "--config",
         "-c",
         type=str,
-        default="configurations/network/Dumbbell.gml",
+        default="configurations/network/basic/Dumbbell.gml",
         help="Path to YAML or GML config",
     )
     parser.add_argument(
