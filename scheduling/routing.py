@@ -364,7 +364,7 @@ def find_feasible_path(
         )
         return {app: None for app in app_requests.keys()}
 
-    initial_fidelity = min(fidelities.values())
+    initial_fidelity = max(fidelities.values())
     base_graph = nx.Graph()
     base_graph.add_edges_from(edges)
     ret = {}

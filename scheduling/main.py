@@ -201,6 +201,13 @@ def run_simulation(
                 fidelities,
                 pga_rel_times=pga_rel_times,
                 routing_mode=routing_mode,
+                threshold=capacity_threshold,
+                p_packet=p_packet,
+                memory=memory,
+                p_swap=p_swap,
+                p_gen=p_gen,
+                time_slot_duration=time_slot_duration,
+                rng=rng,
             )
 
     admitted_paths = {
