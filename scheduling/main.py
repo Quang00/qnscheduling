@@ -166,6 +166,7 @@ def run_simulation(
         }
         for name, spec in app_specs.items()
     }
+    rng.shuffle(list(app_requests.keys()))
     fidelity_enabled = not (
         len(fidelity_range) == 2
         and float(fidelity_range[0]) == 0.0
