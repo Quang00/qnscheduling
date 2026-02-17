@@ -225,7 +225,6 @@ def least_capacity(
             if rng.integers(tied_count) == 0:
                 selected_path = path
                 selected_delta = delta
-    print(selected_path, least_cap, selected_delta)
     return selected_path, selected_delta
 
 
