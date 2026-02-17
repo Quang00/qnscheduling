@@ -236,7 +236,7 @@ def capacity_threshold(
     L_max: int,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
-    capacity_threshold: float,
+    threshold: float,
     p_packet: float | None,
     memory: int,
     p_swap: float,
@@ -266,7 +266,7 @@ def capacity_threshold(
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        if any(cap[lk] + delta > capacity_threshold for lk in links):
+        if any(cap[lk] + delta > threshold for lk in links):
             continue
         selected_delta = delta
         selected_path = path
@@ -305,7 +305,7 @@ def find_feasible_path(
     fidelities: Dict[Tuple[str, str], float] | None,
     pga_rel_times: Dict[str, float] | None = None,
     routing_mode: str = "shortest",
-    capacity_threshold: float = 0.8,
+    threshold: float = 0.8,
     p_packet: float | None = None,
     memory: int = 1,
     p_swap: float = 0.6,
@@ -388,7 +388,7 @@ def find_feasible_path(
             continue
 
         G = _build_graph(
-            routing_mode, edges, base_graph, cap, capacity_threshold
+            routing_mode, edges, base_graph, cap, threshold
         )
 
         if not nx.has_path(G, src, dst):
@@ -428,7 +428,7 @@ def find_feasible_path(
                 L_max,
                 req,
                 cap,
-                capacity_threshold,
+                threshold,
                 p_packet,
                 memory,
                 p_swap,

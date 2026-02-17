@@ -182,7 +182,7 @@ def run_simulation(
             fidelities if fidelity_enabled else None,
             pga_rel_times=pga_rel_times,
             routing_mode=routing_mode,
-            capacity_threshold=capacity_threshold,
+            threshold=capacity_threshold,
             p_packet=p_packet,
             memory=memory,
             p_swap=p_swap,

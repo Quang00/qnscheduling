@@ -176,7 +176,7 @@ def test_capacity_aware_threshold_exceeded():
         L_max=5,
         req=req,
         cap=cap,
-        capacity_threshold=0.99,
+        threshold=0.99,
         p_packet=0.6,
         memory=1,
         p_swap=0.6,
