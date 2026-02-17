@@ -42,7 +42,14 @@ def shortest_paths(
     }
 
 
-def _max_path_length(min_fidelity: float, initial_fidelity: float) -> int:
+def _max_path_length(
+    min_fidelity: float,
+    initial_fidelity: float,
+    max_hops: int,
+) -> int:
+    if initial_fidelity == 1.0:
+        return max(0, max_hops)
+
     return math.floor(
         math.log((4 * min_fidelity - 1) / 3)
         / math.log((4 * initial_fidelity - 1) / 3)
@@ -394,7 +401,11 @@ def find_feasible_path(
             ret[app] = None
             continue
 
-        L_max = _max_path_length(min_fidelity, initial_fidelity)
+        L_max = _max_path_length(
+            min_fidelity,
+            initial_fidelity,
+            G.number_of_nodes() - 1,
+        )
 
         if routing_mode == "random":
             selected_path = yen_random(G, src, dst, L_max, rng)
