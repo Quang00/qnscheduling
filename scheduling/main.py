@@ -453,12 +453,13 @@ def main():
         "--routing",
         "-r",
         type=str,
-        choices=["shortest", "capacity", "random", "degree", "smallest"],
+        choices=["shortest", "capacity", "random",
+                 "degree", "smallest", "least"],
         default="shortest",
         help=(
             "Routing: 'shortest' (Dijkstra), 'capacity' (capacity-aware),"
-            "'smallest' (smallest bottleneck), 'random' (random path), "
-            "or 'degree' (degree-aware)."
+            "'smallest' (smallest bottleneck), 'least' (least total capacity),"
+            "'random' (random path), or 'degree' (degree-aware)."
         ),
     )
     parser.add_argument(

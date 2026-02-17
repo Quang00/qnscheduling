@@ -168,6 +168,67 @@ def smallest_bottleneck(
     return selected_path, selected_delta
 
 
+def least_capacity(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+    req: Dict[str, Any],
+    cap: Dict[Tuple[str, str], float],
+    p_packet: float | None,
+    memory: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+    rng: np.random.Generator | None = None,
+) -> Tuple[List[str] | None, float]:
+    """Select the path with the least total capacity utilization among all
+    paths that meet the fidelity requirement. The total capacity utilization of
+    a path is defined as the sum of the capacity utilizations of all edges
+    along the path after accounting for the additional load (delta) introduced
+    by the new request.
+    """
+    selected_path = None
+    selected_delta = 0.0
+    least_cap = None
+    tied_count = 0
+
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+
+        n_swaps = max(0, len(path) - 2)
+        pga_duration = duration_pga(
+            p_packet=p_packet,
+            epr_pairs=req["epr"],
+            n_swap=n_swaps,
+            memory=memory,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
+        )
+        delta = float(pga_duration) / float(req["period"])
+
+        links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        sum_cap = sum(cap[lk] + delta for lk in links)
+        if least_cap is None or sum_cap < least_cap:
+            least_cap = sum_cap
+            selected_path = path
+            selected_delta = delta
+            tied_count = 1
+        elif sum_cap == least_cap:
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                selected_path = path
+                selected_delta = delta
+    print(selected_path, least_cap, selected_delta)
+    return selected_path, selected_delta
+
+
 def capacity_threshold(
     G: nx.Graph,
     src: str,
@@ -378,8 +439,8 @@ def find_feasible_path(
                 ret[app] = None
                 continue
             _update_capacity(selected_path, selected_delta, cap)
-        elif routing_mode == "widest":
-            selected_path, selected_delta = smallest_bottleneck(
+        elif routing_mode == "least":
+            selected_path, selected_delta = least_capacity(
                 G,
                 src,
                 dst,
