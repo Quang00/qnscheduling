@@ -127,14 +127,14 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
-        nodes, edges, distances, fidelities = gml_data(config, rng)
+        nodes, edges, distances, fidelities = gml_data(config)
         app_specs = generate_n_apps(
             nodes,
             n_apps=n_apps,
             inst_range=inst_range,
             epr_range=epr_range,
             period_range=period_range,
-            fidelity_range=fidelity_range,
+            fid_range=fidelity_range,
             list_policies=["deadline"],
             rng=rng,
         )

@@ -1,4 +1,3 @@
-
 import os
 import re
 from collections import defaultdict
@@ -46,13 +45,12 @@ def parallelizable_tasks(
     conflicts = defaultdict(set)
 
     # Build conflict graph using undirected links along each path
-    for app, nodes in paths_for_each_apps.items():
+    for app, v in paths_for_each_apps.items():
         G.add_node(app)
-        if not nodes or len(nodes) < 2:
+        if not v or len(v) < 2:
             continue
         edges_on_path = {
-            tuple(sorted((u, v)))
-            for u, v in zip(nodes[:-1], nodes[1:], strict=False)
+            tuple(sorted((u, v))) for u, v in zip(v[:-1], v[1:], strict=False)
         }
         for edge in edges_on_path:
             for other_app in conflicts[edge]:
@@ -132,7 +130,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
 
 def build_tasks(
     ppacket_values: Iterable[float],
-    simulations_per_point: int,
+    sim_per_point: int,
     seed_start: int,
     run_dir: str,
     default_kwargs: dict,
@@ -140,9 +138,7 @@ def build_tasks(
     keep_seed_outputs: bool = True,
 ) -> list[tuple[Any, ...]]:
     tasks = []
-    seed_pool = [
-        seed_start + offset for offset in range(simulations_per_point)
-    ]
+    seed_pool = [seed_start + offset for offset in range(sim_per_point)]
     n_apps_list = list(n_apps_values)
     if not n_apps_list:
         raise ValueError("n_apps_values must contain at least one value")
@@ -389,29 +385,25 @@ def save_results(
             }
             for (a, b), metrics in link_utilization.items()
         ]
-        link_util_df = (
+        lk_ut_df = (
             pd.DataFrame(link_util_rows)
             .sort_values("utilization", ascending=False)
             .reset_index(drop=True)
         )
 
-        busy_time_sum = link_util_df["busy_time"].sum()
-        avg_link_utilization = float((busy_time_sum/makespan) / n_edges)
-        p90_link_utilization = float(
-            link_util_df["utilization"].quantile(0.9)
-        )
-        p95_link_utilization = float(
-            link_util_df["utilization"].quantile(0.95)
-        )
+        busy_time_sum = lk_ut_df["busy_time"].sum()
+        avg_link_utilization = float((busy_time_sum / makespan) / n_edges)
+        p90_link_utilization = float(lk_ut_df["utilization"].quantile(0.9))
+        p95_link_utilization = float(lk_ut_df["utilization"].quantile(0.95))
         total_busy_time = busy_time_sum
 
         if save_csv:
             link_util_path = os.path.join(output_dir, "link_utilization.csv")
-            link_util_df.to_csv(link_util_path, index=False)
+            lk_ut_df.to_csv(link_util_path, index=False)
 
             if verbose:
                 print("\n=== Link Utilization ===")
-                print(link_util_df.to_string(index=False))
+                print(lk_ut_df.to_string(index=False))
 
     if link_waiting:
         waiting_rows = [
@@ -425,11 +417,9 @@ def save_results(
             for (a, b), waiting in link_waiting.items()
         ]
         for row in waiting_rows:
-            waited = row["pga_waited"]
+            w = row["pga_waited"]
             total_wait = row["total_waiting_time"]
-            row["avg_wait"] = (
-                total_wait / waited if waited and waited > 0 else 0.0
-            )
+            row["avg_wait"] = total_wait / w if w and w > 0 else 0.0
             row["avg_queue_length"] = (
                 total_wait / makespan if makespan and makespan > 0 else 0.0
             )
@@ -492,9 +482,7 @@ def save_results(
         if not completed_final.empty
         else float("nan")
     )
-    avg_pga_duration = (
-        float(np.sum(pga_durations)) / tot_reqs
-    )
+    avg_pga_duration = float(np.sum(pga_durations)) / tot_reqs
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
@@ -502,11 +490,7 @@ def save_results(
     retry_count = len(df.loc[df["status"] == "retry"])
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
     avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
-    avg_hops = (
-        params["hops"].mean()
-        if not params.empty
-        else float("nan")
-    )
+    avg_hops = params["hops"].mean() if not params.empty else float("nan")
     admitted_min_fidelities = [
         app_specs[app].get("min_fidelity", float("nan"))
         for app in app_specs.keys()
@@ -629,7 +613,6 @@ def save_results(
 # =============================================================================
 def gml_data(
     gml_file: str,
-    rng: np.random.Generator,
 ) -> Tuple[list, list, dict[tuple, float], dict[tuple, float]]:
     """Extracts nodes, edges, and distances from a GML file.
 
@@ -646,16 +629,25 @@ def gml_data(
     """
     G = nx.read_gml(gml_file)
 
-    for _, _, data in G.edges(data=True):
-        data["fidelity"] = float(rng.random())
-        data["fidelity"] = 0.95
-
     nodes = list(G.nodes())
     edges = list(G.edges())
-    distances = {(u, v): data.get("dist") for u, v, data in G.edges(data=True)}
-    fidelities: dict[tuple, float] = {}
+    distances = {
+        (u, v): float(data.get("dist", 0.0))
+        for u, v, data in G.edges(data=True)
+    }
+    fidelities = {}
+    F_min = 0.5
+    L_max = max(distances.values(), default=0.0)
+    L_dep = (
+        -L_max / np.log((4 * F_min - 1) / 3)
+        if L_max > 0.0
+        else float("inf")
+    )
+
     for u, v, data in G.edges(data=True):
-        f = float(data["fidelity"])
+        L = float(data.get("dist", 0.0))
+        f = (1 + 3 * np.exp(-L / L_dep)) / 4 if np.isfinite(L_dep) else 1.0
+        data["fidelity"] = f
         fidelities[(u, v)] = f
 
     return nodes, edges, distances, fidelities
@@ -667,7 +659,7 @@ def generate_n_apps(
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
-    fidelity_range: tuple[float, float],
+    fid_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Dict[str, Dict[str, Any]]:
@@ -701,9 +693,7 @@ def generate_n_apps(
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
         rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
         rand_period = float(rng.uniform(period_range[0], period_range[1]))
-        rand_min_fidelity = float(
-            rng.uniform(fidelity_range[0], fidelity_range[1])
-        )
+        rand_min_fidelity = float(rng.uniform(fid_range[0], fid_range[1]))
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = {

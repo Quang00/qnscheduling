@@ -145,9 +145,8 @@ def test_save_results_basic(tmp_path):
 
 
 def test_gml_data():
-    rng = np.random.default_rng(seed=42)
     gml_file = "configurations/network/basic/Dumbbell.gml"
-    nodes, edges, distances, fidelities = gml_data(gml_file, rng)
+    nodes, edges, distances, fidelities = gml_data(gml_file)
 
     assert len(nodes) > 0
     assert len(edges) > 0
@@ -173,7 +172,7 @@ def test_generate_n_apps():
         inst_range=inst_range,
         epr_range=epr_range,
         period_range=period_range,
-        fidelity_range=fidelity_range,
+        fid_range=fidelity_range,
         list_policies=list_policies,
         rng=rng,
     )

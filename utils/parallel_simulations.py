@@ -141,7 +141,7 @@ def run_ppacket_parallel_simulations(
 
     tasks = build_tasks(
         ppacket_values=ppacket_values,
-        simulations_per_point=simulations_per_point,
+        sim_per_point=simulations_per_point,
         seed_start=seed_start,
         run_dir=run_dir,
         default_kwargs=default_kwargs,
