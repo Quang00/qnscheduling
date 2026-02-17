@@ -646,10 +646,7 @@ def gml_data(
 
     for u, v, data in G.edges(data=True):
         L = float(data.get("dist", 0.0))
-        if L == 0.0:
-            f = 0.99
-        else:
-            f = (1 + 3 * np.exp(-L / L_dep)) / 4
+        f = (1 + 3 * np.exp(-L / L_dep)) / 4
         data["fidelity"] = f
         fidelities[(u, v)] = f
 
