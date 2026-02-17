@@ -107,7 +107,68 @@ def hub_aware(
     return selected_path
 
 
-def capacity_aware(
+def smallest_bottleneck(
+    G: nx.Graph,
+    src: str,
+    dst: str,
+    L_max: int,
+    req: Dict[str, Any],
+    cap: Dict[Tuple[str, str], float],
+    p_packet: float | None,
+    memory: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+    rng: np.random.Generator | None = None,
+) -> Tuple[List[str] | None, float]:
+    """Select the path with the smallest bottleneck capacity among all paths
+    that meet the fidelity requirement. The bottleneck capacity of a path is
+    defined as the maximum capacity utilization of any edge along the path
+    after accounting for the additional load (delta) introduced by the new
+    request.
+    """
+    selected_path = None
+    selected_delta = 0.0
+    smallest_bottleneck = None
+    tied_count = 0
+
+    for path in nx.shortest_simple_paths(G, src, dst):
+        L = len(path) - 1
+        if L > L_max:
+            break
+
+        n_swaps = max(0, len(path) - 2)
+        pga_duration = duration_pga(
+            p_packet=p_packet,
+            epr_pairs=req["epr"],
+            n_swap=n_swaps,
+            memory=memory,
+            p_swap=p_swap,
+            p_gen=p_gen,
+            time_slot_duration=time_slot_duration,
+        )
+        delta = float(pga_duration) / float(req["period"])
+
+        links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        max_cap = max(cap[lk] + delta for lk in links)
+
+        if smallest_bottleneck is None or max_cap < smallest_bottleneck:
+            smallest_bottleneck = max_cap
+            selected_path = path
+            selected_delta = delta
+            tied_count = 1
+        elif max_cap == smallest_bottleneck:
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                selected_path = path
+                selected_delta = delta
+    return selected_path, selected_delta
+
+
+def capacity_threshold(
     G: nx.Graph,
     src: str,
     dst: str,
@@ -279,8 +340,27 @@ def find_feasible_path(
             selected_path = yen_random(G, src, dst, L_max, rng)
         elif routing_mode == "degree":
             selected_path = hub_aware(G, src, dst, L_max)
+        elif routing_mode == "smallest":
+            selected_path, selected_delta = smallest_bottleneck(
+                G,
+                src,
+                dst,
+                L_max,
+                req,
+                cap,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+            )
+            if selected_path is None:
+                ret[app] = None
+                continue
+            _update_capacity(selected_path, selected_delta, cap)
         elif routing_mode == "capacity":
-            selected_path, selected_delta = capacity_aware(
+            selected_path, selected_delta = capacity_threshold(
                 G,
                 src,
                 dst,
@@ -288,6 +368,24 @@ def find_feasible_path(
                 req,
                 cap,
                 capacity_threshold,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+            )
+            if selected_path is None:
+                ret[app] = None
+                continue
+            _update_capacity(selected_path, selected_delta, cap)
+        elif routing_mode == "widest":
+            selected_path, selected_delta = smallest_bottleneck(
+                G,
+                src,
+                dst,
+                L_max,
+                req,
+                cap,
                 p_packet,
                 memory,
                 p_swap,

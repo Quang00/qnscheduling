@@ -5,11 +5,12 @@ import numpy as np
 import pytest
 
 from scheduling.routing import (
-    capacity_aware,
+    capacity_threshold,
     find_feasible_path,
     hub_aware,
     shortest_paths,
     yen_random,
+    smallest_bottleneck,
 )
 
 
@@ -167,7 +168,7 @@ def test_capacity_aware_threshold_exceeded():
     cap[("A", "B")] = 0.95
     cap[("B", "C")] = 0.95
 
-    path, delta = capacity_aware(
+    path, delta = capacity_threshold(
         G=G,
         src="A",
         dst="C",
@@ -184,3 +185,45 @@ def test_capacity_aware_threshold_exceeded():
 
     assert path is None
     assert delta == 0.0
+
+
+def test_smallest_bottleneck():
+    G = nx.Graph()
+    G.add_edges_from(
+        [
+            ("A", "B"),
+            ("B", "E"),
+            ("A", "C"),
+            ("C", "D"),
+            ("D", "E"),
+        ]
+    )
+
+    cap = defaultdict(float)
+    cap[("A", "B")] = 0.4
+    cap[("B", "E")] = 0.2
+    cap[("A", "C")] = 0.1
+    cap[("C", "D")] = 0.1
+    cap[("D", "E")] = 0.1
+
+    req = {
+        "epr": 1,
+        "period": 1.0,
+    }
+
+    path, delta = smallest_bottleneck(
+        G=G,
+        src="A",
+        dst="E",
+        L_max=3,
+        req=req,
+        cap=cap,
+        p_packet=0.9,
+        memory=1000,
+        p_swap=0.6,
+        p_gen=0.001,
+        time_slot_duration=1e-4,
+    )
+
+    assert path == ["A", "C", "D", "E"]
+    assert delta > 0.0
