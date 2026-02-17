@@ -7,6 +7,7 @@ import pandas as pd
 from utils.helper import (
     generate_n_apps,
     gml_data,
+    is_e2e_fidelity_feasible,
     parallelizable_tasks,
     save_results,
 )
@@ -217,3 +218,11 @@ def test_save_results():
         )
         csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
         assert len(csv_files) > 0
+
+
+def test_is_e2e_fidelity_feasible():
+    fidelities = {("A", "B"): 0.9, ("B", "C"): 0.8}
+    path = ["A", "B", "C"]
+
+    assert is_e2e_fidelity_feasible(path, 0.8, fidelities) is False
+    assert is_e2e_fidelity_feasible(path, 0.7, fidelities) is True

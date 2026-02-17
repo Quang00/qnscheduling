@@ -733,3 +733,30 @@ def prepare_run_dir(
             subdir = os.path.join(run_dir, ppacket_dirname(p_val))
             os.makedirs(subdir, exist_ok=True)
     return run_dir, timestamp
+
+
+def is_e2e_fidelity_feasible(
+    path: List[str],
+    min_fidelity: float,
+    fidelities: Dict[Tuple[str, str], float],
+) -> bool:
+    """Check if a given path meets the minimum fidelity threshold. The E2E
+    fidelity of a path is computed as the product of the Werner parameters
+    of the edges along the path.
+    """
+    required_werner = (4 * float(min_fidelity) - 1) / 3
+    e2e_werner = 1.0
+
+    for u, v in zip(path[:-1], path[1:], strict=False):
+        link = tuple(sorted((u, v)))
+        if (u, v) in fidelities:
+            edge_fidelity = float(fidelities[(u, v)])
+        elif (v, u) in fidelities:
+            edge_fidelity = float(fidelities[(v, u)])
+        elif link in fidelities:
+            edge_fidelity = float(fidelities[link])
+        else:
+            return False
+
+        e2e_werner *= (4 * edge_fidelity - 1) / 3
+    return e2e_werner >= required_werner
