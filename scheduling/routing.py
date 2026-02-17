@@ -433,6 +433,7 @@ def find_feasible_path(
                 p_swap,
                 p_gen,
                 time_slot_duration,
+                rng,
             )
             if selected_path is None:
                 ret[app] = None
@@ -451,6 +452,7 @@ def find_feasible_path(
                 p_swap,
                 p_gen,
                 time_slot_duration,
+                rng,
             )
             if selected_path is None:
                 ret[app] = None
