@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
@@ -6,6 +5,7 @@ import networkx as nx
 import numpy as np
 
 from scheduling.pga import duration_pga
+from utils.helper import is_e2e_fidelity_feasible
 
 
 def shortest_paths(
@@ -42,20 +42,6 @@ def shortest_paths(
     }
 
 
-def _max_path_length(
-    min_fidelity: float,
-    initial_fidelity: float,
-    max_hops: int,
-) -> int:
-    if initial_fidelity == 1.0:
-        return max(0, max_hops)
-
-    return math.floor(
-        math.log((4 * min_fidelity - 1) / 3)
-        / math.log((4 * initial_fidelity - 1) / 3)
-    )
-
-
 def _build_graph(
     routing_mode: str,
     edges: List[Tuple[str, str]],
@@ -79,15 +65,15 @@ def yen_random(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
     rng: np.random.Generator,
+    min_fidelity: float,
+    fidelities: Dict[Tuple[str, str], float],
 ) -> List[str] | None:
     seen = 0
     selected_path = None
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
+            continue
         seen += 1
         if rng.integers(seen) == 0:
             selected_path = path
@@ -98,14 +84,14 @@ def hub_aware(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
+    min_fidelity: float,
+    fidelities: Dict[Tuple[str, str], float],
 ) -> List[str] | None:
     best_score = None
     selected_path = None
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
+            continue
         internal = path[1:-1]
         score = max((G.degree(v) for v in internal), default=0)
         if best_score is None or score < best_score:
@@ -118,9 +104,9 @@ def smallest_bottleneck(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
+    fidelities: Dict[Tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
@@ -140,9 +126,10 @@ def smallest_bottleneck(
     tied_count = 0
 
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(
+            path, req["min_fidelity"], fidelities
+        ):
+            continue
 
         n_swaps = max(0, len(path) - 2)
         pga_duration = duration_pga(
@@ -179,9 +166,9 @@ def least_capacity(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
+    fidelities: Dict[Tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
@@ -201,9 +188,10 @@ def least_capacity(
     tied_count = 0
 
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(
+            path, req["min_fidelity"], fidelities
+        ):
+            continue
 
         n_swaps = max(0, len(path) - 2)
         pga_duration = duration_pga(
@@ -239,9 +227,9 @@ def capacity_threshold(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
+    fidelities: Dict[Tuple[str, str], float],
     threshold: float,
     p_packet: float | None,
     memory: int,
@@ -253,9 +241,10 @@ def capacity_threshold(
     selected_delta = 0.0
 
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(
+            path, req["min_fidelity"], fidelities
+        ):
+            continue
 
         n_swaps = max(0, len(path) - 2)
         pga_duration = duration_pga(
@@ -285,12 +274,12 @@ def fidelity_shortest(
     G: nx.Graph,
     src: str,
     dst: str,
-    L_max: int,
+    min_fidelity: float,
+    fidelities: Dict[Tuple[str, str], float],
 ) -> List[str] | None:
     for path in nx.shortest_simple_paths(G, src, dst):
-        L = len(path) - 1
-        if L > L_max:
-            break
+        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
+            continue
         return path
     return None
 
@@ -320,13 +309,7 @@ def find_feasible_path(
     rng: np.random.Generator | None = None,
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
-    based on minimum fidelity threshold. The fidelity constraint is transformed
-    into a maximum path length (L_max) from the paper Chakraborty et al.,
-    "Entanglement Distribution in a Quantum Network: A Multicommodity
-    Flow-Based Approach", (2020). The path with the fewest hops that meets the
-    fidelity requirement is selected. The routing mode can be set to "shortest"
-    or "capacity". In "capacity" mode, edges that have reached the capacity
-    threshold are excluded from path selection.
+    based on minimum fidelity threshold.
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
@@ -371,7 +354,6 @@ def find_feasible_path(
         )
         return {app: None for app in app_requests.keys()}
 
-    initial_fidelity = max(fidelities.values())
     base_graph = nx.Graph()
     base_graph.add_edges_from(edges)
     ret = {}
@@ -389,7 +371,7 @@ def find_feasible_path(
         dst = req["dst"]
         min_fidelity = req["min_fidelity"]
 
-        if min_fidelity <= 0.25:
+        if min_fidelity <= 0.5:
             ret[app] = None
             continue
 
@@ -401,24 +383,31 @@ def find_feasible_path(
             ret[app] = None
             continue
 
-        L_max = _max_path_length(
-            min_fidelity,
-            initial_fidelity,
-            G.number_of_nodes() - 1,
-        )
-
         if routing_mode == "random":
-            selected_path = yen_random(G, src, dst, L_max, rng)
+            selected_path = yen_random(
+                G,
+                src,
+                dst,
+                rng,
+                min_fidelity,
+                fidelities,
+            )
         elif routing_mode == "degree":
-            selected_path = hub_aware(G, src, dst, L_max)
+            selected_path = hub_aware(
+                G,
+                src,
+                dst,
+                min_fidelity,
+                fidelities,
+            )
         elif routing_mode == "smallest":
             selected_path, selected_delta = smallest_bottleneck(
                 G,
                 src,
                 dst,
-                L_max,
                 req,
                 cap,
+                fidelities,
                 p_packet,
                 memory,
                 p_swap,
@@ -435,9 +424,9 @@ def find_feasible_path(
                 G,
                 src,
                 dst,
-                L_max,
                 req,
                 cap,
+                fidelities,
                 threshold,
                 p_packet,
                 memory,
@@ -454,9 +443,9 @@ def find_feasible_path(
                 G,
                 src,
                 dst,
-                L_max,
                 req,
                 cap,
+                fidelities,
                 p_packet,
                 memory,
                 p_swap,
@@ -469,7 +458,13 @@ def find_feasible_path(
                 continue
             _update_capacity(selected_path, selected_delta, cap)
         else:
-            selected_path = fidelity_shortest(G, src, dst, L_max)
+            selected_path = fidelity_shortest(
+                G,
+                src,
+                dst,
+                min_fidelity,
+                fidelities,
+            )
 
         ret[app] = selected_path
     return ret

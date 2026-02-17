@@ -175,8 +175,7 @@ def run_simulation(
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
-
-    if routing_mode in ["capacity", "random"]:
+    if routing_mode in ["capacity", "random", "degree", "smallest", "least"]:
         paths = find_feasible_path(
             edges,
             app_requests,
