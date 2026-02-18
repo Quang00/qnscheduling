@@ -154,7 +154,7 @@ def test_gml_data():
     assert len(distances) > 0
     assert len(fidelities) > 0
     assert len(distances) == len(edges)
-    assert len(fidelities) == len(edges)
+    assert len(fidelities) == 2 * len(edges)
 
 
 def test_generate_n_apps():

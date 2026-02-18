@@ -25,28 +25,57 @@ def basic_graph():
     ]
 
 
-def test_shortest_paths_basic_small(basic_graph):
-    apps = {
-        "A": {"src": "Alice", "dst": "Charlie"},
-        "B": {"src": "Bob", "dst": "Charlie"},
-    }
-    result = shortest_paths(basic_graph, apps)
-    assert result == {
-        "A": ["Alice", "Bob", "Charlie"],
-        "B": ["Bob", "Charlie"],
-    }
+def _uniform_fidelities(edges, value=0.9):
+    return {edge: value for edge in edges}
 
 
-def test_shortest_paths_basic_long(basic_graph):
-    apps = {
-        "A": {"src": "Alice", "dst": "David"},
-        "B": {"src": "Bob", "dst": "Charlie"},
-    }
+@pytest.fixture
+def routing_graph_a_to_e():
+    G = nx.Graph()
+    edges = [
+        ("A", "B"),
+        ("B", "E"),
+        ("A", "C"),
+        ("C", "D"),
+        ("D", "E"),
+    ]
+    G.add_edges_from(edges)
+    return G, edges
+
+
+@pytest.fixture
+def default_req():
+    return {"epr": 1, "period": 1.0, "min_fidelity": 0.6}
+
+
+@pytest.mark.parametrize(
+    "apps, expected",
+    [
+        (
+            {
+                "A": {"src": "Alice", "dst": "Charlie"},
+                "B": {"src": "Bob", "dst": "Charlie"},
+            },
+            {
+                "A": ["Alice", "Bob", "Charlie"],
+                "B": ["Bob", "Charlie"],
+            },
+        ),
+        (
+            {
+                "A": {"src": "Alice", "dst": "David"},
+                "B": {"src": "Bob", "dst": "Charlie"},
+            },
+            {
+                "A": ["Alice", "Bob", "Charlie", "David"],
+                "B": ["Bob", "Charlie"],
+            },
+        ),
+    ],
+)
+def test_shortest_paths_cases(basic_graph, apps, expected):
     result = shortest_paths(basic_graph, apps)
-    assert result == {
-        "A": ["Alice", "Bob", "Charlie", "David"],
-        "B": ["Bob", "Charlie"],
-    }
+    assert result == expected
 
 
 def test_empty_app_requests(basic_graph):
@@ -112,8 +141,12 @@ def test_yen_random():
         ]
     )
 
+    fidelities = _uniform_fidelities(
+        [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")]
+    )
+
     rng = np.random.default_rng(42)
-    path = yen_random(G, "A", "C", L_max=2, rng=rng)
+    path = yen_random(G, "A", "C", rng, 0.6, fidelities)
 
     assert path is not None
 
@@ -128,8 +161,10 @@ def test_yen_random_no_path():
         ]
     )
 
+    fidelities = _uniform_fidelities([("A", "B"), ("B", "C"), ("C", "D")])
+
     rng = np.random.default_rng(42)
-    path = yen_random(G, "A", "D", L_max=1, rng=rng)
+    path = yen_random(G, "A", "D", rng, 0.8, fidelities)
 
     assert path is None
 
@@ -147,23 +182,33 @@ def test_hub_aware():
         ]
     )
 
-    path = hub_aware(G, "A", "C", L_max=2)
-    assert path == ["A", "F", "C"]
-
-
-def test_capacity_aware_threshold_exceeded():
-    G = nx.Graph()
-    G.add_edges_from(
+    fidelities = _uniform_fidelities(
         [
             ("A", "B"),
             ("B", "C"),
+            ("B", "D"),
+            ("B", "E"),
+            ("A", "F"),
+            ("F", "C"),
         ]
     )
 
-    req = {
-        "epr": 1,
-        "period": 1.0,
-    }
+    path = hub_aware(
+        G,
+        "A",
+        "C",
+        min_fidelity=0.6,
+        fidelities=fidelities,
+    )
+    assert path == ["A", "F", "C"]
+
+
+def test_capacity_aware_threshold_exceeded(default_req):
+    G = nx.Graph()
+    edges = [("A", "B"), ("B", "C")]
+    G.add_edges_from(edges)
+
+    fidelities = _uniform_fidelities(edges)
 
     cap = defaultdict(float)
     cap[("A", "B")] = 0.95
@@ -173,9 +218,9 @@ def test_capacity_aware_threshold_exceeded():
         G=G,
         src="A",
         dst="C",
-        L_max=5,
-        req=req,
+        req=default_req,
         cap=cap,
+        fidelities=fidelities,
         threshold=0.99,
         p_packet=0.6,
         memory=1,
@@ -188,17 +233,8 @@ def test_capacity_aware_threshold_exceeded():
     assert delta == 0.0
 
 
-def test_smallest_bottleneck():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "E"),
-            ("A", "C"),
-            ("C", "D"),
-            ("D", "E"),
-        ]
-    )
+def test_smallest_bottleneck(routing_graph_a_to_e, default_req):
+    G, edges = routing_graph_a_to_e
 
     cap = defaultdict(float)
     cap[("A", "B")] = 0.4
@@ -207,18 +243,15 @@ def test_smallest_bottleneck():
     cap[("C", "D")] = 0.1
     cap[("D", "E")] = 0.1
 
-    req = {
-        "epr": 1,
-        "period": 1.0,
-    }
+    fidelities = _uniform_fidelities(edges)
 
     path, delta = smallest_bottleneck(
         G=G,
         src="A",
         dst="E",
-        L_max=3,
-        req=req,
+        req=default_req,
         cap=cap,
+        fidelities=fidelities,
         p_packet=0.9,
         memory=1000,
         p_swap=0.6,
@@ -230,17 +263,8 @@ def test_smallest_bottleneck():
     assert delta > 0.0
 
 
-def test_least_capacity():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "E"),
-            ("A", "C"),
-            ("C", "D"),
-            ("D", "E"),
-        ]
-    )
+def test_least_capacity(routing_graph_a_to_e, default_req):
+    G, edges = routing_graph_a_to_e
 
     cap = defaultdict(float)
     cap[("A", "B")] = 0.2
@@ -249,18 +273,15 @@ def test_least_capacity():
     cap[("C", "D")] = 0.1
     cap[("D", "E")] = 0.1
 
-    req = {
-        "epr": 1,
-        "period": 1.0,
-    }
+    fidelities = _uniform_fidelities(edges)
 
     path, delta = least_capacity(
         G=G,
         src="A",
         dst="E",
-        L_max=3,
-        req=req,
+        req=default_req,
         cap=cap,
+        fidelities=fidelities,
         p_packet=0.9,
         memory=1000,
         p_swap=0.6,
