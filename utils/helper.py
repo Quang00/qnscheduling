@@ -629,12 +629,13 @@ def gml_data(
     """
     G = nx.read_gml(gml_file)
 
-    nodes = list(G.nodes())
-    edges = list(G.edges())
+    nodes = sorted(G.nodes(), key=str)
+    edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {
         (u, v): float(data.get("dist", 0.0))
         for u, v, data in G.edges(data=True)
     }
+    end_nodes = sorted(nx.k_core(G).nodes(), key=str)
     fidelities = {}
     F_min = 0.5
     L_max = max(distances.values(), default=0.0)
@@ -651,11 +652,12 @@ def gml_data(
         fidelities[(u, v)] = f
         fidelities[(v, u)] = f
 
-    return nodes, edges, distances, fidelities
+    return nodes, edges, distances, fidelities, end_nodes
 
 
 def generate_n_apps(
     nodes: list,
+    end_nodes: list,
     n_apps: int,
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
@@ -690,7 +692,7 @@ def generate_n_apps(
 
     for i in range(n_apps):
         name_app = get_column_letter(i + 1)
-        src, dst = rng.choice(nodes, 2, replace=False).tolist()
+        src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
         rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
         rand_period = float(rng.uniform(period_range[0], period_range[1]))

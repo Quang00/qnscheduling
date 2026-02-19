@@ -127,9 +127,10 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
-        nodes, edges, distances, fidelities = gml_data(config)
+        nodes, edges, distances, fidelities, end_nodes = gml_data(config)
         app_specs = generate_n_apps(
             nodes,
+            end_nodes,
             n_apps=n_apps,
             inst_range=inst_range,
             epr_range=epr_range,
@@ -166,7 +167,6 @@ def run_simulation(
         }
         for name, spec in app_specs.items()
     }
-    rng.shuffle(list(app_requests.keys()))
     fidelity_enabled = not (
         len(fidelity_range) == 2
         and float(fidelity_range[0]) == 0.0
