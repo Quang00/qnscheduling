@@ -171,7 +171,6 @@ def least_capacity(
         e2e_fid, path = path[0], path[1]
         if e2e_fid < req["min_fidelity"]:
             continue
-            continue
 
         n_swaps = max(0, len(path) - 2)
         pga_duration = duration_pga(
