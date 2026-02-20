@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import networkx as nx
-import numpy as np
 import pytest
 
 from scheduling.fidelity import fidelity_bounds_and_paths
@@ -11,7 +10,6 @@ from scheduling.routing import (
     least_capacity,
     shortest_paths,
     smallest_bottleneck,
-    yen_random,
 )
 
 
@@ -131,48 +129,6 @@ def test_find_feasible_path_basic():
 
     assert result["A"] == ("Alice", "Bob", "Charlie")
     assert result["B"] == ("Bob", "Charlie", "David")
-
-
-def test_yen_random():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("A", "D"),
-            ("D", "C"),
-        ]
-    )
-
-    fidelities = _uniform_fidelities(
-        [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")]
-    )
-    _, simple_paths = fidelity_bounds_and_paths(['A', 'C'], fidelities)
-
-    rng = np.random.default_rng(42)
-    path, e2e_fid = yen_random(simple_paths, "A", "C", rng, 0.6)
-
-    assert path is not None
-
-
-def test_yen_random_no_path():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("C", "D"),
-        ]
-    )
-
-    fidelities = _uniform_fidelities([("A", "B"), ("B", "C"), ("C", "D")])
-
-    rng = np.random.default_rng(42)
-    _, simple_paths = fidelity_bounds_and_paths(['A', 'D'], fidelities)
-
-    path, e2e_fid = yen_random(simple_paths, "A", "D", rng, 0.8)
-
-    assert path is None
 
 
 def test_capacity_aware_threshold_exceeded(default_req):

@@ -62,28 +62,6 @@ def _build_graph(
     return base_graph
 
 
-def yen_random(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    src: str,
-    dst: str,
-    rng: np.random.Generator,
-    min_fidelity: float,
-) -> Tuple[List[str] | None, float]:
-    seen = 0
-    selected_path = None
-    selected_e2e_fid = float("nan")
-    all_paths = all_simple_paths(simple_paths, src, dst)
-    for path in all_paths:
-        e2e_fid = path[0]
-        if e2e_fid < min_fidelity:
-            continue
-        seen += 1
-        if rng.integers(seen) == 0:
-            selected_path = path[1]
-            selected_e2e_fid = e2e_fid
-    return selected_path, selected_e2e_fid
-
-
 def smallest_bottleneck(
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
@@ -416,15 +394,7 @@ def find_feasible_path(
             e2e_fids[app] = float("nan")
             continue
 
-        if routing_mode == "random":
-            selected_path, selected_e2e_fid = yen_random(
-                simple_paths,
-                src,
-                dst,
-                rng,
-                min_fidelity,
-            )
-        elif routing_mode == "smallest":
+        if routing_mode == "smallest":
             selected_path, selected_delta, selected_e2e_fid = (
                 smallest_bottleneck(
                     simple_paths,
