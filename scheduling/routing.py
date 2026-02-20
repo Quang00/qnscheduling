@@ -5,7 +5,7 @@ import networkx as nx
 import numpy as np
 
 from scheduling.pga import duration_pga
-from utils.helper import is_e2e_fidelity_feasible
+from scheduling.fidelity import is_e2e_fidelity_feasible
 
 
 def shortest_paths(
