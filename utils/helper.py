@@ -118,7 +118,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "memory": 1000,
         "p_swap": 0.6,
         "p_gen": 1e-3,
-        "fidelity_range": (0.6, 0.9),
+        "fidelity_enabled": True,
         "routing": "capacity",
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,

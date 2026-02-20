@@ -487,6 +487,13 @@ def find_feasible_path(
                 e2e_fids[app] = float("nan")
                 continue
             _update_capacity(selected_path, selected_delta, cap)
+        elif routing_mode == "highest":
+            selected_path, selected_e2e_fid = highest_fidelity(
+                simple_paths,
+                src,
+                dst,
+                min_fidelity,
+            )
         else:
             selected_path, selected_e2e_fid = fidelity_shortest(
                 simple_paths,
@@ -494,13 +501,6 @@ def find_feasible_path(
                 dst,
                 min_fidelity,
             )
-            if routing_mode == "highest":
-                selected_path, selected_e2e_fid = highest_fidelity(
-                    simple_paths,
-                    src,
-                    dst,
-                    min_fidelity,
-                )
 
         ret[app] = selected_path
         e2e_fids[app] = selected_e2e_fid
