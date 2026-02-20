@@ -655,13 +655,12 @@ def gml_data(
 
 
 def generate_n_apps(
-    nodes: list,
     end_nodes: list,
+    bounds: dict[tuple, tuple],
     n_apps: int,
     inst_range: tuple[int, int],
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
-    fid_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Dict[str, Dict[str, Any]]:
@@ -689,13 +688,17 @@ def generate_n_apps(
     """
     apps = {}
 
-    for i in range(n_apps):
-        name_app = get_column_letter(i + 1)
+    while len(apps) < n_apps:
         src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
+        min_fidelity, max_fidelity = fidelity_bounds(bounds, src, dst)
+        min_fidelity = max(min_fidelity, 0.5)
+        if max_fidelity <= min_fidelity:
+            continue
+        rand_min_fidelity = float(rng.uniform(min_fidelity, max_fidelity))
+        name_app = get_column_letter(len(apps) + 1)
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
         rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
         rand_period = float(rng.uniform(period_range[0], period_range[1]))
-        rand_min_fidelity = float(rng.uniform(fid_range[0], fid_range[1]))
         rand_policy = rng.choice(list_policies, 1, replace=False).item()
 
         apps[name_app] = {

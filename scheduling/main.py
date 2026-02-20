@@ -131,13 +131,12 @@ def run_simulation(
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
         bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
         app_specs = generate_n_apps(
-            nodes,
             end_nodes,
+            bounds,
             n_apps=n_apps,
             inst_range=inst_range,
             epr_range=epr_range,
             period_range=period_range,
-            fid_range=fidelity_range,
             list_policies=["deadline"],
             rng=rng,
         )
