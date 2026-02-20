@@ -705,18 +705,13 @@ def generate_n_apps(
         and policy.
     """
     apps = {}
-    used_pairs = set()
 
     while len(apps) < n_apps:
         src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
-        pair = tuple(sorted((src, dst)))
-        if pair in used_pairs:
-            continue
         min_fidelity, max_fidelity = fidelity_bounds(bounds, src, dst)
         min_fidelity = max(min_fidelity, 0.5)
         if max_fidelity <= min_fidelity:
             continue
-        used_pairs.add(pair)
         rand_min_fidelity = float(rng.uniform(min_fidelity, max_fidelity))
         name_app = get_column_letter(len(apps) + 1)
         rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))

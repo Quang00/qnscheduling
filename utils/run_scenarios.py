@@ -16,7 +16,7 @@ def main():
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
-        "arrival_rate": 1,
+        "arrival_rate": 5,
     }
 
     scenarios = [
@@ -32,9 +32,9 @@ def main():
         },
         {
             "id": 3,
-            "name": "capacity_with-fid_cap-1.0",
+            "name": "capacity_with-fid_cap-0.8",
             "routing": "capacity",
-            "capacity_threshold": 1.0,
+            "capacity_threshold": 0.8,
         },
         {
             "id": 4,

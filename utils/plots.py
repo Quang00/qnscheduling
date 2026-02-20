@@ -379,7 +379,7 @@ def plot_metrics_vs_load(
         gp_labels={
             "1": "Shortest path",
             "2": "Highest fidelity",
-            "3": "Capacity 1.0",
+            "3": "Capacity 0.8",
             "4": "Least capacity",
             "5": "Smallest bottleneck",
         },
