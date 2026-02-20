@@ -650,7 +650,6 @@ def gml_data(
         f = (1 + 3 * np.exp(-L / L_dep)) / 4
         data["fidelity"] = f
         fidelities[(u, v)] = f
-        fidelities[(v, u)] = f
 
     return nodes, edges, distances, fidelities, end_nodes
 
@@ -751,6 +750,7 @@ def is_e2e_fidelity_feasible(
     e2e_werner = 1.0
 
     for u, v in zip(path[:-1], path[1:], strict=False):
-        edge_fidelity = float(fidelities[(u, v)])
+        key = (u, v) if (u, v) in fidelities else (v, u)
+        edge_fidelity = float(fidelities[key])
         e2e_werner *= (4 * edge_fidelity - 1) / 3
     return e2e_werner >= required_werner
