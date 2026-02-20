@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
+from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.routing import (
     capacity_threshold,
     find_feasible_path,
@@ -118,11 +119,8 @@ def test_find_feasible_path_basic():
             "period": 15.0,
         },
     }
-
-    simple_paths = {
-        ("Alice", "Charlie"): [(0.9, ("Alice", "Bob", "Charlie"))],
-        ("Bob", "David"): [(0.9, ("Bob", "Charlie", "David"))],
-    }
+    end_nodes = ["Alice", "Charlie", "David", "Bob"]
+    _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
     result = find_feasible_path(
         edges=edges,
@@ -150,9 +148,10 @@ def test_yen_random():
     fidelities = _uniform_fidelities(
         [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")]
     )
+    _, simple_paths = fidelity_bounds_and_paths(['A', 'C'], fidelities)
 
     rng = np.random.default_rng(42)
-    path = yen_random(G, "A", "C", rng, 0.6, fidelities)
+    path = yen_random(simple_paths, "A", "C", rng, 0.6)
 
     assert path is not None
 
@@ -170,7 +169,9 @@ def test_yen_random_no_path():
     fidelities = _uniform_fidelities([("A", "B"), ("B", "C"), ("C", "D")])
 
     rng = np.random.default_rng(42)
-    path = yen_random(G, "A", "D", rng, 0.8, fidelities)
+    _, simple_paths = fidelity_bounds_and_paths(['A', 'D'], fidelities)
+
+    path = yen_random(simple_paths, "A", "D", rng, 0.8)
 
     assert path is None
 

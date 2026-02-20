@@ -64,21 +64,21 @@ def _build_graph(
 
 
 def yen_random(
-    G: nx.Graph,
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
     dst: str,
     rng: np.random.Generator,
     min_fidelity: float,
-    fidelities: Dict[Tuple[str, str], float],
 ) -> List[str] | None:
     seen = 0
     selected_path = None
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
+    all_paths = all_simple_paths(simple_paths, src, dst)
+    for path in all_paths:
+        if path[0] < min_fidelity:
             continue
         seen += 1
         if rng.integers(seen) == 0:
-            selected_path = path
+            selected_path = path[1]
     return selected_path
 
 
@@ -279,7 +279,6 @@ def fidelity_shortest(
     min_fidelity: float,
 ) -> List[str] | None:
     all_paths = all_simple_paths(simple_paths, src, dst)
-    print(all_paths)
     for path in all_paths:
         e2e_fid = path[0]
         if e2e_fid < min_fidelity:
@@ -391,12 +390,11 @@ def find_feasible_path(
 
         if routing_mode == "random":
             selected_path = yen_random(
-                G,
+                simple_paths,
                 src,
                 dst,
                 rng,
                 min_fidelity,
-                fidelities,
             )
         elif routing_mode == "degree":
             selected_path = hub_aware(
