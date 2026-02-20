@@ -7,6 +7,8 @@ import numpy as np
 from scheduling.pga import duration_pga
 from scheduling.fidelity import is_e2e_fidelity_feasible
 
+from utils.helper import all_simple_paths
+
 
 def shortest_paths(
     edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
@@ -271,16 +273,19 @@ def capacity_threshold(
 
 
 def fidelity_shortest(
-    G: nx.Graph,
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
     dst: str,
     min_fidelity: float,
-    fidelities: Dict[Tuple[str, str], float],
 ) -> List[str] | None:
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
+    all_paths = all_simple_paths(simple_paths, src, dst)
+    print(all_paths)
+    for path in all_paths:
+        e2e_fid = path[0]
+        if e2e_fid < min_fidelity:
             continue
-        return path
+        else:
+            return path[1]
     return None
 
 
@@ -296,6 +301,7 @@ def _update_capacity(
 
 def find_feasible_path(
     edges: List[Tuple[str, str]],
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     app_requests: Dict[str, Dict[str, Any]],
     fidelities: Dict[Tuple[str, str], float] | None,
     pga_rel_times: Dict[str, float] | None = None,
@@ -459,11 +465,10 @@ def find_feasible_path(
             _update_capacity(selected_path, selected_delta, cap)
         else:
             selected_path = fidelity_shortest(
-                G,
+                simple_paths,
                 src,
                 dst,
                 min_fidelity,
-                fidelities,
             )
 
         ret[app] = selected_path

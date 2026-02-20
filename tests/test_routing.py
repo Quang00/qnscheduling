@@ -119,15 +119,21 @@ def test_find_feasible_path_basic():
         },
     }
 
+    simple_paths = {
+        ("Alice", "Charlie"): [(0.9, ("Alice", "Bob", "Charlie"))],
+        ("Bob", "David"): [(0.9, ("Bob", "Charlie", "David"))],
+    }
+
     result = find_feasible_path(
         edges=edges,
         app_requests=app_requests,
         fidelities=fidelities,
         routing_mode="shortest",
+        simple_paths=simple_paths,
     )
 
-    assert result["A"] == ["Alice", "Bob", "Charlie"]
-    assert result["B"] == ["Bob", "Charlie", "David"]
+    assert result["A"] == ("Alice", "Bob", "Charlie")
+    assert result["B"] == ("Bob", "Charlie", "David")
 
 
 def test_yen_random():

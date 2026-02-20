@@ -57,6 +57,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
 from scheduling.routing import find_feasible_path, shortest_paths
 from scheduling.simulation import simulate_dynamic, simulate_static
@@ -128,6 +129,7 @@ def run_simulation(
     # Generate network data and applications based on the configuration file
     if config.endswith(".gml"):
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
+        bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
         app_specs = generate_n_apps(
             nodes,
             end_nodes,
@@ -181,6 +183,7 @@ def run_simulation(
     else:
         paths = find_feasible_path(
             edges,
+            simple_paths,
             app_requests,
             fidelities if fidelity_enabled else None,
             pga_rel_times=pga_rel_times,
