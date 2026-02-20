@@ -181,18 +181,18 @@ def test_capacity_aware_threshold_exceeded(default_req):
     G.add_edges_from(edges)
 
     fidelities = _uniform_fidelities(edges)
+    _, simple_paths = fidelity_bounds_and_paths(["A", "B", "C"], fidelities)
 
     cap = defaultdict(float)
     cap[("A", "B")] = 0.95
     cap[("B", "C")] = 0.95
 
     path, delta = capacity_threshold(
-        G=G,
+        simple_paths=simple_paths,
         src="A",
         dst="C",
         req=default_req,
         cap=cap,
-        fidelities=fidelities,
         threshold=0.99,
         p_packet=0.6,
         memory=1,

@@ -205,12 +205,11 @@ def least_capacity(
 
 
 def capacity_threshold(
-    G: nx.Graph,
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
     dst: str,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
-    fidelities: Dict[Tuple[str, str], float],
     threshold: float,
     p_packet: float | None,
     memory: int,
@@ -220,11 +219,11 @@ def capacity_threshold(
 ) -> Tuple[List[str] | None, float]:
     selected_path = None
     selected_delta = 0.0
+    all_paths = all_simple_paths(simple_paths, src, dst)
 
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(
-            path, req["min_fidelity"], fidelities
-        ):
+    for path in all_paths:
+        e2e_fid, path = path[0], path[1]
+        if e2e_fid < req["min_fidelity"]:
             continue
 
         n_swaps = max(0, len(path) - 2)
@@ -395,12 +394,11 @@ def find_feasible_path(
             _update_capacity(selected_path, selected_delta, cap)
         elif routing_mode == "capacity":
             selected_path, selected_delta = capacity_threshold(
-                G,
+                simple_paths,
                 src,
                 dst,
                 req,
                 cap,
-                fidelities,
                 threshold,
                 p_packet,
                 memory,
