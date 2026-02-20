@@ -126,6 +126,7 @@ def run_simulation(
     rng = np.random.default_rng(seed)
 
     # Generate network data and applications based on the configuration file
+    fidelities = {}
     if config.endswith(".gml"):
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
         bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
@@ -174,8 +175,9 @@ def run_simulation(
 
     if not fidelity_enabled:
         paths = shortest_paths(edges, app_requests)
+        app_e2e_fidelities = {app: float("nan") for app in paths}
     else:
-        paths = find_feasible_path(
+        paths, app_e2e_fidelities = find_feasible_path(
             edges,
             simple_paths,
             app_requests,
@@ -199,6 +201,10 @@ def run_simulation(
 
     if admitted_apps == 0:
         return False, {}
+
+    app_e2e_fidelities = {
+        app: app_e2e_fidelities[app] for app in admitted_paths
+    }
 
     app_specs = admitted_specs
     paths = admitted_paths
@@ -315,6 +321,7 @@ def run_simulation(
         link_waiting=link_waiting,
         admitted_apps=admitted_apps,
         total_apps=total_apps,
+        app_e2e_fidelities=app_e2e_fidelities,
         output_dir=output_dir,
         save_csv=save_csv,
         verbose=verbose,

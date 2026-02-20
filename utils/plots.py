@@ -98,8 +98,8 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
-            "key": "avg_min_fidelity",
-            "ylabel": "Average minimum fidelity",
+            "key": "avg_e2e_fidelity",
+            "ylabel": "Average E2E fidelity",
         },
         {
             "key": "avg_pga_duration",
