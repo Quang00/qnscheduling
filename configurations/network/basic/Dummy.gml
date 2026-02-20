@@ -2,8 +2,8 @@ graph [
   name "dummy"
   directed 0
   stats [
-    nodes 8
-    links 7
+    nodes 6
+    links 5
     min_degree 1
     max_degree 4
   ]
