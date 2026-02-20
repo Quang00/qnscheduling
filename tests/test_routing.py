@@ -247,14 +247,15 @@ def test_least_capacity(routing_graph_a_to_e, default_req):
     cap[("D", "E")] = 0.1
 
     fidelities = _uniform_fidelities(edges)
+    end_nodes = ["A", "B", "E"]
+    _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
     path, delta = least_capacity(
-        G=G,
+        simple_paths=simple_paths,
         src="A",
         dst="E",
         req=default_req,
         cap=cap,
-        fidelities=fidelities,
         p_packet=0.9,
         memory=1000,
         p_swap=0.6,
@@ -262,5 +263,5 @@ def test_least_capacity(routing_graph_a_to_e, default_req):
         time_slot_duration=1e-4,
     )
 
-    assert path == ["A", "B", "E"]
+    assert path == ("A", "B", "E")
     assert delta > 0.0

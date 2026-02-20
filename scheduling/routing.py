@@ -5,7 +5,6 @@ import networkx as nx
 import numpy as np
 
 from scheduling.pga import duration_pga
-from scheduling.fidelity import is_e2e_fidelity_feasible
 
 from utils.helper import all_simple_paths
 
@@ -144,12 +143,11 @@ def smallest_bottleneck(
 
 
 def least_capacity(
-    G: nx.Graph,
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
     dst: str,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
-    fidelities: Dict[Tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
@@ -167,11 +165,12 @@ def least_capacity(
     selected_delta = 0.0
     least_cap = None
     tied_count = 0
+    all_paths = all_simple_paths(simple_paths, src, dst)
 
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(
-            path, req["min_fidelity"], fidelities
-        ):
+    for path in all_paths:
+        e2e_fid, path = path[0], path[1]
+        if e2e_fid < req["min_fidelity"]:
+            continue
             continue
 
         n_swaps = max(0, len(path) - 2)
@@ -412,12 +411,11 @@ def find_feasible_path(
             _update_capacity(selected_path, selected_delta, cap)
         elif routing_mode == "least":
             selected_path, selected_delta = least_capacity(
-                G,
+                simple_paths,
                 src,
                 dst,
                 req,
                 cap,
-                fidelities,
                 p_packet,
                 memory,
                 p_swap,
