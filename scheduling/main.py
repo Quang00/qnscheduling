@@ -175,7 +175,10 @@ def run_simulation(
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
-    if routing_mode in ["capacity", "random", "degree", "smallest", "least"]:
+
+    if not fidelity_enabled:
+        paths = shortest_paths(edges, app_requests)
+    else:
         paths = find_feasible_path(
             edges,
             app_requests,
@@ -190,24 +193,6 @@ def run_simulation(
             time_slot_duration=time_slot_duration,
             rng=rng,
         )
-    else:
-        if not fidelity_enabled:
-            paths = shortest_paths(edges, app_requests)
-        else:
-            paths = find_feasible_path(
-                edges,
-                app_requests,
-                fidelities,
-                pga_rel_times=pga_rel_times,
-                routing_mode=routing_mode,
-                threshold=capacity_threshold,
-                p_packet=p_packet,
-                memory=memory,
-                p_swap=p_swap,
-                p_gen=p_gen,
-                time_slot_duration=time_slot_duration,
-                rng=rng,
-            )
 
     admitted_paths = {
         app: path for app, path in paths.items() if path is not None
