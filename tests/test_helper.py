@@ -159,23 +159,21 @@ def test_gml_data():
 
 def test_generate_n_apps():
     rng = np.random.default_rng(seed=42)
-    nodes = ["Alice", "Bob", "Charlie", "David"]
     end_nodes = ["Alice", "David"]
     n_apps = 3
     inst_range = (1, 5)
     epr_range = (1, 3)
     period_range = (10.0, 20.0)
-    fidelity_range = (0.7, 0.95)
     list_policies = ["policy1", "policy2"]
+    bounds = {("Alice", "David"): (0.8, 1.0), ("David", "Alice"): (0.8, 1.0), }
 
     apps = generate_n_apps(
-        nodes=nodes,
         end_nodes=end_nodes,
+        bounds=bounds,
         n_apps=n_apps,
         inst_range=inst_range,
         epr_range=epr_range,
         period_range=period_range,
-        fid_range=fidelity_range,
         list_policies=list_policies,
         rng=rng,
     )

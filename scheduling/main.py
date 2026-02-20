@@ -82,7 +82,7 @@ def run_simulation(
     memory: float,
     p_swap: float,
     p_gen: float,
-    fidelity_range: tuple[float, float],
+    fidelity_enabled: bool,
     time_slot_duration: float,
     seed: int,
     output_dir: str,
@@ -110,8 +110,7 @@ def run_simulation(
             per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
-        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
-            fidelity of each application.
+        fidelity_enabled (bool): Whether to enable fidelity.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
@@ -131,13 +130,12 @@ def run_simulation(
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
         bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
         app_specs = generate_n_apps(
-            nodes,
             end_nodes,
+            bounds,
             n_apps=n_apps,
             inst_range=inst_range,
             epr_range=epr_range,
             period_range=period_range,
-            fid_range=fidelity_range,
             list_policies=["deadline"],
             rng=rng,
         )
@@ -169,11 +167,7 @@ def run_simulation(
         }
         for name, spec in app_specs.items()
     }
-    fidelity_enabled = not (
-        len(fidelity_range) == 2
-        and float(fidelity_range[0]) == 0.0
-        and float(fidelity_range[1]) == 0.0
-    )
+    fidelity_enabled = bool(fidelity_enabled)
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
@@ -413,13 +407,11 @@ def main():
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(
-        "--min-fidelity",
+        "--fidelity",
         "-f",
-        type=float,
-        nargs=2,
-        metavar=("MIN", "MAX"),
-        default=[0.0, 0.0],
-        help="Minimum fidelity per application (e.g., --min-fidelity 0.6 0.7)",
+        action="store_true",
+        default=True,
+        help="Enable fidelity",
     )
     parser.add_argument(
         "--slot-duration",
@@ -502,7 +494,7 @@ def main():
         memory=args.memory,
         p_swap=args.pswap,
         p_gen=args.pgen,
-        fidelity_range=args.min_fidelity,
+        fidelity_enabled=args.fidelity,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
@@ -533,8 +525,7 @@ def main():
         "memory": args.memory,
         "p_swap": args.pswap,
         "p_gen": args.pgen,
-        "fidelity_min": args.min_fidelity[0],
-        "fidelity_max": args.min_fidelity[1],
+        "fidelity_enabled": args.fidelity,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,

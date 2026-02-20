@@ -95,7 +95,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
-- `--min-fidelity MIN MAX`, `-f MIN MAX`: Range for application minimum fidelity ($F_a$). If omitted, minimum fidelity is not considered.
+- `--fidelity`, `-f`: Boolean to enabled or not the fidelity ($F$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra) or `capacity` (capacity-aware)
 - `--capacity-threshold`, `-ct`: Capacity threshold for routing capacity per link (**capacity**)
@@ -175,7 +175,6 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
-  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler dynamic \
@@ -197,7 +196,6 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
-  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --scheduler static \
@@ -217,7 +215,6 @@ python -m scheduling.main \
   --memory 50 \
   --pswap 0.95 \
   --pgen 0.001 \
-  --min-fidelity 0.6 0.6 \
   --slot-duration 0.0001 \
   --seed 42 \
   --routing capacity \
