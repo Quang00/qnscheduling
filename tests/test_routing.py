@@ -8,7 +8,6 @@ from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.routing import (
     capacity_threshold,
     find_feasible_path,
-    hub_aware,
     least_capacity,
     shortest_paths,
     smallest_bottleneck,
@@ -174,40 +173,6 @@ def test_yen_random_no_path():
     path = yen_random(simple_paths, "A", "D", rng, 0.8)
 
     assert path is None
-
-
-def test_hub_aware():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("B", "D"),
-            ("B", "E"),
-            ("A", "F"),
-            ("F", "C"),
-        ]
-    )
-
-    fidelities = _uniform_fidelities(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("B", "D"),
-            ("B", "E"),
-            ("A", "F"),
-            ("F", "C"),
-        ]
-    )
-
-    path = hub_aware(
-        G,
-        "A",
-        "C",
-        min_fidelity=0.6,
-        fidelities=fidelities,
-    )
-    assert path == ["A", "F", "C"]
 
 
 def test_capacity_aware_threshold_exceeded(default_req):

@@ -82,26 +82,6 @@ def yen_random(
     return selected_path
 
 
-def hub_aware(
-    G: nx.Graph,
-    src: str,
-    dst: str,
-    min_fidelity: float,
-    fidelities: Dict[Tuple[str, str], float],
-) -> List[str] | None:
-    best_score = None
-    selected_path = None
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(path, min_fidelity, fidelities):
-            continue
-        internal = path[1:-1]
-        score = max((G.degree(v) for v in internal), default=0)
-        if best_score is None or score < best_score:
-            best_score = score
-            selected_path = path
-    return selected_path
-
-
 def smallest_bottleneck(
     G: nx.Graph,
     src: str,
@@ -395,14 +375,6 @@ def find_feasible_path(
                 dst,
                 rng,
                 min_fidelity,
-            )
-        elif routing_mode == "degree":
-            selected_path = hub_aware(
-                G,
-                src,
-                dst,
-                min_fidelity,
-                fidelities,
             )
         elif routing_mode == "smallest":
             selected_path, selected_delta = smallest_bottleneck(
