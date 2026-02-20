@@ -735,3 +735,20 @@ def prepare_run_dir(
             subdir = os.path.join(run_dir, ppacket_dirname(p_val))
             os.makedirs(subdir, exist_ok=True)
     return run_dir, timestamp
+
+
+# =============================================================================
+# Retrievial
+# =============================================================================
+def fidelity_bounds(
+    bounds: Dict[Tuple[str, str], Tuple[float, float]], src: str, dst: str
+) -> Tuple[float, float]:
+    return bounds[(src, dst) if src < dst else (dst, src)]
+
+
+def all_simple_paths(
+    paths: Dict[Tuple[str, str], List[Tuple[float, Tuple[str, ...]]]],
+    src: str,
+    dst: str,
+) -> List[Tuple[float, Tuple[str, ...]]]:
+    return paths.get((src, dst) if src < dst else (dst, src), [])
