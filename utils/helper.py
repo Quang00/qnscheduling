@@ -118,7 +118,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "memory": 1000,
         "p_swap": 0.6,
         "p_gen": 1e-3,
-        "fidelity_range": (0.6, 0.9),
+        "fidelity_enabled": True,
         "routing": "capacity",
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
@@ -243,6 +243,7 @@ def save_results(
     link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
     admitted_apps: int | None = None,
     total_apps: int | None = None,
+    app_e2e_fidelities: Dict[str, float] | None = None,
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
@@ -333,6 +334,12 @@ def save_results(
             "hops": [path_length.get(a, np.nan) for a in app_names],
             "pga_duration": [
                 float(durations[a]) if durations and a in durations else np.nan
+                for a in app_names
+            ],
+            "e2e_fidelity": [
+                float(app_e2e_fidelities[a])
+                if app_e2e_fidelities and a in app_e2e_fidelities
+                else float("nan")
                 for a in app_names
             ],
         }
@@ -500,6 +507,15 @@ def save_results(
         if admitted_min_fidelities
         else float("nan")
     )
+    e2e_fidelity_values = [
+        v for v in (app_e2e_fidelities or {}).values()
+        if v is not None and not np.isnan(v)
+    ]
+    avg_e2e_fidelity = (
+        float(np.mean(e2e_fidelity_values))
+        if e2e_fidelity_values
+        else float("nan")
+    )
 
     if verbose:
         print("\n=== Summary ===")
@@ -546,6 +562,7 @@ def save_results(
         print(f"Max turnaround   : {max_turnaround:.4f}")
         print(f"Avg hops         : {avg_hops:.4f}")
         print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
+        print(f"Avg E2E fidelity : {avg_e2e_fidelity:.4f}")
         print(f"Avg PGA duration : {avg_pga_duration:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
@@ -567,6 +584,7 @@ def save_results(
         "max_turnaround_time": float(max_turnaround),
         "avg_hops": float(avg_hops),
         "avg_min_fidelity": float(avg_min_fidelity),
+        "avg_e2e_fidelity": float(avg_e2e_fidelity),
         "avg_pga_duration": float(avg_pga_duration),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),

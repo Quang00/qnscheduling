@@ -98,8 +98,8 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
-            "key": "avg_min_fidelity",
-            "ylabel": "Average minimum fidelity",
+            "key": "avg_e2e_fidelity",
+            "ylabel": "Average E2E fidelity",
         },
         {
             "key": "avg_pga_duration",
@@ -374,20 +374,14 @@ def plot_metrics_vs_load(
             "3.csv",
             "4.csv",
             "5.csv",
-            "6.csv",
-            "7.csv",
-            "8.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Dijkstra",
-            "2": "Dijkstra (fidelity)",
-            "3": "Yen random",
-            "4": "Hub-aware",
-            "5": "Capacity-aware 0.8",
-            "6": "Capacity-aware 1.0",
-            "7": "Capacity-aware 2.0",
-            "8": "Capacity-aware 3.0",
+            "1": "Shortest path",
+            "2": "Highest fidelity",
+            "3": "Capacity 0.8",
+            "4": "Least capacity",
+            "5": "Smallest bottleneck",
         },
     )
     """

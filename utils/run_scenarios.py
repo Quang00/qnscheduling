@@ -16,61 +16,35 @@ def main():
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
-        "arrival_rate": 1,
+        "arrival_rate": 5,
     }
 
     scenarios = [
         {
             "id": 1,
-            "name": "shortest_no-fid",
+            "name": "shortest_with-fid",
             "routing": "shortest",
-            "fidelity_range": (0.0, 0.0),
         },
         {
             "id": 2,
-            "name": "shortest_with-fid",
-            "routing": "shortest",
-            "fidelity_range": (0.6, 0.85),
+            "name": "highest-fidelity",
+            "routing": "highest",
         },
         {
             "id": 3,
-            "name": "random_with-fid",
-            "routing": "random",
-            "fidelity_range": (0.6, 0.85),
-        },
-        {
-            "id": 4,
-            "name": "degree_with-fid",
-            "routing": "degree",
-            "fidelity_range": (0.6, 0.85),
-        },
-        {
-            "id": 5,
             "name": "capacity_with-fid_cap-0.8",
             "routing": "capacity",
-            "fidelity_range": (0.6, 0.85),
             "capacity_threshold": 0.8,
         },
         {
-            "id": 6,
-            "name": "capacity_with-fid_cap-1.0",
-            "routing": "capacity",
-            "fidelity_range": (0.6, 0.85),
-            "capacity_threshold": 1.0,
+            "id": 4,
+            "name": "least-capacity",
+            "routing": "least",
         },
         {
-            "id": 7,
-            "name": "capacity_with-fid_cap-2.0",
-            "routing": "capacity",
-            "fidelity_range": (0.6, 0.85),
-            "capacity_threshold": 2.0,
-        },
-        {
-            "id": 8,
-            "name": "capacity_with-fid_cap-3.0",
-            "routing": "capacity",
-            "fidelity_range": (0.6, 0.85),
-            "capacity_threshold": 3.0,
+            "id": 5,
+            "name": "smallest-bottleneck",
+            "routing": "smallest",
         },
     ]
 
@@ -78,7 +52,6 @@ def main():
         sim_kwargs = dict(
             base_kwargs,
             routing=scenario["routing"],
-            fidelity_range=scenario["fidelity_range"],
             capacity_threshold=scenario.get("capacity_threshold", None),
         )
 

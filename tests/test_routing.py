@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import networkx as nx
-import numpy as np
 import pytest
 
 from scheduling.fidelity import fidelity_bounds_and_paths
@@ -11,7 +10,6 @@ from scheduling.routing import (
     least_capacity,
     shortest_paths,
     smallest_bottleneck,
-    yen_random,
 )
 
 
@@ -121,7 +119,7 @@ def test_find_feasible_path_basic():
     end_nodes = ["Alice", "Charlie", "David", "Bob"]
     _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
-    result = find_feasible_path(
+    result, e2e_fids = find_feasible_path(
         edges=edges,
         app_requests=app_requests,
         fidelities=fidelities,
@@ -131,48 +129,6 @@ def test_find_feasible_path_basic():
 
     assert result["A"] == ("Alice", "Bob", "Charlie")
     assert result["B"] == ("Bob", "Charlie", "David")
-
-
-def test_yen_random():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("A", "D"),
-            ("D", "C"),
-        ]
-    )
-
-    fidelities = _uniform_fidelities(
-        [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")]
-    )
-    _, simple_paths = fidelity_bounds_and_paths(['A', 'C'], fidelities)
-
-    rng = np.random.default_rng(42)
-    path = yen_random(simple_paths, "A", "C", rng, 0.6)
-
-    assert path is not None
-
-
-def test_yen_random_no_path():
-    G = nx.Graph()
-    G.add_edges_from(
-        [
-            ("A", "B"),
-            ("B", "C"),
-            ("C", "D"),
-        ]
-    )
-
-    fidelities = _uniform_fidelities([("A", "B"), ("B", "C"), ("C", "D")])
-
-    rng = np.random.default_rng(42)
-    _, simple_paths = fidelity_bounds_and_paths(['A', 'D'], fidelities)
-
-    path = yen_random(simple_paths, "A", "D", rng, 0.8)
-
-    assert path is None
 
 
 def test_capacity_aware_threshold_exceeded(default_req):
@@ -187,7 +143,7 @@ def test_capacity_aware_threshold_exceeded(default_req):
     cap[("A", "B")] = 0.95
     cap[("B", "C")] = 0.95
 
-    path, delta = capacity_threshold(
+    path, delta, e2e_fid = capacity_threshold(
         simple_paths=simple_paths,
         src="A",
         dst="C",
@@ -219,7 +175,7 @@ def test_smallest_bottleneck(routing_graph_a_to_e, default_req):
     end_nodes = ["A", "C", "D", "E"]
     _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
-    path, delta = smallest_bottleneck(
+    path, delta, e2e_fid = smallest_bottleneck(
         simple_paths=simple_paths,
         src="A",
         dst="E",
@@ -250,7 +206,7 @@ def test_least_capacity(routing_graph_a_to_e, default_req):
     end_nodes = ["A", "B", "E"]
     _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
-    path, delta = least_capacity(
+    path, delta, e2e_fid = least_capacity(
         simple_paths=simple_paths,
         src="A",
         dst="E",
