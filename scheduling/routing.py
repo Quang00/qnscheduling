@@ -83,12 +83,11 @@ def yen_random(
 
 
 def smallest_bottleneck(
-    G: nx.Graph,
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
     dst: str,
     req: Dict[str, Any],
     cap: Dict[Tuple[str, str], float],
-    fidelities: Dict[Tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
@@ -106,11 +105,11 @@ def smallest_bottleneck(
     selected_delta = 0.0
     smallest_bottleneck = None
     tied_count = 0
+    all_paths = all_simple_paths(simple_paths, src, dst)
 
-    for path in nx.shortest_simple_paths(G, src, dst):
-        if not is_e2e_fidelity_feasible(
-            path, req["min_fidelity"], fidelities
-        ):
+    for path in all_paths:
+        e2e_fid, path = path[0], path[1]
+        if e2e_fid < req["min_fidelity"]:
             continue
 
         n_swaps = max(0, len(path) - 2)
@@ -378,12 +377,11 @@ def find_feasible_path(
             )
         elif routing_mode == "smallest":
             selected_path, selected_delta = smallest_bottleneck(
-                G,
+                simple_paths,
                 src,
                 dst,
                 req,
                 cap,
-                fidelities,
                 p_packet,
                 memory,
                 p_swap,

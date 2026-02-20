@@ -216,14 +216,15 @@ def test_smallest_bottleneck(routing_graph_a_to_e, default_req):
     cap[("D", "E")] = 0.1
 
     fidelities = _uniform_fidelities(edges)
+    end_nodes = ["A", "C", "D", "E"]
+    _, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
 
     path, delta = smallest_bottleneck(
-        G=G,
+        simple_paths=simple_paths,
         src="A",
         dst="E",
         req=default_req,
         cap=cap,
-        fidelities=fidelities,
         p_packet=0.9,
         memory=1000,
         p_swap=0.6,
@@ -231,7 +232,7 @@ def test_smallest_bottleneck(routing_graph_a_to_e, default_req):
         time_slot_duration=1e-4,
     )
 
-    assert path == ["A", "C", "D", "E"]
+    assert path == ("A", "C", "D", "E")
     assert delta > 0.0
 
 
