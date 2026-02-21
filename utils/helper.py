@@ -657,7 +657,7 @@ def gml_data(
     }
     end_nodes = sorted(nx.k_core(G).nodes(), key=str)
     fidelities = {}
-    F_min = 0.5
+    F_min = 0.51
     L_max = max(distances.values(), default=0.0)
     L_dep = (
         -L_max / np.log((4 * F_min - 1) / 3)
@@ -711,7 +711,7 @@ def generate_n_apps(
     while len(apps) < n_apps:
         src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
         min_fidelity, max_fidelity = fidelity_bounds(bounds, src, dst)
-        min_fidelity = max(min_fidelity, 0.5)
+        min_fidelity = max(min_fidelity, 0.51)
         if max_fidelity <= min_fidelity:
             continue
         rand_min_fidelity = float(rng.uniform(min_fidelity, max_fidelity))
