@@ -208,9 +208,6 @@ def run_simulation(
         app: app_e2e_fidelities[app] for app in admitted_paths
     }
 
-    app_specs = admitted_specs
-    paths = admitted_paths
-
     single_path_count = 0
     two_path_count = 0
     for spec in app_specs.values():
@@ -226,6 +223,9 @@ def run_simulation(
             two_path_count += 1
     single_path_share = single_path_count / total_apps * 100.0
     two_path_share = two_path_count / total_apps * 100.0
+
+    app_specs = admitted_specs
+    paths = admitted_paths
 
     parallel_map = parallelizable_tasks(paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
