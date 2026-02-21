@@ -466,11 +466,7 @@ def save_results(
         admission_rate = float(admitted_apps) / float(total_apps)
     completed_final = final.loc[final["status"] == "completed"]
     throughput = completed_total / makespan
-    pga_durations = (
-        np.array(list(durations.values()), dtype=float)
-        if durations
-        else np.array([], dtype=float)
-    )
+    pga_duration = list(durations.values()) if durations else []
     avg_wait = (
         completed_final["waiting_time"].mean()
         if not completed_final.empty
@@ -491,7 +487,7 @@ def save_results(
         if not completed_final.empty
         else float("nan")
     )
-    avg_pga_duration = float(np.sum(pga_durations)) / tot_reqs
+    pga_d = np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
@@ -567,7 +563,7 @@ def save_results(
         print(f"Avg E2E fidelity : {avg_e2e_fidelity:.4f}")
         print(f"Single-path share: {single_path_share:.2f}")
         print(f"Two-path share   : {two_path_share:.2f}")
-        print(f"Avg PGA duration : {avg_pga_duration:.4f}")
+        print(f"Avg PGA duration : {pga_d:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
@@ -591,7 +587,7 @@ def save_results(
         "avg_e2e_fidelity": float(avg_e2e_fidelity),
         "single_path_share_pct": float(single_path_share),
         "two_path_share_pct": float(two_path_share),
-        "avg_pga_duration": float(avg_pga_duration),
+        "avg_pga_duration": float(pga_d),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),
