@@ -208,8 +208,11 @@ def run_simulation(
         app: app_e2e_fidelities[app] for app in admitted_paths
     }
 
-    single_path_count = 0
-    two_path_count = 0
+    app_specs = admitted_specs
+    paths = admitted_paths
+
+    single_path_cpt = 0
+    two_path_cpt = 0
     for spec in app_specs.values():
         src, dst = spec["src"], spec["dst"]
         min_fid = spec.get("min_fidelity", 0.0)
@@ -218,14 +221,11 @@ def run_simulation(
             if fid >= min_fid
         ]
         if len(feasible_paths) == 1:
-            single_path_count += 1
+            single_path_cpt += 1
         if len(feasible_paths) <= 2:
-            two_path_count += 1
-    single_path_share = single_path_count / total_apps * 100.0
-    two_path_share = two_path_count / total_apps * 100.0
-
-    app_specs = admitted_specs
-    paths = admitted_paths
+            two_path_cpt += 1
+    single_path_share = single_path_cpt / total_apps if total_apps > 0 else 0.0
+    two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
     parallel_map = parallelizable_tasks(paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
