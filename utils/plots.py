@@ -113,6 +113,16 @@ def build_metric_specs(
             "key": "avg_retry_per_pga",
             "ylabel": "Average retries per PGA",
         },
+        {
+            "key": "single_path_share_pct",
+            "ylabel": "Requests with exactly 1 candidate path (%)",
+            "percentage": True,
+        },
+        {
+            "key": "two_path_share_pct",
+            "ylabel": "Requests with $\\leq$ 2 candidate paths (%)",
+            "percentage": True,
+        },
     ]
 
     specs = []
