@@ -63,6 +63,7 @@ from scheduling.routing import find_feasible_path, shortest_paths
 from scheduling.simulation import simulate_dynamic, simulate_static
 from scheduling.static import edf_parallel_static
 from utils.helper import (
+    all_simple_paths,
     app_params_sim,
     generate_n_apps,
     gml_data,
@@ -127,6 +128,7 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     fidelities = {}
+    simple_paths: dict = {}
     if config.endswith(".gml"):
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
         bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
@@ -208,6 +210,22 @@ def run_simulation(
 
     app_specs = admitted_specs
     paths = admitted_paths
+
+    single_path_count = 0
+    two_path_count = 0
+    for spec in app_specs.values():
+        src, dst = spec["src"], spec["dst"]
+        min_fid = spec.get("min_fidelity", 0.0)
+        feasible_paths = [
+            (fid, p) for fid, p in all_simple_paths(simple_paths, src, dst)
+            if fid >= min_fid
+        ]
+        if len(feasible_paths) == 1:
+            single_path_count += 1
+        if len(feasible_paths) <= 2:
+            two_path_count += 1
+    single_path_share = single_path_count / total_apps * 100.0
+    two_path_share = two_path_count / total_apps * 100.0
 
     parallel_map = parallelizable_tasks(paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
@@ -322,6 +340,8 @@ def run_simulation(
         admitted_apps=admitted_apps,
         total_apps=total_apps,
         app_e2e_fidelities=app_e2e_fidelities,
+        single_path_share=single_path_share,
+        two_path_share=two_path_share,
         output_dir=output_dir,
         save_csv=save_csv,
         verbose=verbose,

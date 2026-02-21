@@ -244,6 +244,8 @@ def save_results(
     admitted_apps: int | None = None,
     total_apps: int | None = None,
     app_e2e_fidelities: Dict[str, float] | None = None,
+    single_path_share: float = float("nan"),
+    two_path_share: float = float("nan"),
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
@@ -563,6 +565,8 @@ def save_results(
         print(f"Avg hops         : {avg_hops:.4f}")
         print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
         print(f"Avg E2E fidelity : {avg_e2e_fidelity:.4f}")
+        print(f"Single-path share: {single_path_share:.2f}%")
+        print(f"Two-path share   : {two_path_share:.2f}%")
         print(f"Avg PGA duration : {avg_pga_duration:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
@@ -585,6 +589,8 @@ def save_results(
         "avg_hops": float(avg_hops),
         "avg_min_fidelity": float(avg_min_fidelity),
         "avg_e2e_fidelity": float(avg_e2e_fidelity),
+        "single_path_share_pct": float(single_path_share),
+        "two_path_share_pct": float(two_path_share),
         "avg_pga_duration": float(avg_pga_duration),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),
