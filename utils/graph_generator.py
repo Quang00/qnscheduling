@@ -1,12 +1,16 @@
+import numpy as np
 import networkx as nx
 
 from utils.helper import compute_edge_fidelities
 
 
 def generate_waxman_graph(
-    n: int = 48, alpha: float = 0.4, beta: float = 0.2, seed: int = 42
-) -> nx.Graph:
-    G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=seed)
+    n: int = 48,
+    alpha: float = 0.4,
+    beta: float = 0.2,
+    rng: np.random.Generator | None = None,
+) -> tuple[list, list, dict, dict, list, float, float]:
+    G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
 
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))

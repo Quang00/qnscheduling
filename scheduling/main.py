@@ -62,6 +62,7 @@ from scheduling.pga import compute_durations
 from scheduling.routing import find_feasible_path, shortest_paths
 from scheduling.simulation import simulate_dynamic, simulate_static
 from scheduling.static import edf_parallel_static
+from utils.graph_generator import generate_waxman_graph
 from utils.helper import (
     all_simple_paths,
     app_params_sim,
@@ -93,6 +94,7 @@ def run_simulation(
     capacity_threshold: float = 0.8,
     save_csv: bool = True,
     verbose: bool = True,
+    graph: str | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -128,20 +130,25 @@ def run_simulation(
 
     # Generate network data and applications based on the configuration file
     fidelities = {}
-    simple_paths: dict = {}
-    if config.endswith(".gml"):
-        nodes, edges, distances, fidelities, end_nodes = gml_data(config)
-        bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
-        app_specs = generate_n_apps(
-            end_nodes,
-            bounds,
-            n_apps=n_apps,
-            inst_range=inst_range,
-            epr_range=epr_range,
-            period_range=period_range,
-            list_policies=["deadline"],
-            rng=rng,
+    simple_paths = {}
+    if graph == "waxman":
+        nodes, edges, distances, fidelities, end_nodes, avg_fid, avg_deg = (
+            generate_waxman_graph(rng=rng)
         )
+    elif config.endswith(".gml"):
+        nodes, edges, distances, fidelities, end_nodes = gml_data(config)
+
+    bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
+    app_specs = generate_n_apps(
+        end_nodes,
+        bounds,
+        n_apps=n_apps,
+        inst_range=inst_range,
+        epr_range=epr_range,
+        period_range=period_range,
+        list_policies=["deadline"],
+        rng=rng,
+    )
 
     # Arrival times for each application
     poisson_enabled = (
@@ -217,7 +224,8 @@ def run_simulation(
         src, dst = spec["src"], spec["dst"]
         min_fid = spec.get("min_fidelity", 0.0)
         feasible_paths = [
-            (fid, p) for fid, p in all_simple_paths(simple_paths, src, dst)
+            (fid, p)
+            for fid, p in all_simple_paths(simple_paths, src, dst)
             if fid >= min_fid
         ]
         if len(feasible_paths) == 1:
@@ -244,13 +252,7 @@ def run_simulation(
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
 
     pga_parameters = app_params_sim(
-        paths,
-        app_specs,
-        p_packet,
-        memory,
-        p_swap,
-        p_gen,
-        time_slot_duration
+        paths, app_specs, p_packet, memory, p_swap, p_gen, time_slot_duration
     )
 
     policies = {name: spec["policy"] for name, spec in app_specs.items()}
@@ -483,6 +485,14 @@ def main():
         help="Capacity threshold for routing capacity (sum(PGA/T) per link)",
     )
     parser.add_argument(
+        "--graph",
+        "-g",
+        type=str,
+        choices=["waxman"],
+        default=None,
+        help="Graph generator (e.g., 'waxman')",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -529,6 +539,7 @@ def main():
         arrival_rate=args.arrival_rate,
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
+        graph=args.graph,
     )
     t1 = time.perf_counter()
 
