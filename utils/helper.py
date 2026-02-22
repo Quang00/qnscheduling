@@ -716,28 +716,30 @@ def generate_n_apps(
         and policy.
     """
     apps = {}
+    feasible = []
+    for i in range(len(end_nodes)):
+        for j in range(i + 1, len(end_nodes)):
+            src, dst = end_nodes[i], end_nodes[j]
+            min_f, max_f = fidelity_bounds(bounds, src, dst)
+            min_f = max(min_f, 0.51)
+            if max_f > min_f:
+                feasible.append((src, dst, float(min_f), float(max_f)))
 
-    while len(apps) < n_apps:
-        src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
-        min_fidelity, max_fidelity = fidelity_bounds(bounds, src, dst)
-        min_fidelity = max(min_fidelity, 0.51)
-        if max_fidelity <= min_fidelity:
-            continue
-        rand_min_fidelity = float(rng.uniform(min_fidelity, max_fidelity))
-        name_app = get_column_letter(len(apps) + 1)
-        rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
-        rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
-        rand_period = float(rng.uniform(period_range[0], period_range[1]))
-        rand_policy = rng.choice(list_policies, 1, replace=False).item()
+    order = rng.permutation(len(feasible))
+    reps = int(np.ceil(n_apps / len(feasible)))
+    pair_idx = np.tile(order, reps)[:n_apps]
 
+    for k in range(n_apps):
+        src, dst, min_f, max_f = feasible[int(pair_idx[k])]
+        name_app = get_column_letter(k + 1)
         apps[name_app] = {
             "src": src,
             "dst": dst,
-            "instances": rand_instance,
-            "epr": rand_epr_pairs,
-            "period": rand_period,
-            "min_fidelity": rand_min_fidelity,
-            "policy": rand_policy,
+            "instances": int(rng.integers(inst_range[0], inst_range[1] + 1)),
+            "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
+            "period": float(rng.uniform(period_range[0], period_range[1])),
+            "min_fidelity": float(rng.uniform(min_f, max_f)),
+            "policy": rng.choice(list_policies),
         }
 
     return apps
