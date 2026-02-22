@@ -62,6 +62,33 @@ def _build_graph(
     return base_graph
 
 
+def _compute_delta_and_links(
+    path: List[str],
+    req: Dict[str, Any],
+    p_packet: float | None,
+    memory: int,
+    p_swap: float,
+    p_gen: float,
+    time_slot_duration: float,
+) -> Tuple[float, List[Tuple[str, str]]]:
+    n_swaps = max(0, len(path) - 2)
+    pga_duration = duration_pga(
+        p_packet=p_packet,
+        epr_pairs=req["epr"],
+        n_swap=n_swaps,
+        memory=memory,
+        p_swap=p_swap,
+        p_gen=p_gen,
+        time_slot_duration=time_slot_duration,
+    )
+    delta = float(pga_duration) / float(req["period"])
+    links = [
+        tuple(sorted((u, v)))
+        for u, v in zip(path[:-1], path[1:], strict=False)
+    ]
+    return delta, links
+
+
 def smallest_bottleneck(
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
@@ -92,25 +119,11 @@ def smallest_bottleneck(
         e2e_fid, path = path[0], path[1]
         if e2e_fid < req["min_fidelity"]:
             continue
-
-        n_swaps = max(0, len(path) - 2)
-        pga_duration = duration_pga(
-            p_packet=p_packet,
-            epr_pairs=req["epr"],
-            n_swap=n_swaps,
-            memory=memory,
-            p_swap=p_swap,
-            p_gen=p_gen,
-            time_slot_duration=time_slot_duration,
+        delta, links = _compute_delta_and_links(
+            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
-        delta = float(pga_duration) / float(req["period"])
 
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
         max_cap = max(cap[lk] + delta for lk in links)
-
         if smallest_bottleneck is None or max_cap < smallest_bottleneck:
             smallest_bottleneck = max_cap
             selected_path = path
@@ -156,23 +169,10 @@ def least_capacity(
         e2e_fid, path = path[0], path[1]
         if e2e_fid < req["min_fidelity"]:
             continue
-
-        n_swaps = max(0, len(path) - 2)
-        pga_duration = duration_pga(
-            p_packet=p_packet,
-            epr_pairs=req["epr"],
-            n_swap=n_swaps,
-            memory=memory,
-            p_swap=p_swap,
-            p_gen=p_gen,
-            time_slot_duration=time_slot_duration,
+        delta, links = _compute_delta_and_links(
+            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
-        delta = float(pga_duration) / float(req["period"])
 
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
         sum_cap = sum(cap[lk] + delta for lk in links)
         if least_cap is None or sum_cap < least_cap:
             least_cap = sum_cap
@@ -211,22 +211,10 @@ def capacity_threshold(
         e2e_fid, path = path[0], path[1]
         if e2e_fid < req["min_fidelity"]:
             continue
-
-        n_swaps = max(0, len(path) - 2)
-        pga_duration = duration_pga(
-            p_packet=p_packet,
-            epr_pairs=req["epr"],
-            n_swap=n_swaps,
-            memory=memory,
-            p_swap=p_swap,
-            p_gen=p_gen,
-            time_slot_duration=time_slot_duration,
+        delta, links = _compute_delta_and_links(
+            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
-        delta = float(pga_duration) / float(req["period"])
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
+
         if any(cap[lk] + delta > threshold for lk in links):
             continue
         selected_delta = delta
