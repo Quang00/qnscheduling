@@ -131,6 +131,10 @@ def build_metric_specs(
             "key": "avg_deg",
             "ylabel": "Average node degree",
         },
+        {
+            "key": "fairness",
+            "ylabel": "Fairness",
+        },
     ]
 
     specs = []

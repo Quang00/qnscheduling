@@ -536,6 +536,24 @@ def save_results(
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
+    fairness = float("nan")
+    completion_ratios = []
+    for task in expected_tasks:
+        task_total = per_task.loc[task].sum()
+        task_completed = per_task.loc[task].get("completed", 0)
+        if task_total > 0:
+            completion_ratios.append(float(task_completed) / float(task_total))
+    if len(completion_ratios) > 0:
+        ratios = np.array(completion_ratios)
+        n = len(ratios)
+        sum_ratios = float(np.sum(ratios))
+        sum_ratios_sq = float(np.sum(ratios**2))
+
+        if sum_ratios_sq > 0:
+            fairness = (sum_ratios ** 2) / (n * sum_ratios_sq)
+        else:
+            fairness = 1.0
+
     if verbose:
         for task in tasks_sorted:
             row = per_task.loc[task]
@@ -571,6 +589,7 @@ def save_results(
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
         print(f"P95 link utilization : {p95_link_utilization:.4f}")
         print(f"Avg degree       : {avg_deg:.4f}")
+        print(f"Fairness         : {fairness:.4f}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
@@ -601,6 +620,7 @@ def save_results(
         "p90_avg_queue_length": float(p90_avg_queue_length),
         "p95_avg_queue_length": float(p95_avg_queue_length),
         "avg_deg": float(avg_deg),
+        "fairness": float(fairness),
     }
 
     if save_csv:

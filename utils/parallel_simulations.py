@@ -81,6 +81,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p90_avg_queue_length": float("nan"),
         "p95_avg_queue_length": float("nan"),
         "avg_deg": float("nan"),
+        "fairness": float("nan"),
     }
 
     if summary:
