@@ -247,6 +247,7 @@ def save_results(
     app_e2e_fidelities: Dict[str, float] | None = None,
     single_path_share: float = float("nan"),
     two_path_share: float = float("nan"),
+    avg_deg: float = float("nan"),
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
@@ -569,6 +570,7 @@ def save_results(
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
         print(f"P95 link utilization : {p95_link_utilization:.4f}")
+        print(f"Avg degree       : {avg_deg:.4f}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
@@ -598,6 +600,7 @@ def save_results(
         "avg_queue_length": float(avg_queue_length),
         "p90_avg_queue_length": float(p90_avg_queue_length),
         "p95_avg_queue_length": float(p95_avg_queue_length),
+        "avg_deg": float(avg_deg),
     }
 
     if save_csv:

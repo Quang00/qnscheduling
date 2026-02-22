@@ -131,6 +131,7 @@ def run_simulation(
     # Generate network data and applications based on the configuration file
     fidelities = {}
     simple_paths = {}
+    avg_deg = float("nan")
     if graph == "waxman":
         nodes, edges, distances, fidelities, end_nodes, avg_fid, avg_deg = (
             generate_waxman_graph(rng=rng)
@@ -344,6 +345,7 @@ def run_simulation(
         app_e2e_fidelities=app_e2e_fidelities,
         single_path_share=single_path_share,
         two_path_share=two_path_share,
+        avg_deg=avg_deg,
         output_dir=output_dir,
         save_csv=save_csv,
         verbose=verbose,

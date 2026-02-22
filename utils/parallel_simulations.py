@@ -68,6 +68,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "avg_hops": float("nan"),
         "avg_min_fidelity": float("nan"),
         "avg_e2e_fidelity": float("nan"),
+        "single_path_share_pct": float("nan"),
+        "two_path_share_pct": float("nan"),
         "avg_pga_duration": float("nan"),
         "total_busy_time": float("nan"),
         "avg_link_utilization": float("nan"),
@@ -78,8 +80,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "avg_queue_length": float("nan"),
         "p90_avg_queue_length": float("nan"),
         "p95_avg_queue_length": float("nan"),
-        "single_path_share_pct": float("nan"),
-        "two_path_share_pct": float("nan"),
+        "avg_deg": float("nan"),
     }
 
     if summary:

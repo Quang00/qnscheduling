@@ -98,6 +98,10 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
+            "key": "avg_min_fidelity",
+            "ylabel": "Average minimum fidelity",
+        },
+        {
             "key": "avg_e2e_fidelity",
             "ylabel": "Average E2E fidelity",
         },
@@ -122,6 +126,10 @@ def build_metric_specs(
             "key": "two_path_share_pct",
             "ylabel": "Requests with $\\leq$ 2 candidate paths (%)",
             "percentage": True,
+        },
+        {
+            "key": "avg_deg",
+            "ylabel": "Average node degree",
         },
     ]
 
