@@ -17,6 +17,7 @@ def main():
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
         "arrival_rate": 5,
+        "graph": "gml",
     }
 
     scenarios = [
@@ -38,11 +39,17 @@ def main():
         },
         {
             "id": 4,
+            "name": "capacity_with-fid_cap-1.0",
+            "routing": "capacity",
+            "capacity_threshold": 1.0,
+        },
+        {
+            "id": 5,
             "name": "least-capacity",
             "routing": "least",
         },
         {
-            "id": 5,
+            "id": 6,
             "name": "smallest-bottleneck",
             "routing": "smallest",
         },

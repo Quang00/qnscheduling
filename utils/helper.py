@@ -122,6 +122,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "routing": "capacity",
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
+        "graph": "gml",
     }
     if args:
         default_args.update(args)

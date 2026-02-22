@@ -135,7 +135,7 @@ def run_simulation(
         nodes, edges, distances, fidelities, end_nodes, avg_fid, avg_deg = (
             generate_waxman_graph(rng=rng)
         )
-    elif config.endswith(".gml"):
+    elif graph == "gml":
         nodes, edges, distances, fidelities, end_nodes = gml_data(config)
 
     bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
@@ -488,9 +488,9 @@ def main():
         "--graph",
         "-g",
         type=str,
-        choices=["waxman"],
+        choices=["waxman", "gml"],
         default=None,
-        help="Graph generator (e.g., 'waxman')",
+        help="Graph generator (e.g., 'waxman', 'gml')",
     )
     parser.add_argument(
         "--seed",
