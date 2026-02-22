@@ -631,6 +631,28 @@ def save_results(
 # =============================================================================
 # Application and network generation
 # =============================================================================
+def compute_edge_fidelities(
+    G: nx.Graph,
+    distances: Dict[Tuple, float],
+    F_min: float = 0.51,
+) -> Dict[Tuple, float]:
+    fidelities = {}
+    L_max = max(distances.values(), default=0.0)
+    L_dep = (
+        -L_max / np.log((4 * F_min - 1) / 3)
+        if L_max > 0.0
+        else float("inf")
+    )
+
+    for u, v, data in G.edges(data=True):
+        L = float(data.get("dist", 0.0))
+        f = (1 + 3 * np.exp(-L / L_dep)) / 4
+        data["fidelity"] = f
+        fidelities[(u, v)] = f
+
+    return fidelities
+
+
 def gml_data(
     gml_file: str,
 ) -> Tuple[list, list, dict[tuple, float], dict[tuple, float]]:
@@ -656,20 +678,7 @@ def gml_data(
         for u, v, data in G.edges(data=True)
     }
     end_nodes = sorted(nx.k_core(G).nodes(), key=str)
-    fidelities = {}
-    F_min = 0.51
-    L_max = max(distances.values(), default=0.0)
-    L_dep = (
-        -L_max / np.log((4 * F_min - 1) / 3)
-        if L_max > 0.0
-        else float("inf")
-    )
-
-    for u, v, data in G.edges(data=True):
-        L = float(data.get("dist", 0.0))
-        f = (1 + 3 * np.exp(-L / L_dep)) / 4
-        data["fidelity"] = f
-        fidelities[(u, v)] = f
+    fidelities = compute_edge_fidelities(G, distances)
 
     return nodes, edges, distances, fidelities, end_nodes
 
