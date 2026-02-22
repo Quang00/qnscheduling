@@ -85,7 +85,7 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 
 Run `python -m scheduling.main --help` for the full list. Common flags:
 
-- `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/Dumbbell.gml`)
+- `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/basic/Dumbbell.gml`)
 - `--apps`, `-a`: Number of applications to generate ($a$)
 - `--inst MIN MAX`, `-i MIN MAX`: Range of number of required entanglement packets per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
@@ -99,6 +99,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra) or `capacity` (capacity-aware)
 - `--capacity-threshold`, `-ct`: Capacity threshold for routing capacity per link (**capacity**)
+- `--graph`, `-g`: Graph source: `gml` (use config file) or `waxman` (generate random Waxman graph)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
@@ -226,7 +227,7 @@ python -m scheduling.main \
 
 ## Acknowledgements
 
-The network topology configurations (`configurations/network/*.gml`) were obtained from **topohub** (https://github.com/piotrjurkiewicz/topohub) based on the Internet Topology Zoo, and are used here for research and simulation purposes.
+The network topology configurations (`configurations/network/advanced/*.gml`) were obtained from **topohub** (https://github.com/piotrjurkiewicz/topohub) based on the Internet Topology Zoo, and are used here for research and simulation purposes.
 
 ## References
 
