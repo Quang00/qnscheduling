@@ -740,9 +740,7 @@ def generate_n_apps(
             if max_f > min_f:
                 feasible.append((src, dst, float(min_f), float(max_f)))
 
-    order = rng.permutation(len(feasible))
-    reps = int(np.ceil(n_apps / len(feasible)))
-    pair_idx = np.tile(order, reps)[:n_apps]
+    pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
     for k in range(n_apps):
         src, dst, min_f, max_f = feasible[int(pair_idx[k])]
