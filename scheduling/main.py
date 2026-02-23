@@ -134,6 +134,9 @@ def run_simulation(
     avg_deg = float("nan")
     if graph == "waxman":
         nodes, edges, fidelities, avg_deg = generate_waxman_graph(rng=rng)
+        if not nodes or not edges:
+            print("Failed to generate a connected Waxman graph.")
+            return False, {}
     elif graph == "gml":
         nodes, edges, fidelities = gml_data(config)
 
