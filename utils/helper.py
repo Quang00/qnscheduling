@@ -133,8 +133,6 @@ def build_tasks(
     ppacket_values: Iterable[float],
     sim_per_point: int,
     seed_start: int,
-    run_dir: str,
-    default_kwargs: dict,
     n_apps_values: Iterable[int],
     keep_seed_outputs: bool = True,
 ) -> list[tuple[Any, ...]]:
@@ -144,17 +142,11 @@ def build_tasks(
     if not n_apps_list:
         raise ValueError("n_apps_values must contain at least one value")
     for n_apps in n_apps_list:
+        n_apps_int = int(n_apps)
         for p_packet in ppacket_values:
             for run_seed in seed_pool:
                 tasks.append(
-                    (
-                        p_packet,
-                        run_seed,
-                        run_dir,
-                        default_kwargs,
-                        int(n_apps),
-                        keep_seed_outputs,
-                    )
+                    (p_packet, run_seed, n_apps_int, keep_seed_outputs)
                 )
     return tasks
 
