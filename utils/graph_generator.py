@@ -12,6 +12,9 @@ def generate_waxman_graph(
 ) -> tuple[list, list, dict, dict, list, float, float]:
     G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
 
+    while not nx.is_connected(G):
+        G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
+
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     pos = nx.get_node_attributes(G, "pos")

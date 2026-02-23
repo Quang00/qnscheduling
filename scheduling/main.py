@@ -133,9 +133,7 @@ def run_simulation(
     simple_paths = {}
     avg_deg = float("nan")
     if graph == "waxman":
-        nodes, edges, distances, fidelities, end_nodes, avg_fid, avg_deg = (
-            generate_waxman_graph(rng=rng)
-        )
+        nodes, edges, fidelities, avg_deg = generate_waxman_graph(rng=rng)
     elif graph == "gml":
         nodes, edges, fidelities = gml_data(config)
 

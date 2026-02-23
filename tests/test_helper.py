@@ -148,20 +148,17 @@ def test_save_results_basic(tmp_path):
 
 def test_gml_data():
     gml_file = "configurations/network/basic/Dumbbell.gml"
-    nodes, edges, distances, fidelities, end_nodes = gml_data(gml_file)
+    nodes, edges, fidelities = gml_data(gml_file)
 
     assert len(nodes) > 0
     assert len(edges) > 0
-    assert len(distances) > 0
     assert len(fidelities) > 0
-    assert len(end_nodes) > 0
-    assert len(distances) == len(edges)
     assert len(fidelities) == len(edges)
 
 
 def test_generate_n_apps():
     rng = np.random.default_rng(seed=42)
-    end_nodes = ["Alice", "David"]
+    nodes = ["Alice", "David"]
     n_apps = 3
     inst_range = (1, 5)
     epr_range = (1, 3)
@@ -173,7 +170,7 @@ def test_generate_n_apps():
     }
 
     apps = generate_n_apps(
-        end_nodes=end_nodes,
+        nodes=nodes,
         bounds=bounds,
         n_apps=n_apps,
         inst_range=inst_range,
