@@ -30,7 +30,7 @@ def werner_adj_list(
 
 
 def fidelity_bounds_and_paths(
-    end_nodes: list[str], fidelities: dict[tuple[str, str], float], K: int = 8
+    nodes: list[str], fidelities: dict[tuple[str, str], float], K: int = 8
 ) -> Tuple[Dict, Dict]:
     """Compute E2E fidelity bounds and simple paths between end nodes based on
     the given edge fidelities. The function performs a DFS from each end node
@@ -38,8 +38,8 @@ def fidelity_bounds_and_paths(
     fidelities.
 
     Args:
-        end_nodes (list[str]): List of end nodes for which to compute fidelity
-        bounds and paths.
+        nodes (list[str]): List of nodes for which to compute fidelity bounds
+        and paths.
         fidelities (dict[tuple[str, str], float]): Mapping of directed edges
         (u, v) to their fidelities.
         K (int, optional): Maximum number of hops.
@@ -53,12 +53,12 @@ def fidelity_bounds_and_paths(
             simple path between the nodes.
     """
     werner_adjacency = werner_adj_list(fidelities)
-    end_nodes = sorted(end_nodes)
-    endpoints = set(end_nodes)
+    nodes = sorted(nodes)
+    endpoints = set(nodes)
     bounds = {}
     paths = defaultdict(list)
 
-    for i, source in enumerate(end_nodes):
+    for i, source in enumerate(nodes):
         best_max, best_min = {}, {}
         stack = [(source, 0, 1.0, (source,))]
 
@@ -85,7 +85,7 @@ def fidelity_bounds_and_paths(
 
                 stack.append((v, hop_cpt + 1, acc, next_path))
 
-        for destination in end_nodes[i + 1:]:
+        for destination in nodes[i + 1:]:
             if destination in best_max:
                 bounds[(source, destination)] = (
                     (3.0 * best_min[destination] + 1.0) / 4.0,

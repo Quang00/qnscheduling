@@ -137,11 +137,11 @@ def run_simulation(
             generate_waxman_graph(rng=rng)
         )
     elif graph == "gml":
-        nodes, edges, distances, fidelities, end_nodes = gml_data(config)
+        nodes, edges, fidelities = gml_data(config)
 
-    bounds, simple_paths = fidelity_bounds_and_paths(end_nodes, fidelities)
+    bounds, simple_paths = fidelity_bounds_and_paths(nodes, fidelities)
     app_specs = generate_n_apps(
-        end_nodes,
+        nodes,
         bounds,
         n_apps=n_apps,
         inst_range=inst_range,

@@ -701,14 +701,13 @@ def gml_data(
         (u, v): float(data.get("dist", 0.0))
         for u, v, data in G.edges(data=True)
     }
-    end_nodes = sorted(nx.k_core(G).nodes(), key=str)
     fidelities = compute_edge_fidelities(G, distances)
 
-    return nodes, edges, distances, fidelities, end_nodes
+    return nodes, edges, fidelities
 
 
 def generate_n_apps(
-    end_nodes: list,
+    nodes: list[str],
     bounds: dict[tuple, tuple],
     n_apps: int,
     inst_range: tuple[int, int],
@@ -741,9 +740,9 @@ def generate_n_apps(
     """
     apps = {}
     feasible = []
-    for i in range(len(end_nodes)):
-        for j in range(i + 1, len(end_nodes)):
-            src, dst = end_nodes[i], end_nodes[j]
+    for i in range(len(nodes)):
+        for j in range(i + 1, len(nodes)):
+            src, dst = nodes[i], nodes[j]
             min_f, max_f = fidelity_bounds(bounds, src, dst)
             min_f = max(min_f, 0.51)
             if max_f > min_f:

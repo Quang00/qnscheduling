@@ -22,8 +22,6 @@ def generate_waxman_graph(
         distances[(u, v)] = d
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
-    end_nodes = sorted(nx.k_core(G).nodes(), key=str)
-    avg_fid = sum(fidelites.values()) / len(fidelites) if fidelites else 0
     avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
 
-    return nodes, edges, distances, fidelites, end_nodes, avg_fid, avg_deg
+    return nodes, edges, fidelites, avg_deg
