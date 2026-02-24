@@ -6,19 +6,24 @@ from utils.helper import compute_edge_fidelities
 
 def generate_waxman_graph(
     n: int = 48,
-    alpha: float = 0.4,
-    beta: float = 0.3,
+    alpha: float = 0.2,
+    beta: float = 0.6,
     rng: np.random.Generator | None = None,
     max_retries: int = 5000,
-    max_avg_degree: float = 8.0,
+    max_avg_degree: float = 5.0,
+    max_hops: int = 8,
 ) -> tuple[list, list, dict, float]:
     G = None
     for _ in range(max_retries):
         G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
-        if nx.is_connected(G):
-            avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
-            if avg_deg <= max_avg_degree:
-                break
+        if not nx.is_connected(G):
+            continue
+        avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
+        if avg_deg > max_avg_degree:
+            continue
+        if nx.diameter(G) > max_hops:
+            continue
+        break
     else:
         return [], [], {}, 0.0
 
