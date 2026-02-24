@@ -10,12 +10,15 @@ def generate_waxman_graph(
     beta: float = 0.3,
     rng: np.random.Generator | None = None,
     max_retries: int = 5000,
+    max_avg_degree: float = 8.0,
 ) -> tuple[list, list, dict, float]:
     G = None
-    for _ in range(1, max_retries + 1):
+    for _ in range(max_retries):
         G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
         if nx.is_connected(G):
-            break
+            avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
+            if avg_deg <= max_avg_degree:
+                break
     else:
         return [], [], {}, 0.0
 
@@ -29,6 +32,5 @@ def generate_waxman_graph(
         distances[(u, v)] = d
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
-    avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
 
     return nodes, edges, fidelites, avg_deg
