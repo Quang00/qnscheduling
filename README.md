@@ -99,7 +99,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra) or `capacity` (capacity-aware)
 - `--capacity-threshold`, `-ct`: Capacity threshold for routing capacity per link (**capacity**)
-- `--graph`, `-g`: Graph source: `gml` (use config file) or `waxman` (generate random Waxman graph)
+- `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)
 - `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
