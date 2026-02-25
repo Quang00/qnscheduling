@@ -62,7 +62,7 @@ from scheduling.pga import compute_durations
 from scheduling.routing import find_feasible_path, shortest_paths
 from scheduling.simulation import simulate_dynamic, simulate_static
 from scheduling.static import edf_parallel_static
-from utils.graph_generator import generate_waxman_graph
+from utils.graph_generator import fat_tree, generate_waxman_graph
 from utils.helper import (
     all_simple_paths,
     app_params_sim,
@@ -137,6 +137,9 @@ def run_simulation(
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
+    elif graph == "fat":
+        nodes, edges, fidelities, qpus = fat_tree()
+        nodes = qpus
     elif graph == "gml":
         nodes, edges, fidelities = gml_data(config)
 
@@ -491,9 +494,9 @@ def main():
         "--graph",
         "-g",
         type=str,
-        choices=["waxman", "gml"],
+        choices=["waxman", "fat", "gml"],
         default=None,
-        help="Graph generator (e.g., 'waxman', 'gml')",
+        help="Graph generator (e.g., 'waxman', 'fat', 'gml')",
     )
     parser.add_argument(
         "--seed",
