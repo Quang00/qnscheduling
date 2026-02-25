@@ -135,4 +135,4 @@ def fat_tree(
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
     fidelities = compute_edge_fidelities(G, distances, F_min=F_min)
 
-    return G, nodes, edges, fidelities, qpus
+    return nodes, edges, fidelities, qpus
