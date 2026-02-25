@@ -10,7 +10,7 @@ def generate_waxman_graph(
     beta: float = 0.6,
     rng: np.random.Generator | None = None,
     max_retries: int = 5000,
-    max_avg_degree: float = 5.0,
+    max_avg_degree: float = 4.0,
     max_hops: int = 8,
 ) -> tuple[list, list, dict, float]:
     """Generates a Waxman graph with constraints on connectivity,
