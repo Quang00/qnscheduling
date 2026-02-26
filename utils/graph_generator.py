@@ -7,7 +7,7 @@ from utils.helper import compute_edge_fidelities
 def generate_waxman_graph(
     n: int = 48,
     alpha: float = 0.2,
-    beta: float = 0.4,
+    beta: float = 0.3,
     rng: np.random.Generator | None = None,
     max_retries: int = 5000,
     max_avg_degree: float = 3.0,
