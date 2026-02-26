@@ -3,7 +3,7 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    n_apps_values = [100, 200, 400, 600, 800, 1000]
+    n_apps_values = [10, 20, 40, 60, 80, 100]
     topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
 
