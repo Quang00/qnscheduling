@@ -334,6 +334,31 @@ def run_simulation(
         )
 
     # Save results
+    all_network_links = {
+        tuple(sorted((u, v))) for u, v in edges
+    }
+
+    if link_utilization is None:
+        link_utilization = {}
+    if link_waiting is None:
+        link_waiting = {}
+
+    for link in all_network_links:
+        link_utilization.setdefault(
+            link,
+            {
+                "busy_time": 0.0,
+                "utilization": 0.0,
+            },
+        )
+        link_waiting.setdefault(
+            link,
+            {
+                "total_waiting_time": 0.0,
+                "pga_waited": 0,
+            },
+        )
+
     summary = save_results(
         df,
         pga_names,
