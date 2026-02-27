@@ -132,18 +132,23 @@ def run_simulation(
     fidelities = {}
     simple_paths = {}
     avg_deg = float("nan")
+    diameter = float("nan")
     if graph == "waxman":
-        nodes, edges, fidelities, avg_deg = generate_waxman_graph(rng=rng)
+        nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
+            rng=rng
+        )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, qpus = fat_tree()
+        nodes, edges, fidelities, qpus, diameter = fat_tree()
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, fidelities = gml_data(config)
+        nodes, edges, fidelities, diameter = gml_data(config)
 
-    bounds, simple_paths = fidelity_bounds_and_paths(nodes, fidelities)
+    bounds, simple_paths = fidelity_bounds_and_paths(
+        nodes, fidelities, diameter + 1
+    )
     app_specs = generate_n_apps(
         nodes,
         bounds,

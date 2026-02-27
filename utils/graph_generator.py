@@ -12,7 +12,7 @@ def generate_waxman_graph(
     max_retries: int = 5000,
     max_avg_degree: float = 3.0,
     max_hops: int = 8,
-) -> tuple[list, list, dict, float]:
+) -> tuple[list, list, dict, float, float]:
     """Generates a Waxman graph with constraints on connectivity,
     average degree, and diameter.
 
@@ -31,13 +31,15 @@ def generate_waxman_graph(
         max_hops (int, optional): Maximum diameter of the graph. Defaults to 8.
 
     Returns:
-        tuple[list, list, dict, float]: A tuple containing:
+        tuple[list, list, dict, float, float]: A tuple containing:
             - List of nodes in the graph.
             - List of edges in the graph.
             - Dictionary mapping edges to their fidelities.
             - Average degree of the graph.
+            - Diameter of the graph.
     """
     G = None
+    diameter = float("nan")
     for _ in range(max_retries):
         G = nx.waxman_graph(n, alpha=alpha, beta=beta, seed=rng)
         if not nx.is_connected(G):
@@ -45,11 +47,12 @@ def generate_waxman_graph(
         avg_deg = 2 * G.number_of_edges() / G.number_of_nodes()
         if avg_deg > max_avg_degree:
             continue
-        if nx.diameter(G) > max_hops:
+        diameter = float(nx.diameter(G))
+        if diameter > max_hops:
             continue
         break
     else:
-        return [], [], {}, 0.0
+        return [], [], {}, 0.0, float("nan")
 
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
@@ -62,7 +65,7 @@ def generate_waxman_graph(
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
 
-    return nodes, edges, fidelites, avg_deg
+    return nodes, edges, fidelites, avg_deg, diameter
 
 
 def fat_tree(
@@ -71,7 +74,7 @@ def fat_tree(
     edge_aggregate_dist=3.0,
     aggregate_core_dist=6.0,
     F_min: float = 0.8,
-) -> tuple[list, list, dict, list]:
+) -> tuple[list, list, dict, list, float]:
     """Generates a fat-tree topology with k pods. Each pod contains k/2 edge
     switches and k/2 aggregate switches. The core layer has (k/2)^2 core
     switches. Each edge switch connects to k/2 hosts (QPUs). See:
@@ -88,11 +91,12 @@ def fat_tree(
         F_min (float, optional): Minimum initial fidelity for edges.
 
     Returns:
-        tuple[list, list, dict, list]: A tuple containing:
+        tuple[list, list, dict, list, float]: A tuple containing:
             - List of nodes in the graph.
             - List of edges in the graph.
             - Dictionary mapping edges to their fidelities.
             - List of QPUs (hosts) in the graph.
+            - Diameter of the graph.
     """
     G = nx.Graph()
     qpus = []
@@ -134,5 +138,6 @@ def fat_tree(
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
     fidelities = compute_edge_fidelities(G, distances, F_min=F_min)
+    diameter = float(nx.diameter(G))
 
-    return nodes, edges, fidelities, qpus
+    return nodes, edges, fidelities, qpus, diameter
