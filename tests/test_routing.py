@@ -130,6 +130,7 @@ def test_find_feasible_path_basic():
         fidelities=fidelities,
         routing_mode="shortest",
         simple_paths=simple_paths,
+        rng=np.random.default_rng(42),
     )
     assert result["A"] == ("Alice", "Bob", "Charlie")
     assert result["B"] == ("Bob", "Charlie", "David")
@@ -273,7 +274,9 @@ def test_fidelity_shortest_no_valid_path():
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "C"], _uniform_fidelities(edges, value=0.55)
     )
-    path, fid = fidelity_shortest(simple_paths, "A", "C", min_fidelity=0.6)
+    path, fid = fidelity_shortest(
+        simple_paths, "A", "C", 0.6, np.random.default_rng(42)
+    )
     assert path is None
     assert math.isnan(fid)
 
@@ -286,7 +289,9 @@ def test_highest_fidelity_selects_best():
             (0.85, ("A", "C", "D", "E")),
         ]
     }
-    path, fid = highest_fidelity(simple_paths, "A", "E", min_fidelity=0.75)
+    path, fid = highest_fidelity(
+        simple_paths, "A", "E", 0.75, np.random.default_rng(42)
+    )
     assert path == ("A", "C", "D", "E")
     assert fid == pytest.approx(0.85)
 
@@ -398,6 +403,7 @@ def test_find_feasible_path_highest(linear_abc):
         app_requests=app_requests,
         fidelities=fidelities,
         routing_mode="highest",
+        rng=np.random.default_rng(42),
     )
     assert result["app"] is not None
     assert e2e_fids["app"] >= 0.6

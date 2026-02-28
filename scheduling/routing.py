@@ -230,15 +230,31 @@ def fidelity_shortest(
     src: str,
     dst: str,
     min_fidelity: float,
+    rng: np.random.Generator,
 ) -> Tuple[List[str] | None, float]:
+    selected_path = None
+    selected_fid = float("nan")
+    selected_len = None
+    tied_count = 0
     all_paths = all_simple_paths(simple_paths, src, dst)
     for path in all_paths:
         e2e_fid = path[0]
+        path_nodes = path[1]
         if e2e_fid < min_fidelity:
             continue
-        else:
-            return path[1], e2e_fid
-    return None, float("nan")
+        path_len = len(path_nodes)
+        if selected_path is None:
+            selected_path = path_nodes
+            selected_fid = e2e_fid
+            selected_len = path_len
+            tied_count = 1
+        elif path_len == selected_len and e2e_fid == selected_fid:
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                selected_path = path_nodes
+        elif path_len > selected_len:
+            break
+    return selected_path, selected_fid
 
 
 def highest_fidelity(
@@ -246,21 +262,24 @@ def highest_fidelity(
     src: str,
     dst: str,
     min_fidelity: float,
+    rng: np.random.Generator,
 ) -> Tuple[List[str] | None, float]:
     """Select the path with the highest E2E fidelity among all paths that
-    meet the minimum fidelity requirement.
+    meet the minimum fidelity requirement. Ties are broken randomly.
 
     Args:
         simple_paths: Pre-computed (fidelity, path) pairs keyed by node pair.
         src: Source node.
         dst: Destination node.
         min_fidelity: Minimum acceptable E2E fidelity.
+        rng: Random number generator for tie-breaking.
 
     Returns:
         Tuple of (selected path or None, e2e fidelity or nan).
     """
     best_path = None
     best_fid = float("nan")
+    tied_count = 0
     all_paths = all_simple_paths(simple_paths, src, dst)
     for path in all_paths:
         e2e_fid = path[0]
@@ -269,6 +288,11 @@ def highest_fidelity(
         if best_path is None or e2e_fid > best_fid:
             best_path = path[1]
             best_fid = e2e_fid
+            tied_count = 1
+        elif e2e_fid == best_fid:
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                best_path = path[1]
     return best_path, best_fid
 
 
@@ -451,6 +475,7 @@ def find_feasible_path(
                 src,
                 dst,
                 min_fidelity,
+                rng,
             )
         else:
             selected_path, selected_e2e_fid = fidelity_shortest(
@@ -458,6 +483,7 @@ def find_feasible_path(
                 src,
                 dst,
                 min_fidelity,
+                rng,
             )
 
         ret[app] = selected_path
