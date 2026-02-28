@@ -248,10 +248,11 @@ def fidelity_shortest(
             selected_fid = e2e_fid
             selected_len = path_len
             tied_count = 1
-        elif path_len == selected_len and e2e_fid == selected_fid:
+        elif path_len == selected_len:
             tied_count += 1
             if rng.integers(tied_count) == 0:
                 selected_path = path_nodes
+                selected_fid = e2e_fid
         elif path_len > selected_len:
             break
     return selected_path, selected_fid
@@ -289,7 +290,7 @@ def highest_fidelity(
             best_path = path[1]
             best_fid = e2e_fid
             tied_count = 1
-        elif e2e_fid == best_fid:
+        elif np.isclose(e2e_fid, best_fid):
             tied_count += 1
             if rng.integers(tied_count) == 0:
                 best_path = path[1]
