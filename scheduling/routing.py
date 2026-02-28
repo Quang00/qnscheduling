@@ -130,7 +130,7 @@ def smallest_bottleneck(
             selected_delta = delta
             selected_e2e_fid = e2e_fid
             tied_count = 1
-        elif max_cap == smallest_bottleneck:
+        elif np.isclose(max_cap, smallest_bottleneck):
             tied_count += 1
             if rng.integers(tied_count) == 0:
                 selected_path = path
@@ -180,7 +180,7 @@ def least_capacity(
             selected_delta = delta
             selected_e2e_fid = e2e_fid
             tied_count = 1
-        elif sum_cap == least_cap:
+        elif np.isclose(sum_cap, least_cap):
             tied_count += 1
             if rng.integers(tied_count) == 0:
                 selected_path = path
