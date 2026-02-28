@@ -78,5 +78,5 @@ def main():
         print(f"Done: {scenario['name']} -> {raw_csv_path}")
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()

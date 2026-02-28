@@ -27,7 +27,7 @@ def plot_graph_from_gml(gml_file: str) -> None:
     plt.show()
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     gml_path = input("Enter the path to the GML file: ")
 
     if not os.path.exists(gml_path):

@@ -20,5 +20,20 @@ testpaths = ["tests"]
 [tool.setuptools]
 packages = ["scheduling", "utils"]
 
+[tool.coverage.run]
+omit = [
+  "scheduling/__init__.py",
+  "scheduling/main.py",
+  "utils/plots.py",
+  "utils/parallel_simulations.py",
+  "utils/__init__.py",
+  "utils/run_scenarios.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+  'if __name__ == .__main__.:',
+]
+
 [project.urls]
 Repository = "https://github.com/Quang00/QNScheduling"
