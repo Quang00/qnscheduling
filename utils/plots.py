@@ -50,6 +50,16 @@ def build_metric_specs(
             "percentage": True,
         },
         {
+            "key": "top5_busy_share",
+            "ylabel": "Share of non-idle time in top 5% links (%)",
+            "percentage": True,
+        },
+        {
+            "key": "top10_busy_share",
+            "ylabel": "Share of non-idle time in top 10% links (%)",
+            "percentage": True,
+        },
+        {
             "key": "avg_link_utilization",
             "ylabel": "Average link utilization (%)",
             "percentage": True,
@@ -98,6 +108,10 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
+            "key": "avg_min_fidelity",
+            "ylabel": "Average minimum fidelity",
+        },
+        {
             "key": "avg_e2e_fidelity",
             "ylabel": "Average E2E fidelity",
         },
@@ -122,6 +136,14 @@ def build_metric_specs(
             "key": "two_path_share_pct",
             "ylabel": "Requests with $\\leq$ 2 candidate paths (%)",
             "percentage": True,
+        },
+        {
+            "key": "avg_deg",
+            "ylabel": "Average node degree",
+        },
+        {
+            "key": "fairness",
+            "ylabel": "Fairness",
         },
     ]
 
@@ -384,14 +406,16 @@ def plot_metrics_vs_load(
             "3.csv",
             "4.csv",
             "5.csv",
+            "6.csv",
         ],
         multi=True,
         gp_labels={
             "1": "Shortest path",
             "2": "Highest fidelity",
             "3": "Capacity 0.8",
-            "4": "Least capacity",
-            "5": "Smallest bottleneck",
+            "4": "Capacity 1.0",
+            "5": "Least capacity",
+            "6": "Smallest bottleneck",
         },
     )
     """

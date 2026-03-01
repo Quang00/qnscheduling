@@ -4,6 +4,14 @@ scheduling package
 Submodules
 ----------
 
+scheduling.fidelity module
+--------------------------
+
+.. automodule:: scheduling.fidelity
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 scheduling.main module
 ----------------------
 

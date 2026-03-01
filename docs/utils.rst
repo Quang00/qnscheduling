@@ -4,6 +4,14 @@ utils package
 Submodules
 ----------
 
+utils.graph\_generator module
+-----------------------------
+
+.. automodule:: utils.graph_generator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 utils.helper module
 -------------------
 

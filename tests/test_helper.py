@@ -1,10 +1,12 @@
 import os
 import tempfile
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 
 from utils.helper import (
+    compute_edge_fidelities,
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
@@ -146,29 +148,30 @@ def test_save_results_basic(tmp_path):
 
 def test_gml_data():
     gml_file = "configurations/network/basic/Dumbbell.gml"
-    nodes, edges, distances, fidelities, end_nodes = gml_data(gml_file)
+    nodes, edges, fidelities, diameter = gml_data(gml_file)
 
     assert len(nodes) > 0
     assert len(edges) > 0
-    assert len(distances) > 0
     assert len(fidelities) > 0
-    assert len(end_nodes) > 0
-    assert len(distances) == len(edges)
     assert len(fidelities) == len(edges)
+    assert diameter > 0
 
 
 def test_generate_n_apps():
     rng = np.random.default_rng(seed=42)
-    end_nodes = ["Alice", "David"]
+    nodes = ["Alice", "David"]
     n_apps = 3
     inst_range = (1, 5)
     epr_range = (1, 3)
     period_range = (10.0, 20.0)
     list_policies = ["policy1", "policy2"]
-    bounds = {("Alice", "David"): (0.8, 1.0), ("David", "Alice"): (0.8, 1.0), }
+    bounds = {
+        ("Alice", "David"): (0.8, 1.0),
+        ("David", "Alice"): (0.8, 1.0),
+    }
 
     apps = generate_n_apps(
-        end_nodes=end_nodes,
+        nodes=nodes,
         bounds=bounds,
         n_apps=n_apps,
         inst_range=inst_range,
@@ -218,3 +221,15 @@ def test_save_results():
         )
         csv_files = [f for f in os.listdir(tmpdir) if f.endswith(".csv")]
         assert len(csv_files) > 0
+
+
+def test_compute_edge_fidelities():
+    G = nx.Graph()
+    G.add_edge("A", "B", dist=50.0)
+    G.add_edge("B", "C", dist=100.0)
+    distances = {("A", "B"): 50.0, ("B", "C"): 100.0}
+
+    fidelities = compute_edge_fidelities(G, distances, F_min=0.51)
+
+    assert len(fidelities) == 2
+    assert all(0.51 <= f <= 1.0 for f in fidelities.values())

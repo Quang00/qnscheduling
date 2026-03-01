@@ -122,6 +122,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "routing": "capacity",
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
+        "graph": "gml",
     }
     if args:
         default_args.update(args)
@@ -132,8 +133,6 @@ def build_tasks(
     ppacket_values: Iterable[float],
     sim_per_point: int,
     seed_start: int,
-    run_dir: str,
-    default_kwargs: dict,
     n_apps_values: Iterable[int],
     keep_seed_outputs: bool = True,
 ) -> list[tuple[Any, ...]]:
@@ -143,17 +142,11 @@ def build_tasks(
     if not n_apps_list:
         raise ValueError("n_apps_values must contain at least one value")
     for n_apps in n_apps_list:
+        n_apps_int = int(n_apps)
         for p_packet in ppacket_values:
             for run_seed in seed_pool:
                 tasks.append(
-                    (
-                        p_packet,
-                        run_seed,
-                        run_dir,
-                        default_kwargs,
-                        int(n_apps),
-                        keep_seed_outputs,
-                    )
+                    (p_packet, run_seed, n_apps_int, keep_seed_outputs)
                 )
     return tasks
 
@@ -246,6 +239,7 @@ def save_results(
     app_e2e_fidelities: Dict[str, float] | None = None,
     single_path_share: float = float("nan"),
     two_path_share: float = float("nan"),
+    avg_deg: float = float("nan"),
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
@@ -379,6 +373,8 @@ def save_results(
     p90_link_utilization = float("nan")
     p95_link_utilization = float("nan")
     total_busy_time = float("nan")
+    top5_busy_share = float("nan")
+    top10_busy_share = float("nan")
     p90_link_avg_wait = float("nan")
     p95_link_avg_wait = float("nan")
     avg_queue_length = float("nan")
@@ -405,6 +401,17 @@ def save_results(
         p90_link_utilization = float(lk_ut_df["utilization"].quantile(0.9))
         p95_link_utilization = float(lk_ut_df["utilization"].quantile(0.95))
         total_busy_time = busy_time_sum
+
+        n_links = len(lk_ut_df)
+        top5_n = int(np.ceil(0.05 * n_links))
+        top10_n = int(np.ceil(0.10 * n_links))
+        if busy_time_sum > 0 and n_links > 0:
+            top5_busy_share = float(
+                lk_ut_df["busy_time"].nlargest(top5_n).sum() / busy_time_sum
+            )
+            top10_busy_share = float(
+                lk_ut_df["busy_time"].nlargest(top10_n).sum() / busy_time_sum
+            )
 
         if save_csv:
             link_util_path = os.path.join(output_dir, "link_utilization.csv")
@@ -534,6 +541,24 @@ def save_results(
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
+    fairness = float("nan")
+    completion_ratios = []
+    for task in expected_tasks:
+        task_total = per_task.loc[task].sum()
+        task_completed = per_task.loc[task].get("completed", 0)
+        if task_total > 0:
+            completion_ratios.append(float(task_completed) / float(task_total))
+    if len(completion_ratios) > 0:
+        ratios = np.array(completion_ratios)
+        n = len(ratios)
+        sum_ratios = float(np.sum(ratios))
+        sum_ratios_sq = float(np.sum(ratios**2))
+
+        if sum_ratios_sq > 0:
+            fairness = (sum_ratios ** 2) / (n * sum_ratios_sq)
+        else:
+            fairness = 1.0
+
     if verbose:
         for task in tasks_sorted:
             row = per_task.loc[task]
@@ -568,6 +593,10 @@ def save_results(
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
         print(f"P95 link utilization : {p95_link_utilization:.4f}")
+        print(f"Top-5% busy-time share  : {top5_busy_share:.4f}")
+        print(f"Top-10% busy-time share : {top10_busy_share:.4f}")
+        print(f"Avg degree       : {avg_deg:.4f}")
+        print(f"Fairness         : {fairness:.4f}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
@@ -592,11 +621,15 @@ def save_results(
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),
         "p95_link_utilization": float(p95_link_utilization),
+        "top5_busy_share": float(top5_busy_share),
+        "top10_busy_share": float(top10_busy_share),
         "p90_link_avg_wait": float(p90_link_avg_wait),
         "p95_link_avg_wait": float(p95_link_avg_wait),
         "avg_queue_length": float(avg_queue_length),
         "p90_avg_queue_length": float(p90_avg_queue_length),
         "p95_avg_queue_length": float(p95_avg_queue_length),
+        "avg_deg": float(avg_deg),
+        "fairness": float(fairness),
     }
 
     if save_csv:
@@ -631,33 +664,12 @@ def save_results(
 # =============================================================================
 # Application and network generation
 # =============================================================================
-def gml_data(
-    gml_file: str,
-) -> Tuple[list, list, dict[tuple, float], dict[tuple, float]]:
-    """Extracts nodes, edges, and distances from a GML file.
-
-    Args:
-        gml_file (str): Path to the GML file.
-
-    Returns:
-        nodes (list): List of nodes.
-        edges (list): List of edges (source, target).
-        distances (dict[tuple, float]): Dict mapping edges
-        to distances.
-        fidelity (dict[tuple, float]): Dict mapping directed edges to
-        fidelities.
-    """
-    G = nx.read_gml(gml_file)
-
-    nodes = sorted(G.nodes(), key=str)
-    edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
-    distances = {
-        (u, v): float(data.get("dist", 0.0))
-        for u, v, data in G.edges(data=True)
-    }
-    end_nodes = sorted(nx.k_core(G).nodes(), key=str)
+def compute_edge_fidelities(
+    G: nx.Graph,
+    distances: Dict[Tuple, float],
+    F_min: float = 0.8,
+) -> Dict[Tuple, float]:
     fidelities = {}
-    F_min = 0.51
     L_max = max(distances.values(), default=0.0)
     L_dep = (
         -L_max / np.log((4 * F_min - 1) / 3)
@@ -671,11 +683,40 @@ def gml_data(
         data["fidelity"] = f
         fidelities[(u, v)] = f
 
-    return nodes, edges, distances, fidelities, end_nodes
+    return fidelities
+
+
+def gml_data(
+    gml_file: str,
+) -> Tuple[list, list, dict[tuple, float], float]:
+    """Extracts nodes, edges, and distances from a GML file.
+
+    Args:
+        gml_file (str): Path to the GML file.
+
+    Returns:
+        nodes (list): List of nodes.
+        edges (list): List of edges (source, target).
+        fidelities (dict[tuple, float]): Dict mapping directed edges to
+        fidelities.
+        diameter (float): Diameter of the graph.
+    """
+    G = nx.read_gml(gml_file)
+
+    nodes = sorted(G.nodes(), key=str)
+    edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
+    distances = {
+        (u, v): float(data.get("dist", 0.0))
+        for u, v, data in G.edges(data=True)
+    }
+    fidelities = compute_edge_fidelities(G, distances)
+    diameter = float(nx.diameter(G))
+
+    return nodes, edges, fidelities, diameter
 
 
 def generate_n_apps(
-    end_nodes: list,
+    nodes: list[str],
     bounds: dict[tuple, tuple],
     n_apps: int,
     inst_range: tuple[int, int],
@@ -707,28 +748,28 @@ def generate_n_apps(
         and policy.
     """
     apps = {}
+    feasible = []
+    for i in range(len(nodes)):
+        for j in range(i + 1, len(nodes)):
+            src, dst = nodes[i], nodes[j]
+            min_f, max_f = fidelity_bounds(bounds, src, dst)
+            min_f = max(min_f, 0.51)
+            if max_f >= min_f:
+                feasible.append((src, dst, float(min_f), float(max_f)))
 
-    while len(apps) < n_apps:
-        src, dst = rng.choice(end_nodes, 2, replace=False).tolist()
-        min_fidelity, max_fidelity = fidelity_bounds(bounds, src, dst)
-        min_fidelity = max(min_fidelity, 0.51)
-        if max_fidelity <= min_fidelity:
-            continue
-        rand_min_fidelity = float(rng.uniform(min_fidelity, max_fidelity))
-        name_app = get_column_letter(len(apps) + 1)
-        rand_instance = int(rng.integers(inst_range[0], inst_range[1] + 1))
-        rand_epr_pairs = int(rng.integers(epr_range[0], epr_range[1] + 1))
-        rand_period = float(rng.uniform(period_range[0], period_range[1]))
-        rand_policy = rng.choice(list_policies, 1, replace=False).item()
+    pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
+    for k in range(n_apps):
+        src, dst, min_f, max_f = feasible[int(pair_idx[k])]
+        name_app = get_column_letter(k + 1)
         apps[name_app] = {
             "src": src,
             "dst": dst,
-            "instances": rand_instance,
-            "epr": rand_epr_pairs,
-            "period": rand_period,
-            "min_fidelity": rand_min_fidelity,
-            "policy": rand_policy,
+            "instances": int(rng.integers(inst_range[0], inst_range[1] + 1)),
+            "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
+            "period": float(rng.uniform(period_range[0], period_range[1])),
+            "min_fidelity": float(rng.uniform(min_f, max_f)),
+            "policy": rng.choice(list_policies),
         }
 
     return apps

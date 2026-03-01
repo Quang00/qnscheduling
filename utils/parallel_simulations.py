@@ -1,8 +1,8 @@
 import multiprocessing as mp
 import os
 import shutil
+import signal
 import tempfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Optional, Sequence
 
 import pandas as pd
@@ -16,41 +16,49 @@ from utils.helper import (
     prepare_run_dir,
 )
 
+_WORKER_DEFAULT_KWARGS = None
+_WORKER_RUN_DIR = None
+
+
+def _init_worker(default_kwargs: dict[str, Any], run_dir: str) -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    global _WORKER_DEFAULT_KWARGS, _WORKER_RUN_DIR
+    _WORKER_DEFAULT_KWARGS = default_kwargs
+    _WORKER_RUN_DIR = run_dir
+
 
 def simulate_one_ppacket(args: tuple) -> dict:
-    (
-        p_packet,
-        run_seed,
-        run_dir,
-        default_kwargs,
-        n_apps_value,
-        keep_seed_outputs,
-    ) = args
-
-    n_apps_int = int(n_apps_value) if n_apps_value is not None else None
+    (p_packet, run_seed, n_apps_value, keep_seed_outputs) = args
+    default_kwargs = _WORKER_DEFAULT_KWARGS
+    run_dir = _WORKER_RUN_DIR
 
     if keep_seed_outputs:
         base_dir = run_dir
-        if n_apps_int is not None:
-            base_dir = os.path.join(run_dir, f"napps_{n_apps_int}")
-        os.makedirs(base_dir, exist_ok=True)
+        if n_apps_value is not None:
+            base_dir = os.path.join(run_dir, f"napps_{n_apps_value}")
         ppacket_dir = os.path.join(base_dir, ppacket_dirname(p_packet))
-        os.makedirs(ppacket_dir, exist_ok=True)
         sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
         os.makedirs(sd_dir, exist_ok=True)
+        cleanup = False
     else:
-        sd_dir = os.path.join(tempfile.gettempdir(), f"seed_{run_seed}")
+        sd_dir = tempfile.mkdtemp(prefix=f"seed_{run_seed}_")
+        cleanup = True
 
-    sim_kwargs = default_kwargs.copy()
-    sim_kwargs.update({"p_packet": p_packet, "seed": run_seed})
-    sim_kwargs["output_dir"] = sd_dir
-    sim_kwargs["n_apps"] = n_apps_int
-    sim_kwargs["save_csv"] = keep_seed_outputs
-    sim_kwargs["verbose"] = False
-
-    feasible, summary = run_simulation(
-        **sim_kwargs
+    sim_kwargs = {**default_kwargs}
+    sim_kwargs.update(
+        p_packet=p_packet,
+        seed=run_seed,
+        output_dir=sd_dir,
+        n_apps=n_apps_value,
+        save_csv=keep_seed_outputs,
+        verbose=False,
     )
+
+    try:
+        _, summary = run_simulation(**sim_kwargs)
+    finally:
+        if cleanup:
+            shutil.rmtree(sd_dir, ignore_errors=True)
 
     summary_metrics = {
         "admission_rate": float("nan"),
@@ -68,8 +76,12 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "avg_hops": float("nan"),
         "avg_min_fidelity": float("nan"),
         "avg_e2e_fidelity": float("nan"),
+        "single_path_share_pct": float("nan"),
+        "two_path_share_pct": float("nan"),
         "avg_pga_duration": float("nan"),
         "total_busy_time": float("nan"),
+        "top5_busy_share": float("nan"),
+        "top10_busy_share": float("nan"),
         "avg_link_utilization": float("nan"),
         "p90_link_utilization": float("nan"),
         "p95_link_utilization": float("nan"),
@@ -78,52 +90,57 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "avg_queue_length": float("nan"),
         "p90_avg_queue_length": float("nan"),
         "p95_avg_queue_length": float("nan"),
-        "single_path_share_pct": float("nan"),
-        "two_path_share_pct": float("nan"),
+        "avg_deg": float("nan"),
+        "fairness": float("nan"),
     }
 
-    if summary:
+    if summary is not None:
         summary_metrics.update(summary)
 
-    result = {
+    return {
         "p_packet": p_packet,
         "seed": run_seed,
-        "n_apps": n_apps_int,
+        "n_apps": n_apps_value,
         **summary_metrics,
     }
-
-    if not keep_seed_outputs and os.path.exists(sd_dir):
-        if sd_dir.startswith(tempfile.gettempdir()):
-            shutil.rmtree(sd_dir, ignore_errors=True)
-
-    return result
 
 
 def run_parallel_sims(
     tasks: list[tuple[Any, ...]],
     max_workers: int,
     show_progress: bool,
+    default_kwargs: dict[str, Any],
+    run_dir: str,
 ) -> list[dict[str, Any]]:
     mp_ctx = mp.get_context("spawn")
-    records = []
     n_tasks = len(tasks)
-    size = max(1, n_tasks // (max_workers * 4))
-
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_ctx) as ex:
+    if n_tasks == 0:
+        return []
+    n_procs = min(max_workers, n_tasks)
+    chunksize = max(1, n_tasks // (n_procs * 4))
+    pool = mp_ctx.Pool(
+        processes=n_procs,
+        initializer=_init_worker,
+        initargs=(default_kwargs, run_dir),
+    )
+    try:
+        it = pool.imap_unordered(simulate_one_ppacket, tasks, chunksize)
         if show_progress:
-            futures = [ex.submit(simulate_one_ppacket, t) for t in tasks]
-            with tqdm(
-                total=len(futures),
-                desc="Simulations",
-                unit="run",
-            ) as pbar:
-                for fut in as_completed(futures):
-                    records.append(fut.result())
-                    pbar.update(1)
+            records = [
+                rec for rec in tqdm(
+                    it, total=n_tasks, desc="Simulations", unit="run"
+                )
+            ]
         else:
-            for rec in ex.map(simulate_one_ppacket, tasks, chunksize=size):
-                records.append(rec)
-    return records
+            records = list(it)
+
+        pool.close()
+        return records
+    except (KeyboardInterrupt, Exception):
+        pool.terminate()
+        raise
+    finally:
+        pool.join()
 
 
 def run_ppacket_parallel_simulations(
@@ -146,8 +163,6 @@ def run_ppacket_parallel_simulations(
         ppacket_values=ppacket_values,
         sim_per_point=simulations_per_point,
         seed_start=seed_start,
-        run_dir=run_dir,
-        default_kwargs=default_kwargs,
         n_apps_values=n_apps_list,
         keep_seed_outputs=keep_seed_outputs,
     )
@@ -155,8 +170,10 @@ def run_ppacket_parallel_simulations(
     workers = max_workers or os.cpu_count() or 1
     records = run_parallel_sims(
         tasks=tasks,
-        max_workers=int(workers),
+        max_workers=workers,
         show_progress=show_progress,
+        default_kwargs=default_kwargs,
+        run_dir=run_dir,
     )
     results_df = pd.DataFrame(records)
     if raw_csv_path:
