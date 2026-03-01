@@ -80,6 +80,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "two_path_share_pct": float("nan"),
         "avg_pga_duration": float("nan"),
         "total_busy_time": float("nan"),
+        "top5_busy_share": float("nan"),
+        "top10_busy_share": float("nan"),
         "avg_link_utilization": float("nan"),
         "p90_link_utilization": float("nan"),
         "p95_link_utilization": float("nan"),

@@ -50,6 +50,16 @@ def build_metric_specs(
             "percentage": True,
         },
         {
+            "key": "top5_busy_share",
+            "ylabel": "Share of non-idle time in top 5% links (%)",
+            "percentage": True,
+        },
+        {
+            "key": "top10_busy_share",
+            "ylabel": "Share of non-idle time in top 10% links (%)",
+            "percentage": True,
+        },
+        {
             "key": "avg_link_utilization",
             "ylabel": "Average link utilization (%)",
             "percentage": True,

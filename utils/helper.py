@@ -373,6 +373,8 @@ def save_results(
     p90_link_utilization = float("nan")
     p95_link_utilization = float("nan")
     total_busy_time = float("nan")
+    top5_busy_share = float("nan")
+    top10_busy_share = float("nan")
     p90_link_avg_wait = float("nan")
     p95_link_avg_wait = float("nan")
     avg_queue_length = float("nan")
@@ -399,6 +401,17 @@ def save_results(
         p90_link_utilization = float(lk_ut_df["utilization"].quantile(0.9))
         p95_link_utilization = float(lk_ut_df["utilization"].quantile(0.95))
         total_busy_time = busy_time_sum
+
+        n_links = len(lk_ut_df)
+        top5_n = int(np.ceil(0.05 * n_links))
+        top10_n = int(np.ceil(0.10 * n_links))
+        if busy_time_sum > 0 and n_links > 0:
+            top5_busy_share = float(
+                lk_ut_df["busy_time"].nlargest(top5_n).sum() / busy_time_sum
+            )
+            top10_busy_share = float(
+                lk_ut_df["busy_time"].nlargest(top10_n).sum() / busy_time_sum
+            )
 
         if save_csv:
             link_util_path = os.path.join(output_dir, "link_utilization.csv")
@@ -580,6 +593,8 @@ def save_results(
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
         print(f"P95 link utilization : {p95_link_utilization:.4f}")
+        print(f"Top-5% busy-time share  : {top5_busy_share:.4f}")
+        print(f"Top-10% busy-time share : {top10_busy_share:.4f}")
         print(f"Avg degree       : {avg_deg:.4f}")
         print(f"Fairness         : {fairness:.4f}")
 
@@ -606,6 +621,8 @@ def save_results(
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),
         "p95_link_utilization": float(p95_link_utilization),
+        "top5_busy_share": float(top5_busy_share),
+        "top10_busy_share": float(top10_busy_share),
         "p90_link_avg_wait": float(p90_link_avg_wait),
         "p95_link_avg_wait": float(p95_link_avg_wait),
         "avg_queue_length": float(avg_queue_length),
