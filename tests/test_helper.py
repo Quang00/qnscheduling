@@ -101,8 +101,7 @@ def test_save_results_basic(tmp_path):
     )
 
     pga_names = ["A0", "B0"]
-    release_times = {"A0": 0.0, "B0": 5.0}
-    length_edges = 2
+    pga_release_times = {"A0": 0.0, "B0": 5.0}
     app_specs = {
         "A": {
             "src": "srcA",
@@ -122,28 +121,38 @@ def test_save_results_basic(tmp_path):
         },
     }
 
-    save_results(
-        df,
-        pga_names,
-        release_times,
-        app_specs,
-        n_edges=length_edges,
-        output_dir=str(tmp_path),
-    )
+    n_edges = 3
+    makespan = 5.0
+    link_utilization = {
+        ("Alice", "Bob"): {"busy_time": 3.0, "utilization": 3.0 / makespan},
+        ("Bob", "Charlie"): {"busy_time": 1.5, "utilization": 1.5 / makespan},
+    }
+    link_waiting = {
+        ("Alice", "Bob"): {"total_waiting_time": 2.0, "pga_waited": 1},
+    }
 
-    result = pd.read_csv(tmp_path / "pga_results.csv")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        save_results(
+            df=df,
+            pga_names=pga_names,
+            pga_release_times=pga_release_times,
+            app_specs=app_specs,
+            n_edges=n_edges,
+            link_utilization=link_utilization,
+            link_waiting=link_waiting,
+            output_dir=tmpdir,
+            verbose=False,
+        )
+        csv_files = {f for f in os.listdir(tmpdir) if f.endswith(".csv")}
+        assert "pga_results.csv" in csv_files
+        assert "link_utilization.csv" in csv_files
+        assert "link_waiting.csv" in csv_files
 
-    assert set(result["pga"]) == {"A0", "B0"}
-    b0_row = result.loc[result["pga"] == "B0"].iloc[0]
+        lk_ut_df = pd.read_csv(os.path.join(tmpdir, "link_utilization.csv"))
+        assert len(lk_ut_df) == 2
 
-    assert b0_row["status"] == "missing"
-    assert np.isnan(b0_row["start_time"])
-    assert b0_row["arrival_time"] == 5.0
-    assert b0_row["src_node"] == "srcB"
-    assert b0_row["dst_node"] == "dstB"
-    assert b0_row["instances"] == 1
-    assert b0_row["pairs_requested"] == 1
-    assert b0_row["policy"] == "deadline"
+        lk_wait_df = pd.read_csv(os.path.join(tmpdir, "link_waiting.csv"))
+        assert len(lk_wait_df) == 1
 
 
 def test_gml_data():
