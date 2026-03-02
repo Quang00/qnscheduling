@@ -195,18 +195,6 @@ class PGA:
             current_time = self.start + attempts_run * self.slot_duration
             completion = min(self.end, current_time)
             self._update_resources_and_links(completion, attempts_run)
-        elif self.policy == "best_effort":
-            while pairs_generated < self.epr_pairs:
-                succ = self._simulate_e2e_attempts(1)
-                pairs_generated += int(succ.sum())
-                attempts_run += 1
-
-            completion = self.start + attempts_run * self.slot_duration
-            status = (
-                "completed" if pairs_generated >= self.epr_pairs
-                else "failed"
-            )
-            self._update_resources_and_links(completion, attempts_run)
         else:
             completion = self.start
 
