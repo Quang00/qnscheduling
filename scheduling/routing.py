@@ -321,6 +321,7 @@ def find_feasible_path(
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
+    provisioning: bool = False,
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
     based on minimum fidelity threshold.
@@ -354,6 +355,8 @@ def find_feasible_path(
             single trial.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
+        provisioning (bool, optional): When True, enables provisioning mode
+            for path selection.
 
     Returns:
         Tuple[

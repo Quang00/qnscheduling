@@ -95,6 +95,7 @@ def run_simulation(
     save_csv: bool = True,
     verbose: bool = True,
     graph: str | None = None,
+    provisioning: bool = False,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -210,6 +211,7 @@ def run_simulation(
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
             rng=rng,
+            provisioning=provisioning,
         )
 
     admitted_paths = {
@@ -529,6 +531,13 @@ def main():
         help="Graph generator (e.g., 'waxman', 'fat', 'gml')",
     )
     parser.add_argument(
+        "--provisioning",
+        "-pv",
+        action="store_true",
+        default=False,
+        help="Enable routing provisioning",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -576,6 +585,7 @@ def main():
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
+        provisioning=args.provisioning,
     )
     t1 = time.perf_counter()
 
