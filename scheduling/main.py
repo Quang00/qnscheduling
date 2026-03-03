@@ -215,7 +215,7 @@ def run_simulation(
         )
 
     admitted_paths = {
-        app: path for app, path in paths.items() if path is not None
+        app: path_list for app, path_list in paths.items() if path_list
     }
     admitted_specs = {app: app_specs[app] for app in admitted_paths.keys()}
     admitted_apps = len(admitted_specs)
@@ -247,12 +247,13 @@ def run_simulation(
     single_path_share = single_path_cpt / total_apps if total_apps > 0 else 0.0
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
-    parallel_map = parallelizable_tasks(paths)
+    primary_paths = {app: path_list[0] for app, path_list in paths.items()}
+    parallel_map = parallelizable_tasks(primary_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
     durations = compute_durations(
-        paths,
+        primary_paths,
         epr_pairs,
         p_packet,
         memory,
@@ -264,7 +265,13 @@ def run_simulation(
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
 
     pga_parameters = app_params_sim(
-        paths, app_specs, p_packet, memory, p_swap, p_gen, time_slot_duration
+        primary_paths,
+        app_specs,
+        p_packet,
+        memory,
+        p_swap,
+        p_gen,
+        time_slot_duration,
     )
 
     policies = {name: spec["policy"] for name, spec in app_specs.items()}
@@ -279,8 +286,8 @@ def run_simulation(
         .rename(columns={"index": "app"})
     )
     hops_map = {
-        app: (len(path) - 1) if path is not None else np.nan
-        for app, path in paths.items()
+        app: (len(path_list[0]) - 1)
+        for app, path_list in paths.items()
     }
     app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
     app_requests_df["admitted"] = app_requests_df["app"].isin(app_specs)
@@ -336,7 +343,7 @@ def run_simulation(
             pga_rel_times=pga_rel_times,
             pga_periods=pga_periods,
             policies=policies,
-            pga_network_paths=paths,
+            pga_network_paths=primary_paths,
             rng=rng,
         )
 
@@ -372,7 +379,7 @@ def run_simulation(
         pga_release_times,
         app_specs,
         durations=durations,
-        pga_network_paths=paths,
+        pga_network_paths=primary_paths,
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
@@ -535,8 +542,7 @@ def main():
         "-kpv",
         type=int,
         default=1,
-        help="Number of candidate paths to provision for each application"
-        "(e.g., --k-provisioning 3)",
+        help="Maximum number of feasible paths to provision per application",
     )
     parser.add_argument(
         "--seed",

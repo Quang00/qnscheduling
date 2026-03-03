@@ -38,7 +38,7 @@ def shortest_paths(
     G.add_edges_from(edges)
 
     return {
-        application: nx.shortest_path(G, req["src"], req["dst"])
+        application: [nx.shortest_path(G, req["src"], req["dst"])]
         for application, req in app_requests.items()
     }
 
@@ -235,31 +235,38 @@ def fidelity_shortest(
     min_fidelity: float,
     rng: np.random.Generator,
     k_provisioning: int = 1,
-) -> Tuple[List[str] | None, float]:
-    selected_path = None
-    selected_fid = float("nan")
-    selected_len = None
-    tied_count = 0
-    all_paths = all_simple_paths(simple_paths, src, dst)
-    for path in all_paths:
-        e2e_fid = path[0]
-        path_nodes = path[1]
+) -> Tuple[List[List[str]], float]:
+    candidate_paths = []
+    shortest_length = None
+
+    for path in all_simple_paths(simple_paths, src, dst):
+        e2e_fid, path_nodes = path[0], path[1]
         if e2e_fid < min_fidelity:
             continue
         path_len = len(path_nodes)
-        if selected_path is None:
-            selected_path = path_nodes
-            selected_fid = e2e_fid
-            selected_len = path_len
-            tied_count = 1
-        elif path_len == selected_len:
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path_nodes
-                selected_fid = e2e_fid
-        elif path_len > selected_len:
+        if shortest_length is None:
+            shortest_length = path_len
+        elif path_len > shortest_length:
             break
-    return selected_path, selected_fid
+        candidate_paths.append((e2e_fid, list(path_nodes)))
+
+    if not candidate_paths:
+        return [], float("nan")
+
+    if len(candidate_paths) > k_provisioning:
+        indices = rng.choice(
+            len(candidate_paths), size=k_provisioning, replace=False
+        )
+        selected = [candidate_paths[i] for i in indices]
+    else:
+        selected = candidate_paths
+
+    primary_idx = int(rng.integers(len(selected)))
+    primary_fid, primary_path = selected[primary_idx]
+    result = [primary_path] + [
+        p for i, (_, p) in enumerate(selected) if i != primary_idx
+    ]
+    return result, primary_fid
 
 
 def highest_fidelity(
@@ -327,9 +334,9 @@ def find_feasible_path(
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
     k_provisioning: int = 1,
-) -> Dict[str, List[str] | None]:
-    """Assign a feasible path for each application in a quantum network graph
-    based on minimum fidelity threshold.
+) -> Dict[str, List[List[str]]]:
+    """Find feasible paths for each application request based on the specified
+    routing and the fidelity threshold.
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
@@ -360,26 +367,23 @@ def find_feasible_path(
             single trial.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
-        k_provisioning (int, optional): Number of candidate paths to consider
-            during provisioning.
+        k_provisioning (int, optional): Up to k paths can be provisioned for
+            each application. If there are more than k feasible paths, k of
+            them will be randomly selected.
 
     Returns:
         Tuple[
-            Dict[str, List[str] | None],
+            Dict[str, List[List[str]]],
             Dict[str, float],
         ]: A tuple of:
-            - paths: dict mapping application names to the selected path
-              (list of nodes) or None if no feasible path exists.
-            - e2e_fidelities: dict mapping application names to the E2E
+            - paths: dict mapping application names to lists of feasible paths
+              fidelity of the selected path, or nan if none was found.
+            - e2e_fids: dict mapping application names to the end-to-end
               fidelity of the selected path, or nan if none was found.
     """
     if fidelities is None or not fidelities:
-        print(
-            "Please provide per-edge fidelities "
-            "with CLI (e.g., \"-f 0.6 0.85\")"
-        )
         return (
-            {app: None for app in app_requests.keys()},
+            {app: [] for app in app_requests.keys()},
             {app: float("nan") for app in app_requests.keys()},
         )
 
@@ -402,7 +406,7 @@ def find_feasible_path(
         min_fidelity = req["min_fidelity"]
 
         if min_fidelity <= 0.5:
-            ret[app] = None
+            ret[app] = []
             e2e_fids[app] = float("nan")
             continue
 
@@ -411,7 +415,7 @@ def find_feasible_path(
         )
 
         if not nx.has_path(G, src, dst):
-            ret[app] = None
+            ret[app] = []
             e2e_fids[app] = float("nan")
             continue
 
@@ -433,10 +437,13 @@ def find_feasible_path(
                 )
             )
             if selected_path is None:
-                ret[app] = None
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
             _update_capacity(selected_path, selected_delta, cap)
+            ret[app] = [list(selected_path)]
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "capacity":
             selected_path, selected_delta, selected_e2e_fid = (
                 capacity_threshold(
@@ -455,10 +462,13 @@ def find_feasible_path(
                 )
             )
             if selected_path is None:
-                ret[app] = None
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
             _update_capacity(selected_path, selected_delta, cap)
+            ret[app] = [list(selected_path)]
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "least":
             selected_path, selected_delta, selected_e2e_fid = (
                 least_capacity(
@@ -477,10 +487,13 @@ def find_feasible_path(
                 )
             )
             if selected_path is None:
-                ret[app] = None
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
             _update_capacity(selected_path, selected_delta, cap)
+            ret[app] = [list(selected_path)]
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "highest":
             selected_path, selected_e2e_fid = highest_fidelity(
                 simple_paths,
@@ -490,8 +503,13 @@ def find_feasible_path(
                 rng,
                 k_provisioning,
             )
+            ret[app] = (
+                [list(selected_path)] if selected_path is not None else []
+            )
+            e2e_fids[app] = selected_e2e_fid
+            continue
         else:
-            selected_path, selected_e2e_fid = fidelity_shortest(
+            path_list, selected_e2e_fid = fidelity_shortest(
                 simple_paths,
                 src,
                 dst,
@@ -500,6 +518,6 @@ def find_feasible_path(
                 k_provisioning,
             )
 
-        ret[app] = selected_path
-        e2e_fids[app] = selected_e2e_fid
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
     return ret, e2e_fids

@@ -364,7 +364,7 @@ def simulate_dynamic(
     durations: Dict[str, float],
     pga_parameters: Dict[str, Dict[str, float]],
     pga_rel_times: Dict[str, float],
-    pga_network_paths: Dict[str, List[str]],
+    pga_network_paths: Dict[str, List[List[str]]],
     rng: np.random.Generator,
     arrival_rate: float | None = None,
 ) -> Tuple[
@@ -427,7 +427,7 @@ def simulate_dynamic(
     pga_route_links = {
         app: [
             tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
+            for u, v in zip(path[0][:-1], path[0][1:], strict=False)
         ]
         for app, path in pga_network_paths.items()
     }
@@ -614,7 +614,7 @@ def simulate_dynamic(
                 arrival=arrival_time,
                 start=start_time,
                 end=completion,
-                route=pga_network_paths[app],
+                route=pga_network_paths[app][0],
                 resources=resources,
                 link_busy=link_busy,
                 p_gen=pga_parameters[app]["p_gen"],
