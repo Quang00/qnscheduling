@@ -72,7 +72,10 @@ def diamond_abcde():
                 "A": {"src": "Alice", "dst": "Charlie"},
                 "B": {"src": "Bob", "dst": "Charlie"},
             },
-            {"A": ["Alice", "Bob", "Charlie"], "B": ["Bob", "Charlie"]},
+            {
+                "A": [["Alice", "Bob", "Charlie"]],
+                "B": [["Bob", "Charlie"]],
+            },
         ),
         (
             {
@@ -80,8 +83,8 @@ def diamond_abcde():
                 "B": {"src": "Bob", "dst": "Charlie"},
             },
             {
-                "A": ["Alice", "Bob", "Charlie", "David"],
-                "B": ["Bob", "Charlie"]
+                "A": [["Alice", "Bob", "Charlie", "David"]],
+                "B": [["Bob", "Charlie"]]
             },
         ),
     ],
@@ -132,8 +135,8 @@ def test_find_feasible_path_basic():
         simple_paths=simple_paths,
         rng=np.random.default_rng(42),
     )
-    assert result["A"] == ("Alice", "Bob", "Charlie")
-    assert result["B"] == ("Bob", "Charlie", "David")
+    assert result["A"][0] == ["Alice", "Bob", "Charlie"]
+    assert result["B"][0] == ["Bob", "Charlie", "David"]
 
 
 def test_find_feasible_path_min_fidelity_too_low(linear_abc):
@@ -149,7 +152,7 @@ def test_find_feasible_path_min_fidelity_too_low(linear_abc):
         app_requests=app_requests,
         fidelities=fidelities,
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
@@ -274,10 +277,10 @@ def test_fidelity_shortest_no_valid_path():
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "C"], _uniform_fidelities(edges, value=0.55)
     )
-    path, fid = fidelity_shortest(
+    paths, fid = fidelity_shortest(
         simple_paths, "A", "C", 0.6, np.random.default_rng(42)
     )
-    assert path is None
+    assert paths == []
     assert math.isnan(fid)
 
 
@@ -315,7 +318,7 @@ def test_find_feasible_path_cap_modes_success(
         **pga_params,
         rng=np.random.default_rng(42),
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.5
 
 
@@ -338,7 +341,7 @@ def test_find_feasible_path_cap_modes_no_valid_path(routing_mode, pga_params):
         **pga_params,
         rng=np.random.default_rng(0),
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
@@ -358,7 +361,7 @@ def test_find_feasible_path_capacity_routing_success(linear_abc, pga_params):
         threshold=0.99,
         **pga_params,
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.6
 
 
@@ -386,7 +389,7 @@ def test_find_feasible_path_capacity_routing_no_path(linear_abc):
         p_gen=0.001,
         time_slot_duration=1e-4,
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
@@ -405,5 +408,5 @@ def test_find_feasible_path_highest(linear_abc):
         routing_mode="highest",
         rng=np.random.default_rng(42),
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.6
