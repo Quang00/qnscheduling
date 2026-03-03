@@ -101,6 +101,7 @@ def smallest_bottleneck(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
+    k_provisioning: int = 1,
 ) -> Tuple[List[str] | None, float, float]:
     """Select the path with the smallest bottleneck capacity among all paths
     that meet the fidelity requirement. The bottleneck capacity of a path is
@@ -151,6 +152,7 @@ def least_capacity(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
+    k_provisioning: int = 1,
 ) -> Tuple[List[str] | None, float, float]:
     """Select the path with the least total capacity utilization among all
     paths that meet the fidelity requirement. The total capacity utilization of
@@ -201,6 +203,7 @@ def capacity_threshold(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
+    k_provisioning: int = 1,
 ) -> Tuple[List[str] | None, float, float]:
     selected_path = None
     selected_delta = 0.0
@@ -231,6 +234,7 @@ def fidelity_shortest(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
+    k_provisioning: int = 1,
 ) -> Tuple[List[str] | None, float]:
     selected_path = None
     selected_fid = float("nan")
@@ -264,6 +268,7 @@ def highest_fidelity(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
+    k_provisioning: int = 1,
 ) -> Tuple[List[str] | None, float]:
     """Select the path with the highest E2E fidelity among all paths that
     meet the minimum fidelity requirement. Ties are broken randomly.
@@ -321,7 +326,6 @@ def find_feasible_path(
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
-    provisioning: bool = False,
     k_provisioning: int = 1,
 ) -> Dict[str, List[str] | None]:
     """Assign a feasible path for each application in a quantum network graph
@@ -356,10 +360,8 @@ def find_feasible_path(
             single trial.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
-        provisioning (bool, optional): When True, provision multiple candidate
-            paths.
         k_provisioning (int, optional): Number of candidate paths to consider
-            during provisioning. Only used when ``provisioning`` is True.
+            during provisioning.
 
     Returns:
         Tuple[
@@ -427,6 +429,7 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
+                    k_provisioning,
                 )
             )
             if selected_path is None:
@@ -448,6 +451,7 @@ def find_feasible_path(
                     p_swap,
                     p_gen,
                     time_slot_duration,
+                    k_provisioning,
                 )
             )
             if selected_path is None:
@@ -469,6 +473,7 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
+                    k_provisioning,
                 )
             )
             if selected_path is None:
@@ -483,6 +488,7 @@ def find_feasible_path(
                 dst,
                 min_fidelity,
                 rng,
+                k_provisioning,
             )
         else:
             selected_path, selected_e2e_fid = fidelity_shortest(
@@ -491,6 +497,7 @@ def find_feasible_path(
                 dst,
                 min_fidelity,
                 rng,
+                k_provisioning,
             )
 
         ret[app] = selected_path
