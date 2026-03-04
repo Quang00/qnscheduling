@@ -69,6 +69,7 @@ from utils.helper import (
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
+    propagation_delay,
     save_results,
 )
 
@@ -146,7 +147,7 @@ def run_simulation(
         nodes = qpus
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
-
+        delays = propagation_delay(distances)
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
     )
@@ -311,6 +312,7 @@ def run_simulation(
             paths,
             rng,
             arrival_rate,
+            delays,
         )
         feasible = True
     else:

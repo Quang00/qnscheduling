@@ -393,6 +393,7 @@ def simulate_dynamic(
     pga_network_paths: Dict[str, List[List[str]]],
     rng: np.random.Generator,
     arrival_rate: float | None = None,
+    delays: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[
     pd.DataFrame,
     List[str],

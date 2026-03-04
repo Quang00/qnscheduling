@@ -334,9 +334,11 @@ def save_results(
                 for a in app_names
             ],
             "e2e_fidelity": [
-                float(app_e2e_fidelities[a])
-                if app_e2e_fidelities and a in app_e2e_fidelities
-                else float("nan")
+                (
+                    float(app_e2e_fidelities[a])
+                    if app_e2e_fidelities and a in app_e2e_fidelities
+                    else float("nan")
+                )
                 for a in app_names
             ],
         }
@@ -514,7 +516,8 @@ def save_results(
         else float("nan")
     )
     e2e_fidelity_values = [
-        v for v in (app_e2e_fidelities or {}).values()
+        v
+        for v in (app_e2e_fidelities or {}).values()
         if v is not None and not np.isnan(v)
     ]
     avg_e2e_fidelity = (
@@ -556,7 +559,7 @@ def save_results(
         sum_ratios_sq = float(np.sum(ratios**2))
 
         if sum_ratios_sq > 0:
-            fairness = (sum_ratios ** 2) / (n * sum_ratios_sq)
+            fairness = (sum_ratios**2) / (n * sum_ratios_sq)
         else:
             fairness = 1.0
 
@@ -817,3 +820,24 @@ def all_simple_paths(
     dst: str,
 ) -> List[Tuple[float, Tuple[str, ...]]]:
     return paths.get((src, dst) if src < dst else (dst, src), [])
+
+
+# =============================================================================
+# Classical signal latency
+# =============================================================================
+def propagation_delay(
+    distances: Dict[Tuple[str, str], float], propagation_speed: float = 200000
+) -> Dict[Tuple[str, str], float]:
+    """Compute propagation delay for each edge.
+
+    Args:
+        distances (Dict[Tuple[str, str], float]): Mapping of edges to their
+        distances.
+        propagation_speed (float): Speed of signal propagation
+        (e.g., speed of light in fiber).
+
+    Returns:
+        Dict[Tuple[str, str], float]: Mapping of edges to their propagation
+        delays.
+    """
+    return {edge: dist / propagation_speed for edge, dist in distances.items()}
