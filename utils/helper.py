@@ -833,8 +833,8 @@ def propagation_delay(
     Args:
         distances (Dict[Tuple[str, str], float]): Mapping of edges to their
         distances.
-        propagation_speed (float): Speed of signal propagation
-        (e.g., speed of light in fiber).
+        propagation_speed (float): Speed of signal propagation in km/s for
+        fiber optic links.
 
     Returns:
         Dict[Tuple[str, str], float]: Mapping of edges to their propagation
