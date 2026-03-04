@@ -359,6 +359,32 @@ def simulate_static(
     return df, pga_names, pga_release_times, link_utilization, link_waiting
 
 
+def rerouting(
+    app: str,
+    pga_network_paths: Dict[str, List[List[str]]],
+    resources: Dict[Tuple[str, str], float],
+    duration: float,
+    deadline: float,
+) -> Tuple[List[str], List[Tuple[str, str]], float] | None:
+    """Find an alternative path for a PGA before dropping or deferring.
+    """
+    candidates = pga_network_paths.get(app, [])
+    best = None
+    best_avail = float("inf")
+
+    for path in candidates[1:]:
+        links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
+        if avail + duration <= deadline + EPS and avail < best_avail:
+            best_avail = avail
+            best = (path, links, avail)
+
+    return best
+
+
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
     durations: Dict[str, float],
@@ -431,7 +457,12 @@ def simulate_dynamic(
         ]
         for app, path in pga_network_paths.items()
     }
-    all_links = {link for links in pga_route_links.values() for link in links}
+    all_links = {
+        tuple(sorted((u, v)))
+        for paths in pga_network_paths.values()
+        for path in paths
+        for u, v in zip(path[:-1], path[1:], strict=False)
+    }
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
     link_waiting = {
@@ -509,11 +540,19 @@ def simulate_dynamic(
                 pga_release_times[pga_name] = arrival_time
 
             route_links = pga_route_links.get(app, [])
+            selected_path = pga_network_paths[app][0]
             duration = durations.get(app, 0.0)
 
             last_available = 0.0
             for link in route_links:
                 last_available = max(last_available, resources.get(link, 0.0))
+
+            if last_available > t + EPS:
+                alt_path = rerouting(
+                    app, pga_network_paths, resources, duration, deadline
+                )
+                if alt_path is not None:
+                    selected_path, route_links, last_available = alt_path
 
             if last_available > t + EPS:
                 if last_available + duration > deadline + EPS:
@@ -614,7 +653,7 @@ def simulate_dynamic(
                 arrival=arrival_time,
                 start=start_time,
                 end=completion,
-                route=pga_network_paths[app][0],
+                route=selected_path,
                 resources=resources,
                 link_busy=link_busy,
                 p_gen=pga_parameters[app]["p_gen"],
