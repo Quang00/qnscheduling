@@ -43,6 +43,7 @@ class PGA:
         memory: int,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
+        delays: Dict[Tuple[str, str], float] | None = None,
     ) -> None:
         """Packet Generation Attempt (PGA) simulation. A PGA tries to
         generate EPR pairs over a specified route within a defined time window,
@@ -90,6 +91,8 @@ class PGA:
             per slot.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
+            delays (Dict[Tuple[str, str], float], optional): Per-link
+            propagation delays.
         """
         self.name = name
         self.arrival = float(arrival)
@@ -106,6 +109,7 @@ class PGA:
         self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
         self.links = route_links
+        self.delays = delays or {}
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
         self.memory = max(0, int(memory))
@@ -158,12 +162,12 @@ class PGA:
         blocking_links = []
 
         for link in self.links:
-            link_busy_time = self.resources.get(link, 0.0)
-            wait_until = max(wait_until, link_busy_time)
+            lk_b_t = self.resources.get(link, 0.0) + self.delays.get(link, 0.0)
+            wait_until = max(wait_until, lk_b_t)
 
         for link in self.links:
-            link_busy_time = self.resources.get(link, 0.0)
-            if abs(link_busy_time - wait_until) < EPS:
+            lk_b_t = self.resources.get(link, 0.0) + self.delays.get(link, 0.0)
+            if abs(lk_b_t - wait_until) < EPS:
                 blocking_links.append(link)
 
         current_time = self.start
@@ -365,6 +369,7 @@ def rerouting(
     resources: Dict[Tuple[str, str], float],
     duration: float,
     deadline: float,
+    delays: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float] | None:
     """Find an alternative path for a PGA before dropping or deferring.
     """
@@ -377,7 +382,14 @@ def rerouting(
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
+        avail = max(
+            (
+                resources.get(lnk, 0.0)
+                + (delays.get(lnk, 0.0) if delays else 0.0)
+                for lnk in links
+            ),
+            default=0.0,
+        )
         if avail + duration <= deadline + EPS and avail < best_avail:
             best_avail = avail
             best = (path, links, avail)
@@ -529,7 +541,7 @@ def simulate_dynamic(
             continue
 
         while ready_queue:
-            deadline, rdy_t, arrival_time, app, i, _event_time = heapq.heappop(
+            deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
             min_arrival = min(min_arrival, float(arrival_time))
@@ -546,11 +558,16 @@ def simulate_dynamic(
 
             last_available = 0.0
             for link in route_links:
-                last_available = max(last_available, resources.get(link, 0.0))
+                link_delay = delays.get(link, 0.0) if delays else 0.0
+                last_available = max(
+                    last_available,
+                    resources.get(link, 0.0) + link_delay,
+                )
 
             if last_available > t + EPS:
                 alt_path = rerouting(
-                    app, pga_network_paths, resources, duration, deadline
+                    app, pga_network_paths, resources, duration, deadline,
+                    delays,
                 )
                 if alt_path is not None:
                     selected_path, route_links, last_available = alt_path
@@ -667,6 +684,7 @@ def simulate_dynamic(
                 memory=pga_parameters[app]["memory"],
                 deadline=deadline,
                 route_links=route_links,
+                delays=delays,
             )
             result = pga.run()
             result["ready_time"] = float(rdy_t)
