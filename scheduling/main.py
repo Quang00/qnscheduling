@@ -69,7 +69,7 @@ from utils.helper import (
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
-    propagation_delay,
+    rtt_delay,
     save_results,
 )
 
@@ -97,7 +97,6 @@ def run_simulation(
     verbose: bool = True,
     graph: str | None = None,
     k_provisioning: int = 1,
-    signal: bool = False,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -123,7 +122,6 @@ def run_simulation(
         scheduler (str): Either "static" or "dynamic".
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
-        signal (bool): If True, compute propagation delays from distances.
     Returns:
         tuple[bool, dict]:
             A tuple containing:
@@ -150,8 +148,7 @@ def run_simulation(
         nodes = qpus
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
-        if signal:
-            delays = propagation_delay(distances)
+        delays = rtt_delay(distances)
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
     )
@@ -564,13 +561,6 @@ def main():
         help="Maximum number of feasible paths to provision per application",
     )
     parser.add_argument(
-        "--signal",
-        "-sig",
-        action="store_true",
-        default=False,
-        help="If set, compute propagation delays from distances",
-    )
-    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -619,7 +609,6 @@ def main():
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
         k_provisioning=args.k_provisioning,
-        signal=args.signal,
     )
     t1 = time.perf_counter()
 

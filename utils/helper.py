@@ -825,19 +825,23 @@ def all_simple_paths(
 # =============================================================================
 # Classical signal latency
 # =============================================================================
-def propagation_delay(
+def rtt_delay(
     distances: Dict[Tuple[str, str], float], propagation_speed: float = 200000
 ) -> Dict[Tuple[str, str], float]:
-    """Compute propagation delay for each edge.
+    """Compute round-trip propagation delay (RTT) for each edge.
 
     Args:
-        distances (Dict[Tuple[str, str], float]): Mapping of edges to their
-        distances.
+        distances (Dict[Tuple[str, str], float]): Mapping of directed edges to
+        their distances in km.
         propagation_speed (float): Speed of signal propagation in km/s for
         fiber optic links.
 
     Returns:
-        Dict[Tuple[str, str], float]: Mapping of edges to their propagation
-        delays.
+        Dict[Tuple[str, str], float]: Mapping of edges to their RTT propagation
+        delays in seconds.
     """
-    return {edge: dist / propagation_speed for edge, dist in distances.items()}
+    rtt = {}
+    for (u, v), dist in distances.items():
+        link = tuple(sorted((u, v)))
+        rtt[link] = 2.0 * dist / propagation_speed
+    return rtt
