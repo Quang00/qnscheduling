@@ -23,35 +23,14 @@ def main():
     scenarios = [
         {
             "id": 1,
-            "name": "shortest_with-fid",
+            "name": "shortest",
             "routing": "shortest",
         },
         {
             "id": 2,
-            "name": "highest-fidelity",
-            "routing": "highest",
-        },
-        {
-            "id": 3,
-            "name": "capacity_with-fid_cap-0.8",
-            "routing": "capacity",
-            "capacity_threshold": 0.8,
-        },
-        {
-            "id": 4,
-            "name": "capacity_with-fid_cap-1.0",
-            "routing": "capacity",
-            "capacity_threshold": 1.0,
-        },
-        {
-            "id": 5,
-            "name": "least-capacity",
-            "routing": "least",
-        },
-        {
-            "id": 6,
-            "name": "smallest-bottleneck",
-            "routing": "smallest",
+            "name": "shortest_provisioning",
+            "routing": "shortest_provisioning",
+            "k_provisioning": 10,
         },
     ]
 
@@ -60,6 +39,7 @@ def main():
             base_kwargs,
             routing=scenario["routing"],
             capacity_threshold=scenario.get("capacity_threshold", None),
+            k_provisioning=scenario.get("k_provisioning", 1),
         )
 
         print(f"Running {scenario['name']}:")

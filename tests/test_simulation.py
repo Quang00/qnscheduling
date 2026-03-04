@@ -50,7 +50,7 @@ def _run_dynamic(app_specs, durations, pga_params, rng):
         durations=durations,
         pga_parameters={"A": pga_params},
         pga_rel_times={"A": 0.0},
-        pga_network_paths={"A": ["Alice", "Bob"]},
+        pga_network_paths={"A": [["Alice", "Bob"]]},
         rng=rng,
     )
 
@@ -115,7 +115,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
         durations={"A": 20.0, "B": 3.0, "C": 3.0},
         pga_parameters={"A": blocker, "B": shared, "C": shared},
         pga_rel_times={"A": 0.0, "B": 5.0, "C": 5.0},
-        pga_network_paths={p: ["Alice", "Bob"] for p in ("A", "B", "C")},
+        pga_network_paths={p: [["Alice", "Bob"]] for p in ("A", "B", "C")},
         rng=rng,
         arrival_rate=None,
     )
