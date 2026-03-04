@@ -29,7 +29,7 @@ def main():
         {
             "id": 2,
             "name": "shortest_provisioning",
-            "routing": "shortest_provisioning",
+            "routing": "shortest",
             "k_provisioning": 10,
         },
     ]
