@@ -713,7 +713,7 @@ def gml_data(
     fidelities = compute_edge_fidelities(G, distances)
     diameter = float(nx.diameter(G))
 
-    return nodes, edges, fidelities, diameter
+    return nodes, edges, distances, fidelities, diameter
 
 
 def generate_n_apps(

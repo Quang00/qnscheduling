@@ -145,7 +145,7 @@ def run_simulation(
         nodes, edges, fidelities, qpus, diameter = fat_tree()
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, fidelities, diameter = gml_data(config)
+        nodes, edges, distances, fidelities, diameter = gml_data(config)
 
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
