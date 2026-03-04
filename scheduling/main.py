@@ -285,7 +285,7 @@ def run_simulation(
     if save_csv:
         os.makedirs(output_dir, exist_ok=True)
 
-    app_requests_df = (
+    app_req_df = (
         pd.DataFrame.from_dict(app_requests, orient="index")
         .reset_index()
         .rename(columns={"index": "app"})
@@ -294,10 +294,23 @@ def run_simulation(
         app: (len(path_list[0]) - 1)
         for app, path_list in paths.items()
     }
-    app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
-    app_requests_df["admitted"] = app_requests_df["app"].isin(app_specs)
+    primary_path_map = {
+        app: path_list[0]
+        for app, path_list in paths.items()
+        if path_list
+    }
+    other_paths_map = {
+        app: path_list[1:]
+        for app, path_list in paths.items()
+        if len(path_list) > 1
+    }
+    app_req_df["hops"] = app_req_df["app"].map(hops_map)
+    app_req_df["primary_path"] = app_req_df["app"].map(primary_path_map)
+    app_req_df["other_paths"] = app_req_df["app"].map(other_paths_map)
+    app_req_df["e2e_fidelity"] = app_req_df["app"].map(app_e2e_fidelities)
+    app_req_df["admitted"] = app_req_df["app"].isin(app_specs)
     if save_csv:
-        app_requests_df.to_csv(
+        app_req_df.to_csv(
             os.path.join(output_dir, "app_requests.csv"), index=False
         )
 
