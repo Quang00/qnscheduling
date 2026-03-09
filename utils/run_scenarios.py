@@ -18,6 +18,7 @@ def main():
         "scheduler": "dynamic",
         "arrival_rate": 5,
         "graph": "gml",
+        "provisioning": True,
     }
 
     scenarios = [
@@ -25,12 +26,13 @@ def main():
             "id": 1,
             "name": "shortest",
             "routing": "shortest",
+            "provisioning": False,
         },
         {
             "id": 2,
             "name": "shortest_provisioning",
             "routing": "shortest",
-            "k_provisioning": 10,
+            "provisioning": True,
         },
     ]
 
@@ -39,7 +41,7 @@ def main():
             base_kwargs,
             routing=scenario["routing"],
             capacity_threshold=scenario.get("capacity_threshold", None),
-            k_provisioning=scenario.get("k_provisioning", 1),
+            provisioning=scenario.get("provisioning", True),
         )
 
         print(f"Running {scenario['name']}:")

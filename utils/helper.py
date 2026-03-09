@@ -123,7 +123,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
         "graph": "gml",
-        "k_provisioning": 1,
+        "provisioning": True,
     }
     if args:
         default_args.update(args)

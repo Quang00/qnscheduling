@@ -152,7 +152,7 @@ def least_capacity(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
-    k_provisioning: int = 1,
+    provisioning: bool = True,
 ) -> Tuple[List[str] | None, float, float]:
     """Select the path with the least total capacity utilization among all
     paths that meet the fidelity requirement. The total capacity utilization of
@@ -203,7 +203,7 @@ def capacity_threshold(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-    k_provisioning: int = 1,
+    provisioning: bool = True,
 ) -> Tuple[List[str] | None, float, float]:
     selected_path = None
     selected_delta = 0.0
@@ -234,7 +234,7 @@ def fidelity_shortest(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
-    k_provisioning: int = 1,
+    provisioning: bool = True,
 ) -> Tuple[List[List[str]], float]:
     candidate_paths = []
     shortest_length = None
@@ -253,19 +253,15 @@ def fidelity_shortest(
     if not candidate_paths:
         return [], float("nan")
 
-    if len(candidate_paths) > k_provisioning:
-        indices = rng.choice(
-            len(candidate_paths), size=k_provisioning, replace=False
-        )
-        selected = [candidate_paths[i] for i in indices]
-    else:
-        selected = candidate_paths
-
+    selected = candidate_paths
     initial_idx = int(rng.integers(len(selected)))
     initial_fid, initial_path = selected[initial_idx]
-    result = [initial_path] + [
-        p for i, (_, p) in enumerate(selected) if i != initial_idx
-    ]
+    if provisioning:
+        result = [initial_path] + [
+            p for i, (_, p) in enumerate(selected) if i != initial_idx
+        ]
+    else:
+        result = [initial_path]
     return result, initial_fid
 
 
@@ -275,7 +271,7 @@ def highest_fidelity(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
-    k_provisioning: int = 1,
+    provisioning: bool = True,
 ) -> Tuple[List[str] | None, float]:
     """Select the path with the highest E2E fidelity among all paths that
     meet the minimum fidelity requirement. Ties are broken randomly.
@@ -333,7 +329,7 @@ def find_feasible_path(
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
-    k_provisioning: int = 1,
+    provisioning: bool = True,
 ) -> Dict[str, List[List[str]]]:
     """Find feasible paths for each application request based on the specified
     routing and the fidelity threshold.
@@ -367,9 +363,8 @@ def find_feasible_path(
             single trial.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
-        k_provisioning (int, optional): Up to k paths can be provisioned for
-            each application. If there are more than k feasible paths, k of
-            them will be randomly selected.
+        provisioning (bool, optional): Whether to enable provisioning for
+            routing.
 
     Returns:
         Tuple[
@@ -433,7 +428,7 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
-                    k_provisioning,
+                    provisioning,
                 )
             )
             if selected_path is None:
@@ -458,7 +453,7 @@ def find_feasible_path(
                     p_swap,
                     p_gen,
                     time_slot_duration,
-                    k_provisioning,
+                    provisioning,
                 )
             )
             if selected_path is None:
@@ -483,7 +478,7 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
-                    k_provisioning,
+                    provisioning,
                 )
             )
             if selected_path is None:
@@ -501,7 +496,7 @@ def find_feasible_path(
                 dst,
                 min_fidelity,
                 rng,
-                k_provisioning,
+                provisioning,
             )
             ret[app] = (
                 [list(selected_path)] if selected_path is not None else []
@@ -515,7 +510,7 @@ def find_feasible_path(
                 dst,
                 min_fidelity,
                 rng,
-                k_provisioning,
+                provisioning,
             )
 
             ret[app] = path_list
