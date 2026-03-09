@@ -183,7 +183,7 @@ def test_low_fidelity_path_skipped_least_capacity(def_req, pga_params):
             (0.8, ("A", "C", "D", "E")),
         ]
     }
-    path, delta, e2e_fid = least_capacity(
+    paths, delta, e2e_fid = least_capacity(
         simple_paths=simple_paths,
         src="A",
         dst="E",
@@ -191,7 +191,7 @@ def test_low_fidelity_path_skipped_least_capacity(def_req, pga_params):
         cap=defaultdict(float),
         **pga_params,
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert delta > 0.0
     assert e2e_fid == pytest.approx(0.8)
 
@@ -256,7 +256,7 @@ def test_least_capacity_selects_min_sum_cap(def_req, pga_params):
             ("D", "E"): 0.1,
         },
     )
-    path, delta, _ = least_capacity(
+    paths, delta, _ = least_capacity(
         simple_paths=simple_paths,
         src="A",
         dst="E",
@@ -264,7 +264,7 @@ def test_least_capacity_selects_min_sum_cap(def_req, pga_params):
         cap=cap,
         **pga_params,
     )
-    assert path == ("A", "B", "E")
+    assert paths[0] == ["A", "B", "E"]
     assert delta > 0.0
 
 
