@@ -101,19 +101,16 @@ def smallest_bottleneck(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
-    k_provisioning: int = 1,
-) -> Tuple[List[str] | None, float, float]:
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float, float]:
     """Select the path with the smallest bottleneck capacity among all paths
     that meet the fidelity requirement. The bottleneck capacity of a path is
     defined as the maximum capacity utilization of any edge along the path
     after accounting for the additional load (delta) introduced by the new
     request.
     """
-    selected_path = None
-    selected_delta = 0.0
-    selected_e2e_fid = float("nan")
-    smallest_bottleneck = None
-    tied_count = 0
+    min_val = None
+    tied_candidates = []
     all_paths = all_simple_paths(simple_paths, src, dst)
 
     for path in all_paths:
@@ -125,19 +122,33 @@ def smallest_bottleneck(
         )
 
         max_cap = max(cap[lk] + delta for lk in links)
-        if smallest_bottleneck is None or max_cap < smallest_bottleneck:
-            smallest_bottleneck = max_cap
-            selected_path = path
-            selected_delta = delta
-            selected_e2e_fid = e2e_fid
-            tied_count = 1
-        elif np.isclose(max_cap, smallest_bottleneck):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path
-                selected_delta = delta
-                selected_e2e_fid = e2e_fid
-    return selected_path, selected_delta, selected_e2e_fid
+        if min_val is None or max_cap < min_val:
+            min_val = max_cap
+            tied_candidates = [(path, delta, e2e_fid)]
+        elif np.isclose(max_cap, min_val):
+            tied_candidates.append((path, delta, e2e_fid))
+
+    if not tied_candidates:
+        return [], 0.0, float("nan")
+
+    initial_idx = (
+        0
+        if rng is None or len(tied_candidates) == 1
+        else int(rng.integers(len(tied_candidates)))
+    )
+    selected_path, selected_delta, selected_e2e_fid = (
+        tied_candidates[initial_idx]
+    )
+
+    if provisioning:
+        result = [list(selected_path)] + [
+            list(p)
+            for i, (p, _, _) in enumerate(tied_candidates)
+            if i != initial_idx
+        ]
+    else:
+        result = [list(selected_path)]
+    return result, selected_delta, selected_e2e_fid
 
 
 def least_capacity(
@@ -414,7 +425,7 @@ def find_feasible_path(
             continue
 
         if routing_mode == "smallest":
-            selected_path, selected_delta, selected_e2e_fid = (
+            path_list, selected_delta, selected_e2e_fid = (
                 smallest_bottleneck(
                     simple_paths,
                     src,
@@ -430,12 +441,12 @@ def find_feasible_path(
                     provisioning,
                 )
             )
-            if selected_path is None:
+            if not path_list:
                 ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
-            _update_capacity(selected_path, selected_delta, cap)
-            ret[app] = [list(selected_path)]
+            _update_capacity(path_list[0], selected_delta, cap)
+            ret[app] = path_list
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "capacity":

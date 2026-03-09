@@ -31,7 +31,7 @@ def basic_graph():
 
 
 @pytest.fixture
-def default_req():
+def def_req():
     return {"epr": 1, "period": 1.0, "min_fidelity": 0.6}
 
 
@@ -156,19 +156,38 @@ def test_find_feasible_path_min_fidelity_too_low(linear_abc):
     assert math.isnan(e2e_fids["app"])
 
 
-@pytest.mark.parametrize("fn", [smallest_bottleneck, least_capacity])
-def test_low_fidelity_path_skipped(fn, default_req, pga_params):
+def test_low_fidelity_path_skipped_smallest_bottleneck(def_req, pga_params):
     simple_paths = {
         ("A", "E"): [
             (0.3, ("A", "B", "E")),
             (0.8, ("A", "C", "D", "E")),
         ]
     }
-    path, delta, e2e_fid = fn(
+    paths, delta, e2e_fid = smallest_bottleneck(
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
+        cap=defaultdict(float),
+        **pga_params,
+    )
+    assert paths[0] == ["A", "C", "D", "E"]
+    assert delta > 0.0
+    assert e2e_fid == pytest.approx(0.8)
+
+
+def test_low_fidelity_path_skipped_least_capacity(def_req, pga_params):
+    simple_paths = {
+        ("A", "E"): [
+            (0.3, ("A", "B", "E")),
+            (0.8, ("A", "C", "D", "E")),
+        ]
+    }
+    path, delta, e2e_fid = least_capacity(
+        simple_paths=simple_paths,
+        src="A",
+        dst="E",
+        req=def_req,
         cap=defaultdict(float),
         **pga_params,
     )
@@ -177,7 +196,7 @@ def test_low_fidelity_path_skipped(fn, default_req, pga_params):
     assert e2e_fid == pytest.approx(0.8)
 
 
-def test_capacity_threshold_low_fidelity_skipped(default_req, pga_params):
+def test_capacity_threshold_low_fidelity_skipped(def_req, pga_params):
     simple_paths = {
         ("A", "C"): [(0.3, ("A", "B", "C")), (0.8, ("A", "D", "C"))]
     }
@@ -185,7 +204,7 @@ def test_capacity_threshold_low_fidelity_skipped(default_req, pga_params):
         simple_paths=simple_paths,
         src="A",
         dst="C",
-        req=default_req,
+        req=def_req,
         cap=defaultdict(float),
         threshold=0.99,
         **pga_params,
@@ -195,7 +214,7 @@ def test_capacity_threshold_low_fidelity_skipped(default_req, pga_params):
     assert e2e_fid == pytest.approx(0.8)
 
 
-def test_smallest_bottleneck_selects_min_max_cap(default_req, pga_params):
+def test_smallest_bottleneck_selects_min_max_cap(def_req, pga_params):
     edges = [("A", "B"), ("B", "E"), ("A", "C"), ("C", "D"), ("D", "E")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "C", "D", "E"], _uniform_fidelities(edges)
@@ -210,19 +229,19 @@ def test_smallest_bottleneck_selects_min_max_cap(default_req, pga_params):
             ("D", "E"): 0.1,
         },
     )
-    path, delta, _ = smallest_bottleneck(
+    paths, delta, _ = smallest_bottleneck(
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
         cap=cap,
         **pga_params,
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert delta > 0.0
 
 
-def test_least_capacity_selects_min_sum_cap(default_req, pga_params):
+def test_least_capacity_selects_min_sum_cap(def_req, pga_params):
     edges = [("A", "B"), ("B", "E"), ("A", "C"), ("C", "D"), ("D", "E")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "E"], _uniform_fidelities(edges)
@@ -241,7 +260,7 @@ def test_least_capacity_selects_min_sum_cap(default_req, pga_params):
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
         cap=cap,
         **pga_params,
     )
@@ -249,7 +268,7 @@ def test_least_capacity_selects_min_sum_cap(default_req, pga_params):
     assert delta > 0.0
 
 
-def test_capacity_threshold_exceeded(default_req):
+def test_capacity_threshold_exceeded(def_req):
     edges = [("A", "B"), ("B", "C")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "C"], _uniform_fidelities(edges)
@@ -259,7 +278,7 @@ def test_capacity_threshold_exceeded(default_req):
         simple_paths=simple_paths,
         src="A",
         dst="C",
-        req=default_req,
+        req=def_req,
         cap=cap,
         threshold=0.99,
         p_packet=0.6,
