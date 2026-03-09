@@ -123,6 +123,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
         "graph": "gml",
+        "provisioning": True,
     }
     if args:
         default_args.update(args)
@@ -333,9 +334,11 @@ def save_results(
                 for a in app_names
             ],
             "e2e_fidelity": [
-                float(app_e2e_fidelities[a])
-                if app_e2e_fidelities and a in app_e2e_fidelities
-                else float("nan")
+                (
+                    float(app_e2e_fidelities[a])
+                    if app_e2e_fidelities and a in app_e2e_fidelities
+                    else float("nan")
+                )
                 for a in app_names
             ],
         }
@@ -513,7 +516,8 @@ def save_results(
         else float("nan")
     )
     e2e_fidelity_values = [
-        v for v in (app_e2e_fidelities or {}).values()
+        v
+        for v in (app_e2e_fidelities or {}).values()
         if v is not None and not np.isnan(v)
     ]
     avg_e2e_fidelity = (
@@ -555,7 +559,7 @@ def save_results(
         sum_ratios_sq = float(np.sum(ratios**2))
 
         if sum_ratios_sq > 0:
-            fairness = (sum_ratios ** 2) / (n * sum_ratios_sq)
+            fairness = (sum_ratios**2) / (n * sum_ratios_sq)
         else:
             fairness = 1.0
 
@@ -712,7 +716,7 @@ def gml_data(
     fidelities = compute_edge_fidelities(G, distances)
     diameter = float(nx.diameter(G))
 
-    return nodes, edges, fidelities, diameter
+    return nodes, edges, distances, fidelities, diameter
 
 
 def generate_n_apps(

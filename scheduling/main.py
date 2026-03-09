@@ -95,6 +95,7 @@ def run_simulation(
     save_csv: bool = True,
     verbose: bool = True,
     graph: str | None = None,
+    provisioning: bool = True,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -144,8 +145,7 @@ def run_simulation(
         nodes, edges, fidelities, qpus, diameter = fat_tree()
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, fidelities, diameter = gml_data(config)
-
+        nodes, edges, distances, fidelities, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
     )
@@ -210,10 +210,11 @@ def run_simulation(
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
             rng=rng,
+            provisioning=provisioning,
         )
 
     admitted_paths = {
-        app: path for app, path in paths.items() if path is not None
+        app: path_list for app, path_list in paths.items() if path_list
     }
     admitted_specs = {app: app_specs[app] for app in admitted_paths.keys()}
     admitted_apps = len(admitted_specs)
@@ -245,12 +246,13 @@ def run_simulation(
     single_path_share = single_path_cpt / total_apps if total_apps > 0 else 0.0
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
-    parallel_map = parallelizable_tasks(paths)
+    initial_paths = {app: path_list[0] for app, path_list in paths.items()}
+    parallel_map = parallelizable_tasks(initial_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
     durations = compute_durations(
-        paths,
+        initial_paths,
         epr_pairs,
         p_packet,
         memory,
@@ -262,7 +264,13 @@ def run_simulation(
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
 
     pga_parameters = app_params_sim(
-        paths, app_specs, p_packet, memory, p_swap, p_gen, time_slot_duration
+        initial_paths,
+        app_specs,
+        p_packet,
+        memory,
+        p_swap,
+        p_gen,
+        time_slot_duration,
     )
 
     policies = {name: spec["policy"] for name, spec in app_specs.items()}
@@ -271,19 +279,32 @@ def run_simulation(
     if save_csv:
         os.makedirs(output_dir, exist_ok=True)
 
-    app_requests_df = (
+    app_req_df = (
         pd.DataFrame.from_dict(app_requests, orient="index")
         .reset_index()
         .rename(columns={"index": "app"})
     )
     hops_map = {
-        app: (len(path) - 1) if path is not None else np.nan
-        for app, path in paths.items()
+        app: (len(path_list[0]) - 1)
+        for app, path_list in paths.items()
     }
-    app_requests_df["hops"] = app_requests_df["app"].map(hops_map)
-    app_requests_df["admitted"] = app_requests_df["app"].isin(app_specs)
+    initial_path_map = {
+        app: path_list[0]
+        for app, path_list in paths.items()
+        if path_list
+    }
+    other_paths_map = {
+        app: path_list[1:]
+        for app, path_list in paths.items()
+        if len(path_list) > 1
+    }
+    app_req_df["hops"] = app_req_df["app"].map(hops_map)
+    app_req_df["initial_path"] = app_req_df["app"].map(initial_path_map)
+    app_req_df["other_paths"] = app_req_df["app"].map(other_paths_map)
+    app_req_df["e2e_fidelity"] = app_req_df["app"].map(app_e2e_fidelities)
+    app_req_df["admitted"] = app_req_df["app"].isin(app_specs)
     if save_csv:
-        app_requests_df.to_csv(
+        app_req_df.to_csv(
             os.path.join(output_dir, "app_requests.csv"), index=False
         )
 
@@ -334,7 +355,7 @@ def run_simulation(
             pga_rel_times=pga_rel_times,
             pga_periods=pga_periods,
             policies=policies,
-            pga_network_paths=paths,
+            pga_network_paths=initial_paths,
             rng=rng,
         )
 
@@ -370,7 +391,7 @@ def run_simulation(
         pga_release_times,
         app_specs,
         durations=durations,
-        pga_network_paths=paths,
+        pga_network_paths=initial_paths,
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,
@@ -529,6 +550,13 @@ def main():
         help="Graph generator (e.g., 'waxman', 'fat', 'gml')",
     )
     parser.add_argument(
+        "--provisioning",
+        "-pv",
+        action="store_true",
+        default=True,
+        help="Enable provisioning for routing",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -576,6 +604,7 @@ def main():
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
+        provisioning=args.provisioning,
     )
     t1 = time.perf_counter()
 

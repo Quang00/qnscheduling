@@ -38,7 +38,7 @@ def shortest_paths(
     G.add_edges_from(edges)
 
     return {
-        application: nx.shortest_path(G, req["src"], req["dst"])
+        application: [nx.shortest_path(G, req["src"], req["dst"])]
         for application, req in app_requests.items()
     }
 
@@ -101,18 +101,16 @@ def smallest_bottleneck(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
-) -> Tuple[List[str] | None, float, float]:
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float, float]:
     """Select the path with the smallest bottleneck capacity among all paths
     that meet the fidelity requirement. The bottleneck capacity of a path is
     defined as the maximum capacity utilization of any edge along the path
     after accounting for the additional load (delta) introduced by the new
     request.
     """
-    selected_path = None
-    selected_delta = 0.0
-    selected_e2e_fid = float("nan")
-    smallest_bottleneck = None
-    tied_count = 0
+    min_val = None
+    tied_candidates = []
     all_paths = all_simple_paths(simple_paths, src, dst)
 
     for path in all_paths:
@@ -124,19 +122,33 @@ def smallest_bottleneck(
         )
 
         max_cap = max(cap[lk] + delta for lk in links)
-        if smallest_bottleneck is None or max_cap < smallest_bottleneck:
-            smallest_bottleneck = max_cap
-            selected_path = path
-            selected_delta = delta
-            selected_e2e_fid = e2e_fid
-            tied_count = 1
-        elif np.isclose(max_cap, smallest_bottleneck):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path
-                selected_delta = delta
-                selected_e2e_fid = e2e_fid
-    return selected_path, selected_delta, selected_e2e_fid
+        if min_val is None or max_cap < min_val:
+            min_val = max_cap
+            tied_candidates = [(path, delta, e2e_fid)]
+        elif np.isclose(max_cap, min_val):
+            tied_candidates.append((path, delta, e2e_fid))
+
+    if not tied_candidates:
+        return [], 0.0, float("nan")
+
+    initial_idx = (
+        0
+        if rng is None or len(tied_candidates) == 1
+        else int(rng.integers(len(tied_candidates)))
+    )
+    selected_path, selected_delta, selected_e2e_fid = (
+        tied_candidates[initial_idx]
+    )
+
+    if provisioning:
+        result = [list(selected_path)] + [
+            list(p)
+            for i, (p, _, _) in enumerate(tied_candidates)
+            if i != initial_idx
+        ]
+    else:
+        result = [list(selected_path)]
+    return result, selected_delta, selected_e2e_fid
 
 
 def least_capacity(
@@ -151,18 +163,16 @@ def least_capacity(
     p_gen: float,
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
-) -> Tuple[List[str] | None, float, float]:
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float, float]:
     """Select the path with the least total capacity utilization among all
     paths that meet the fidelity requirement. The total capacity utilization of
     a path is defined as the sum of the capacity utilizations of all edges
     along the path after accounting for the additional load (delta) introduced
     by the new request.
     """
-    selected_path = None
-    selected_delta = 0.0
-    selected_e2e_fid = float("nan")
-    least_cap = None
-    tied_count = 0
+    min_val = None
+    tied_candidates = []
     all_paths = all_simple_paths(simple_paths, src, dst)
 
     for path in all_paths:
@@ -174,19 +184,33 @@ def least_capacity(
         )
 
         sum_cap = sum(cap[lk] + delta for lk in links)
-        if least_cap is None or sum_cap < least_cap:
-            least_cap = sum_cap
-            selected_path = path
-            selected_delta = delta
-            selected_e2e_fid = e2e_fid
-            tied_count = 1
-        elif np.isclose(sum_cap, least_cap):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path
-                selected_delta = delta
-                selected_e2e_fid = e2e_fid
-    return selected_path, selected_delta, selected_e2e_fid
+        if min_val is None or sum_cap < min_val:
+            min_val = sum_cap
+            tied_candidates = [(path, delta, e2e_fid)]
+        elif np.isclose(sum_cap, min_val):
+            tied_candidates.append((path, delta, e2e_fid))
+
+    if not tied_candidates:
+        return [], 0.0, float("nan")
+
+    initial_idx = (
+        0
+        if rng is None or len(tied_candidates) == 1
+        else int(rng.integers(len(tied_candidates)))
+    )
+    selected_path, selected_delta, selected_e2e_fid = (
+        tied_candidates[initial_idx]
+    )
+
+    if provisioning:
+        result = [list(selected_path)] + [
+            list(p)
+            for i, (p, _, _) in enumerate(tied_candidates)
+            if i != initial_idx
+        ]
+    else:
+        result = [list(selected_path)]
+    return result, selected_delta, selected_e2e_fid
 
 
 def capacity_threshold(
@@ -201,8 +225,11 @@ def capacity_threshold(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-) -> Tuple[List[str] | None, float, float]:
-    selected_path = None
+    rng: np.random.Generator | None = None,
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float, float]:
+    candidate_paths = []
+    shortest_length = None
     selected_delta = 0.0
     selected_e2e_fid = float("nan")
     all_paths = all_simple_paths(simple_paths, src, dst)
@@ -214,15 +241,32 @@ def capacity_threshold(
         delta, links = _compute_delta_and_links(
             path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
-
         if any(cap[lk] + delta > threshold for lk in links):
             continue
-        selected_delta = delta
-        selected_path = path
-        selected_e2e_fid = e2e_fid
-        break
+        path_len = len(path)
+        if shortest_length is None:
+            shortest_length = path_len
+            selected_delta = delta
+            selected_e2e_fid = e2e_fid
+        elif path_len > shortest_length:
+            break
+        candidate_paths.append(list(path))
 
-    return selected_path, selected_delta, selected_e2e_fid
+    if not candidate_paths:
+        return [], 0.0, float("nan")
+
+    initial_idx = (
+        0
+        if rng is None or len(candidate_paths) == 1
+        else int(rng.integers(len(candidate_paths)))
+    )
+    if provisioning:
+        result = [candidate_paths[initial_idx]] + [
+            p for i, p in enumerate(candidate_paths) if i != initial_idx
+        ]
+    else:
+        result = [candidate_paths[initial_idx]]
+    return result, selected_delta, selected_e2e_fid
 
 
 def fidelity_shortest(
@@ -231,31 +275,34 @@ def fidelity_shortest(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
-) -> Tuple[List[str] | None, float]:
-    selected_path = None
-    selected_fid = float("nan")
-    selected_len = None
-    tied_count = 0
-    all_paths = all_simple_paths(simple_paths, src, dst)
-    for path in all_paths:
-        e2e_fid = path[0]
-        path_nodes = path[1]
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float]:
+    candidate_paths = []
+    shortest_length = None
+
+    for path in all_simple_paths(simple_paths, src, dst):
+        e2e_fid, path_nodes = path[0], path[1]
         if e2e_fid < min_fidelity:
             continue
         path_len = len(path_nodes)
-        if selected_path is None:
-            selected_path = path_nodes
-            selected_fid = e2e_fid
-            selected_len = path_len
-            tied_count = 1
-        elif path_len == selected_len:
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path_nodes
-                selected_fid = e2e_fid
-        elif path_len > selected_len:
+        if shortest_length is None:
+            shortest_length = path_len
+        elif path_len > shortest_length:
             break
-    return selected_path, selected_fid
+        candidate_paths.append((e2e_fid, list(path_nodes)))
+
+    if not candidate_paths:
+        return [], float("nan")
+
+    initial_idx = int(rng.integers(len(candidate_paths)))
+    initial_fid, initial_path = candidate_paths[initial_idx]
+    if provisioning:
+        result = [initial_path] + [
+            p for i, (_, p) in enumerate(candidate_paths) if i != initial_idx
+        ]
+    else:
+        result = [initial_path]
+    return result, initial_fid
 
 
 def highest_fidelity(
@@ -264,7 +311,8 @@ def highest_fidelity(
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
-) -> Tuple[List[str] | None, float]:
+    provisioning: bool = True,
+) -> Tuple[List[List[str]], float]:
     """Select the path with the highest E2E fidelity among all paths that
     meet the minimum fidelity requirement. Ties are broken randomly.
 
@@ -274,27 +322,40 @@ def highest_fidelity(
         dst: Destination node.
         min_fidelity: Minimum acceptable E2E fidelity.
         rng: Random number generator for tie-breaking.
+        provisioning: If True, return selected path plus all tied candidates;
+            otherwise return only the selected path.
 
     Returns:
-        Tuple of (selected path or None, e2e fidelity or nan).
+        Tuple of (list of paths with selected first, e2e fidelity or nan).
     """
-    best_path = None
     best_fid = float("nan")
-    tied_count = 0
+    tied_candidates = []
     all_paths = all_simple_paths(simple_paths, src, dst)
     for path in all_paths:
         e2e_fid = path[0]
         if e2e_fid < min_fidelity:
             continue
-        if best_path is None or e2e_fid > best_fid:
-            best_path = path[1]
+        if not tied_candidates or e2e_fid > best_fid:
             best_fid = e2e_fid
-            tied_count = 1
+            tied_candidates = [list(path[1])]
         elif np.isclose(e2e_fid, best_fid):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                best_path = path[1]
-    return best_path, best_fid
+            tied_candidates.append(list(path[1]))
+
+    if not tied_candidates:
+        return [], float("nan")
+
+    initial_idx = (
+        0
+        if len(tied_candidates) == 1
+        else int(rng.integers(len(tied_candidates)))
+    )
+    if provisioning:
+        result = [tied_candidates[initial_idx]] + [
+            p for i, p in enumerate(tied_candidates) if i != initial_idx
+        ]
+    else:
+        result = [tied_candidates[initial_idx]]
+    return result, best_fid
 
 
 def _update_capacity(
@@ -321,9 +382,10 @@ def find_feasible_path(
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
-) -> Dict[str, List[str] | None]:
-    """Assign a feasible path for each application in a quantum network graph
-    based on minimum fidelity threshold.
+    provisioning: bool = True,
+) -> Dict[str, List[List[str]]]:
+    """Find feasible paths for each application request based on the specified
+    routing and the fidelity threshold.
 
     Args:
         edges (List[Tuple[str, str]]): List of edges in the quantum network,
@@ -354,24 +416,22 @@ def find_feasible_path(
             single trial.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
+        provisioning (bool, optional): Whether to enable provisioning for
+            routing.
 
     Returns:
         Tuple[
-            Dict[str, List[str] | None],
+            Dict[str, List[List[str]]],
             Dict[str, float],
         ]: A tuple of:
-            - paths: dict mapping application names to the selected path
-              (list of nodes) or None if no feasible path exists.
-            - e2e_fidelities: dict mapping application names to the E2E
+            - paths: dict mapping application names to lists of feasible paths
+              fidelity of the selected path, or nan if none was found.
+            - e2e_fids: dict mapping application names to the end-to-end
               fidelity of the selected path, or nan if none was found.
     """
     if fidelities is None or not fidelities:
-        print(
-            "Please provide per-edge fidelities "
-            "with CLI (e.g., \"-f 0.6 0.85\")"
-        )
         return (
-            {app: None for app in app_requests.keys()},
+            {app: [] for app in app_requests.keys()},
             {app: float("nan") for app in app_requests.keys()},
         )
 
@@ -394,7 +454,7 @@ def find_feasible_path(
         min_fidelity = req["min_fidelity"]
 
         if min_fidelity <= 0.5:
-            ret[app] = None
+            ret[app] = []
             e2e_fids[app] = float("nan")
             continue
 
@@ -403,12 +463,12 @@ def find_feasible_path(
         )
 
         if not nx.has_path(G, src, dst):
-            ret[app] = None
+            ret[app] = []
             e2e_fids[app] = float("nan")
             continue
 
         if routing_mode == "smallest":
-            selected_path, selected_delta, selected_e2e_fid = (
+            path_list, selected_delta, selected_e2e_fid = (
                 smallest_bottleneck(
                     simple_paths,
                     src,
@@ -421,15 +481,19 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
+                    provisioning,
                 )
             )
-            if selected_path is None:
-                ret[app] = None
+            if not path_list:
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
-            _update_capacity(selected_path, selected_delta, cap)
+            _update_capacity(path_list[0], selected_delta, cap)
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "capacity":
-            selected_path, selected_delta, selected_e2e_fid = (
+            path_list, selected_delta, selected_e2e_fid = (
                 capacity_threshold(
                     simple_paths,
                     src,
@@ -442,15 +506,20 @@ def find_feasible_path(
                     p_swap,
                     p_gen,
                     time_slot_duration,
+                    rng,
+                    provisioning,
                 )
             )
-            if selected_path is None:
-                ret[app] = None
+            if not path_list:
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
-            _update_capacity(selected_path, selected_delta, cap)
+            _update_capacity(path_list[0], selected_delta, cap)
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "least":
-            selected_path, selected_delta, selected_e2e_fid = (
+            path_list, selected_delta, selected_e2e_fid = (
                 least_capacity(
                     simple_paths,
                     src,
@@ -463,30 +532,39 @@ def find_feasible_path(
                     p_gen,
                     time_slot_duration,
                     rng,
+                    provisioning,
                 )
             )
-            if selected_path is None:
-                ret[app] = None
+            if not path_list:
+                ret[app] = []
                 e2e_fids[app] = float("nan")
                 continue
-            _update_capacity(selected_path, selected_delta, cap)
+            _update_capacity(path_list[0], selected_delta, cap)
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
+            continue
         elif routing_mode == "highest":
-            selected_path, selected_e2e_fid = highest_fidelity(
+            path_list, selected_e2e_fid = highest_fidelity(
                 simple_paths,
                 src,
                 dst,
                 min_fidelity,
                 rng,
+                provisioning,
             )
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
+            continue
         else:
-            selected_path, selected_e2e_fid = fidelity_shortest(
+            path_list, selected_e2e_fid = fidelity_shortest(
                 simple_paths,
                 src,
                 dst,
                 min_fidelity,
                 rng,
+                provisioning,
             )
 
-        ret[app] = selected_path
-        e2e_fids[app] = selected_e2e_fid
+            ret[app] = path_list
+            e2e_fids[app] = selected_e2e_fid
     return ret, e2e_fids

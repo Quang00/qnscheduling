@@ -31,7 +31,7 @@ def basic_graph():
 
 
 @pytest.fixture
-def default_req():
+def def_req():
     return {"epr": 1, "period": 1.0, "min_fidelity": 0.6}
 
 
@@ -72,7 +72,10 @@ def diamond_abcde():
                 "A": {"src": "Alice", "dst": "Charlie"},
                 "B": {"src": "Bob", "dst": "Charlie"},
             },
-            {"A": ["Alice", "Bob", "Charlie"], "B": ["Bob", "Charlie"]},
+            {
+                "A": [["Alice", "Bob", "Charlie"]],
+                "B": [["Bob", "Charlie"]],
+            },
         ),
         (
             {
@@ -80,8 +83,8 @@ def diamond_abcde():
                 "B": {"src": "Bob", "dst": "Charlie"},
             },
             {
-                "A": ["Alice", "Bob", "Charlie", "David"],
-                "B": ["Bob", "Charlie"]
+                "A": [["Alice", "Bob", "Charlie", "David"]],
+                "B": [["Bob", "Charlie"]]
             },
         ),
     ],
@@ -132,8 +135,8 @@ def test_find_feasible_path_basic():
         simple_paths=simple_paths,
         rng=np.random.default_rng(42),
     )
-    assert result["A"] == ("Alice", "Bob", "Charlie")
-    assert result["B"] == ("Bob", "Charlie", "David")
+    assert result["A"][0] == ["Alice", "Bob", "Charlie"]
+    assert result["B"][0] == ["Bob", "Charlie", "David"]
 
 
 def test_find_feasible_path_min_fidelity_too_low(linear_abc):
@@ -149,50 +152,69 @@ def test_find_feasible_path_min_fidelity_too_low(linear_abc):
         app_requests=app_requests,
         fidelities=fidelities,
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
-@pytest.mark.parametrize("fn", [smallest_bottleneck, least_capacity])
-def test_low_fidelity_path_skipped(fn, default_req, pga_params):
+def test_low_fidelity_path_skipped_smallest_bottleneck(def_req, pga_params):
     simple_paths = {
         ("A", "E"): [
             (0.3, ("A", "B", "E")),
             (0.8, ("A", "C", "D", "E")),
         ]
     }
-    path, delta, e2e_fid = fn(
+    paths, delta, e2e_fid = smallest_bottleneck(
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
         cap=defaultdict(float),
         **pga_params,
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert delta > 0.0
     assert e2e_fid == pytest.approx(0.8)
 
 
-def test_capacity_threshold_low_fidelity_skipped(default_req, pga_params):
+def test_low_fidelity_path_skipped_least_capacity(def_req, pga_params):
+    simple_paths = {
+        ("A", "E"): [
+            (0.3, ("A", "B", "E")),
+            (0.8, ("A", "C", "D", "E")),
+        ]
+    }
+    paths, delta, e2e_fid = least_capacity(
+        simple_paths=simple_paths,
+        src="A",
+        dst="E",
+        req=def_req,
+        cap=defaultdict(float),
+        **pga_params,
+    )
+    assert paths[0] == ["A", "C", "D", "E"]
+    assert delta > 0.0
+    assert e2e_fid == pytest.approx(0.8)
+
+
+def test_capacity_threshold_low_fidelity_skipped(def_req, pga_params):
     simple_paths = {
         ("A", "C"): [(0.3, ("A", "B", "C")), (0.8, ("A", "D", "C"))]
     }
-    path, delta, e2e_fid = capacity_threshold(
+    paths, delta, e2e_fid = capacity_threshold(
         simple_paths=simple_paths,
         src="A",
         dst="C",
-        req=default_req,
+        req=def_req,
         cap=defaultdict(float),
         threshold=0.99,
         **pga_params,
     )
-    assert path == ("A", "D", "C")
+    assert paths[0] == ["A", "D", "C"]
     assert delta > 0.0
     assert e2e_fid == pytest.approx(0.8)
 
 
-def test_smallest_bottleneck_selects_min_max_cap(default_req, pga_params):
+def test_smallest_bottleneck_selects_min_max_cap(def_req, pga_params):
     edges = [("A", "B"), ("B", "E"), ("A", "C"), ("C", "D"), ("D", "E")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "C", "D", "E"], _uniform_fidelities(edges)
@@ -207,19 +229,19 @@ def test_smallest_bottleneck_selects_min_max_cap(default_req, pga_params):
             ("D", "E"): 0.1,
         },
     )
-    path, delta, _ = smallest_bottleneck(
+    paths, delta, _ = smallest_bottleneck(
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
         cap=cap,
         **pga_params,
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert delta > 0.0
 
 
-def test_least_capacity_selects_min_sum_cap(default_req, pga_params):
+def test_least_capacity_selects_min_sum_cap(def_req, pga_params):
     edges = [("A", "B"), ("B", "E"), ("A", "C"), ("C", "D"), ("D", "E")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "E"], _uniform_fidelities(edges)
@@ -234,29 +256,29 @@ def test_least_capacity_selects_min_sum_cap(default_req, pga_params):
             ("D", "E"): 0.1,
         },
     )
-    path, delta, _ = least_capacity(
+    paths, delta, _ = least_capacity(
         simple_paths=simple_paths,
         src="A",
         dst="E",
-        req=default_req,
+        req=def_req,
         cap=cap,
         **pga_params,
     )
-    assert path == ("A", "B", "E")
+    assert paths[0] == ["A", "B", "E"]
     assert delta > 0.0
 
 
-def test_capacity_threshold_exceeded(default_req):
+def test_capacity_threshold_exceeded(def_req):
     edges = [("A", "B"), ("B", "C")]
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "C"], _uniform_fidelities(edges)
     )
     cap = defaultdict(float, {("A", "B"): 0.95, ("B", "C"): 0.95})
-    path, delta, _ = capacity_threshold(
+    paths, delta, _ = capacity_threshold(
         simple_paths=simple_paths,
         src="A",
         dst="C",
-        req=default_req,
+        req=def_req,
         cap=cap,
         threshold=0.99,
         p_packet=0.6,
@@ -265,7 +287,7 @@ def test_capacity_threshold_exceeded(default_req):
         p_gen=0.001,
         time_slot_duration=1e-4,
     )
-    assert path is None
+    assert paths == []
     assert delta == 0.0
 
 
@@ -274,10 +296,10 @@ def test_fidelity_shortest_no_valid_path():
     _, simple_paths = fidelity_bounds_and_paths(
         ["A", "B", "C"], _uniform_fidelities(edges, value=0.55)
     )
-    path, fid = fidelity_shortest(
+    paths, fid = fidelity_shortest(
         simple_paths, "A", "C", 0.6, np.random.default_rng(42)
     )
-    assert path is None
+    assert paths == []
     assert math.isnan(fid)
 
 
@@ -289,10 +311,10 @@ def test_highest_fidelity_selects_best():
             (0.85, ("A", "C", "D", "E")),
         ]
     }
-    path, fid = highest_fidelity(
+    paths, fid = highest_fidelity(
         simple_paths, "A", "E", 0.75, np.random.default_rng(42)
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert fid == pytest.approx(0.85)
 
 
@@ -315,7 +337,7 @@ def test_find_feasible_path_cap_modes_success(
         **pga_params,
         rng=np.random.default_rng(42),
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.5
 
 
@@ -338,7 +360,7 @@ def test_find_feasible_path_cap_modes_no_valid_path(routing_mode, pga_params):
         **pga_params,
         rng=np.random.default_rng(0),
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
@@ -358,7 +380,7 @@ def test_find_feasible_path_capacity_routing_success(linear_abc, pga_params):
         threshold=0.99,
         **pga_params,
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.6
 
 
@@ -386,7 +408,7 @@ def test_find_feasible_path_capacity_routing_no_path(linear_abc):
         p_gen=0.001,
         time_slot_duration=1e-4,
     )
-    assert result["app"] is None
+    assert result["app"] == []
     assert math.isnan(e2e_fids["app"])
 
 
@@ -405,5 +427,5 @@ def test_find_feasible_path_highest(linear_abc):
         routing_mode="highest",
         rng=np.random.default_rng(42),
     )
-    assert result["app"] is not None
+    assert result["app"]
     assert e2e_fids["app"] >= 0.6

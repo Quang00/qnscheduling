@@ -18,40 +18,21 @@ def main():
         "scheduler": "dynamic",
         "arrival_rate": 5,
         "graph": "gml",
+        "provisioning": True,
     }
 
     scenarios = [
         {
             "id": 1,
-            "name": "shortest_with-fid",
+            "name": "shortest",
             "routing": "shortest",
+            "provisioning": False,
         },
         {
             "id": 2,
-            "name": "highest-fidelity",
-            "routing": "highest",
-        },
-        {
-            "id": 3,
-            "name": "capacity_with-fid_cap-0.8",
-            "routing": "capacity",
-            "capacity_threshold": 0.8,
-        },
-        {
-            "id": 4,
-            "name": "capacity_with-fid_cap-1.0",
-            "routing": "capacity",
-            "capacity_threshold": 1.0,
-        },
-        {
-            "id": 5,
-            "name": "least-capacity",
-            "routing": "least",
-        },
-        {
-            "id": 6,
-            "name": "smallest-bottleneck",
-            "routing": "smallest",
+            "name": "shortest_provisioning",
+            "routing": "shortest",
+            "provisioning": True,
         },
     ]
 
@@ -60,6 +41,7 @@ def main():
             base_kwargs,
             routing=scenario["routing"],
             capacity_threshold=scenario.get("capacity_threshold", None),
+            provisioning=scenario.get("provisioning", True),
         )
 
         print(f"Running {scenario['name']}:")
