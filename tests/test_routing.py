@@ -200,7 +200,7 @@ def test_capacity_threshold_low_fidelity_skipped(def_req, pga_params):
     simple_paths = {
         ("A", "C"): [(0.3, ("A", "B", "C")), (0.8, ("A", "D", "C"))]
     }
-    path, delta, e2e_fid = capacity_threshold(
+    paths, delta, e2e_fid = capacity_threshold(
         simple_paths=simple_paths,
         src="A",
         dst="C",
@@ -209,7 +209,7 @@ def test_capacity_threshold_low_fidelity_skipped(def_req, pga_params):
         threshold=0.99,
         **pga_params,
     )
-    assert path == ("A", "D", "C")
+    assert paths[0] == ["A", "D", "C"]
     assert delta > 0.0
     assert e2e_fid == pytest.approx(0.8)
 
@@ -274,7 +274,7 @@ def test_capacity_threshold_exceeded(def_req):
         ["A", "B", "C"], _uniform_fidelities(edges)
     )
     cap = defaultdict(float, {("A", "B"): 0.95, ("B", "C"): 0.95})
-    path, delta, _ = capacity_threshold(
+    paths, delta, _ = capacity_threshold(
         simple_paths=simple_paths,
         src="A",
         dst="C",
@@ -287,7 +287,7 @@ def test_capacity_threshold_exceeded(def_req):
         p_gen=0.001,
         time_slot_duration=1e-4,
     )
-    assert path is None
+    assert paths == []
     assert delta == 0.0
 
 
