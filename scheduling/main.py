@@ -246,13 +246,13 @@ def run_simulation(
     single_path_share = single_path_cpt / total_apps if total_apps > 0 else 0.0
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
-    primary_paths = {app: path_list[0] for app, path_list in paths.items()}
-    parallel_map = parallelizable_tasks(primary_paths)
+    initial_paths = {app: path_list[0] for app, path_list in paths.items()}
+    parallel_map = parallelizable_tasks(initial_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
     durations = compute_durations(
-        primary_paths,
+        initial_paths,
         epr_pairs,
         p_packet,
         memory,
@@ -264,7 +264,7 @@ def run_simulation(
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
 
     pga_parameters = app_params_sim(
-        primary_paths,
+        initial_paths,
         app_specs,
         p_packet,
         memory,
@@ -288,7 +288,7 @@ def run_simulation(
         app: (len(path_list[0]) - 1)
         for app, path_list in paths.items()
     }
-    primary_path_map = {
+    initial_path_map = {
         app: path_list[0]
         for app, path_list in paths.items()
         if path_list
@@ -299,7 +299,7 @@ def run_simulation(
         if len(path_list) > 1
     }
     app_req_df["hops"] = app_req_df["app"].map(hops_map)
-    app_req_df["primary_path"] = app_req_df["app"].map(primary_path_map)
+    app_req_df["initial_path"] = app_req_df["app"].map(initial_path_map)
     app_req_df["other_paths"] = app_req_df["app"].map(other_paths_map)
     app_req_df["e2e_fidelity"] = app_req_df["app"].map(app_e2e_fidelities)
     app_req_df["admitted"] = app_req_df["app"].isin(app_specs)
@@ -355,7 +355,7 @@ def run_simulation(
             pga_rel_times=pga_rel_times,
             pga_periods=pga_periods,
             policies=policies,
-            pga_network_paths=primary_paths,
+            pga_network_paths=initial_paths,
             rng=rng,
         )
 
@@ -391,7 +391,7 @@ def run_simulation(
         pga_release_times,
         app_specs,
         durations=durations,
-        pga_network_paths=primary_paths,
+        pga_network_paths=initial_paths,
         n_edges=len(edges),
         link_utilization=link_utilization,
         link_waiting=link_waiting,

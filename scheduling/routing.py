@@ -261,12 +261,12 @@ def fidelity_shortest(
     else:
         selected = candidate_paths
 
-    primary_idx = int(rng.integers(len(selected)))
-    primary_fid, primary_path = selected[primary_idx]
-    result = [primary_path] + [
-        p for i, (_, p) in enumerate(selected) if i != primary_idx
+    initial_idx = int(rng.integers(len(selected)))
+    initial_fid, initial_path = selected[initial_idx]
+    result = [initial_path] + [
+        p for i, (_, p) in enumerate(selected) if i != initial_idx
     ]
-    return result, primary_fid
+    return result, initial_fid
 
 
 def highest_fidelity(
