@@ -69,7 +69,6 @@ from utils.helper import (
     generate_n_apps,
     gml_data,
     parallelizable_tasks,
-    rtt_delay,
     save_results,
 )
 
@@ -135,7 +134,6 @@ def run_simulation(
     simple_paths = {}
     avg_deg = float("nan")
     diameter = float("nan")
-    delays = {}
     if graph == "waxman":
         nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
             rng=rng
@@ -148,7 +146,6 @@ def run_simulation(
         nodes = qpus
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
-        delays = rtt_delay(distances)
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
     )
@@ -326,7 +323,6 @@ def run_simulation(
             paths,
             rng,
             arrival_rate,
-            delays,
         )
         feasible = True
     else:

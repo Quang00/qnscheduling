@@ -43,7 +43,6 @@ class PGA:
         memory: int,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
-        delays: Dict[Tuple[str, str], float] | None = None,
     ) -> None:
         """Packet Generation Attempt (PGA) simulation. A PGA tries to
         generate EPR pairs over a specified route within a defined time window,
@@ -91,8 +90,6 @@ class PGA:
             per slot.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
-            delays (Dict[Tuple[str, str], float], optional): Per-link
-            propagation delays.
         """
         self.name = name
         self.arrival = float(arrival)
@@ -109,7 +106,6 @@ class PGA:
         self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
         self.links = route_links
-        self.delays = delays or {}
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
         self.memory = max(0, int(memory))
@@ -162,11 +158,11 @@ class PGA:
         blocking_links = []
 
         for link in self.links:
-            lk_b_t = self.resources.get(link, 0.0) + self.delays.get(link, 0.0)
+            lk_b_t = self.resources.get(link, 0.0)
             wait_until = max(wait_until, lk_b_t)
 
         for link in self.links:
-            lk_b_t = self.resources.get(link, 0.0) + self.delays.get(link, 0.0)
+            lk_b_t = self.resources.get(link, 0.0)
             if abs(lk_b_t - wait_until) < EPS:
                 blocking_links.append(link)
 
@@ -371,13 +367,12 @@ def rerouting(
     deadline: float,
     delays: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float] | None:
-    """Find an alternative path for a PGA before dropping or deferring.
-    """
+    """Find an alternative path for a PGA before dropping or deferring."""
     candidates = pga_network_paths.get(app, [])
     best = None
     best_avail = float("inf")
 
-    for path in candidates[1:]:
+    for path in candidates:
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
@@ -405,7 +400,6 @@ def simulate_dynamic(
     pga_network_paths: Dict[str, List[List[str]]],
     rng: np.random.Generator,
     arrival_rate: float | None = None,
-    delays: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[
     pd.DataFrame,
     List[str],
@@ -558,16 +552,18 @@ def simulate_dynamic(
 
             last_available = 0.0
             for link in route_links:
-                link_delay = delays.get(link, 0.0) if delays else 0.0
                 last_available = max(
                     last_available,
-                    resources.get(link, 0.0) + link_delay,
+                    resources.get(link, 0.0),
                 )
 
             if last_available > t + EPS:
                 alt_path = rerouting(
-                    app, pga_network_paths, resources, duration, deadline,
-                    delays,
+                    app,
+                    pga_network_paths,
+                    resources,
+                    duration,
+                    deadline,
                 )
                 if alt_path is not None:
                     selected_path, route_links, last_available = alt_path
@@ -630,7 +626,7 @@ def simulate_dynamic(
                             app,
                             i,
                             rdy_t,
-                        )
+                        ),
                     )
                 continue
 
@@ -684,7 +680,6 @@ def simulate_dynamic(
                 memory=pga_parameters[app]["memory"],
                 deadline=deadline,
                 route_links=route_links,
-                delays=delays,
             )
             result = pga.run()
             result["ready_time"] = float(rdy_t)
@@ -718,7 +713,7 @@ def simulate_dynamic(
                         app,
                         i,
                         next_ready_time,
-                    )
+                    ),
                 )
             else:
                 if inst_req[app] > completed_instances[app]:
