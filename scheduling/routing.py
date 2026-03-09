@@ -253,12 +253,11 @@ def fidelity_shortest(
     if not candidate_paths:
         return [], float("nan")
 
-    selected = candidate_paths
-    initial_idx = int(rng.integers(len(selected)))
-    initial_fid, initial_path = selected[initial_idx]
+    initial_idx = int(rng.integers(len(candidate_paths)))
+    initial_fid, initial_path = candidate_paths[initial_idx]
     if provisioning:
         result = [initial_path] + [
-            p for i, (_, p) in enumerate(selected) if i != initial_idx
+            p for i, (_, p) in enumerate(candidate_paths) if i != initial_idx
         ]
     else:
         result = [initial_path]
