@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from utils.helper import (
+    build_default_sim_args,
     compute_edge_fidelities,
     generate_n_apps,
     gml_data,
@@ -81,6 +82,13 @@ def test_shared_node_but_distinct_links():
     res = parallelizable_tasks(paths)
     assert res == {"A": {"B"}, "B": {"A"}}
     assert_equal_set(res)
+
+
+def test_build_default_sim_args_no_overrides():
+    result = build_default_sim_args("config", None)
+    assert result["inst_range"] == (100, 100)
+    assert result["epr_range"] == (2, 2)
+    assert result["period_range"] == (1, 1)
 
 
 def test_save_results_basic(tmp_path):
