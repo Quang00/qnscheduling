@@ -94,6 +94,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
     blocker = {
         "p_gen": 1.0,
         "p_swap": 1.0,
+        "p_packet": 0.9,
         "memory": 1,
         "epr_pairs": 1,
         "slot_duration": 10.0,
@@ -101,6 +102,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
     shared = {
         "p_gen": 1.0,
         "p_swap": 1.0,
+        "p_packet": 0.9,
         "memory": 1,
         "epr_pairs": 1,
         "slot_duration": 1.0,

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from scheduling.pga import duration_pga
 from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -363,10 +364,10 @@ def rerouting(
     app: str,
     pga_network_paths: Dict[str, List[List[str]]],
     resources: Dict[Tuple[str, str], float],
-    duration: float,
+    pga_params: Dict[str, float],
     deadline: float,
     delays: Dict[Tuple[str, str], float] | None = None,
-) -> Tuple[List[str], List[Tuple[str, str]], float] | None:
+) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     """Find an alternative path for a PGA before dropping or deferring."""
     candidates = pga_network_paths.get(app, [])
     best = None
@@ -385,9 +386,19 @@ def rerouting(
             ),
             default=0.0,
         )
-        if avail + duration <= deadline + EPS and avail < best_avail:
+        n_swap = max(0, len(path) - 2)
+        path_duration = duration_pga(
+            p_packet=pga_params["p_packet"],
+            epr_pairs=int(pga_params["epr_pairs"]),
+            n_swap=n_swap,
+            memory=pga_params["memory"],
+            p_swap=pga_params["p_swap"],
+            p_gen=pga_params["p_gen"],
+            time_slot_duration=pga_params["slot_duration"],
+        )
+        if avail + path_duration <= deadline + EPS and avail < best_avail:
             best_avail = avail
-            best = (path, links, avail)
+            best = (path, links, avail, path_duration)
 
     return best
 
@@ -562,11 +573,16 @@ def simulate_dynamic(
                     app,
                     pga_network_paths,
                     resources,
-                    duration,
+                    pga_parameters[app],
                     deadline,
                 )
                 if alt_path is not None:
-                    selected_path, route_links, last_available = alt_path
+                    (
+                        selected_path,
+                        route_links,
+                        last_available,
+                        duration,
+                    ) = alt_path
 
             if last_available > t + EPS:
                 if last_available + duration > deadline + EPS:
