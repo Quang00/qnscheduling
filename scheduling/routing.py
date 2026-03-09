@@ -293,7 +293,7 @@ def highest_fidelity(
     min_fidelity: float,
     rng: np.random.Generator,
     provisioning: bool = True,
-) -> Tuple[List[str] | None, float]:
+) -> Tuple[List[List[str]], float]:
     """Select the path with the highest E2E fidelity among all paths that
     meet the minimum fidelity requirement. Ties are broken randomly.
 
@@ -303,27 +303,40 @@ def highest_fidelity(
         dst: Destination node.
         min_fidelity: Minimum acceptable E2E fidelity.
         rng: Random number generator for tie-breaking.
+        provisioning: If True, return selected path plus all tied candidates;
+            otherwise return only the selected path.
 
     Returns:
-        Tuple of (selected path or None, e2e fidelity or nan).
+        Tuple of (list of paths with selected first, e2e fidelity or nan).
     """
-    best_path = None
     best_fid = float("nan")
-    tied_count = 0
+    tied_candidates = []
     all_paths = all_simple_paths(simple_paths, src, dst)
     for path in all_paths:
         e2e_fid = path[0]
         if e2e_fid < min_fidelity:
             continue
-        if best_path is None or e2e_fid > best_fid:
-            best_path = path[1]
+        if not tied_candidates or e2e_fid > best_fid:
             best_fid = e2e_fid
-            tied_count = 1
+            tied_candidates = [list(path[1])]
         elif np.isclose(e2e_fid, best_fid):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                best_path = path[1]
-    return best_path, best_fid
+            tied_candidates.append(list(path[1]))
+
+    if not tied_candidates:
+        return [], float("nan")
+
+    initial_idx = (
+        0
+        if len(tied_candidates) == 1
+        else int(rng.integers(len(tied_candidates)))
+    )
+    if provisioning:
+        result = [tied_candidates[initial_idx]] + [
+            p for i, p in enumerate(tied_candidates) if i != initial_idx
+        ]
+    else:
+        result = [tied_candidates[initial_idx]]
+    return result, best_fid
 
 
 def _update_capacity(
@@ -511,7 +524,7 @@ def find_feasible_path(
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "highest":
-            selected_path, selected_e2e_fid = highest_fidelity(
+            path_list, selected_e2e_fid = highest_fidelity(
                 simple_paths,
                 src,
                 dst,
@@ -519,9 +532,7 @@ def find_feasible_path(
                 rng,
                 provisioning,
             )
-            ret[app] = (
-                [list(selected_path)] if selected_path is not None else []
-            )
+            ret[app] = path_list
             e2e_fids[app] = selected_e2e_fid
             continue
         else:

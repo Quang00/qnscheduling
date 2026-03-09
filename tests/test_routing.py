@@ -311,10 +311,10 @@ def test_highest_fidelity_selects_best():
             (0.85, ("A", "C", "D", "E")),
         ]
     }
-    path, fid = highest_fidelity(
+    paths, fid = highest_fidelity(
         simple_paths, "A", "E", 0.75, np.random.default_rng(42)
     )
-    assert path == ("A", "C", "D", "E")
+    assert paths[0] == ["A", "C", "D", "E"]
     assert fid == pytest.approx(0.85)
 
 
