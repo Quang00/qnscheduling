@@ -641,7 +641,13 @@ def dynamic_routing(
         e2e_fid, path = path[0], path[1]
         if e2e_fid < req["min_fidelity"]:
             continue
-        if any(resources.get(link, 0.0) > current_time + EPS for link in path):
+        links = [
+            tuple(sorted((u, v)))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        if any(
+            resources.get(lnk, 0.0) > current_time + EPS for lnk in links
+        ):
             continue
 
         n_swap = max(0, len(path) - 2)
