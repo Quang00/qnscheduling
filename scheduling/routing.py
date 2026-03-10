@@ -5,8 +5,9 @@ import networkx as nx
 import numpy as np
 
 from scheduling.pga import duration_pga
-
 from utils.helper import all_simple_paths
+
+EPS = 1e-12
 
 
 def shortest_paths(
@@ -458,9 +459,7 @@ def find_feasible_path(
             e2e_fids[app] = float("nan")
             continue
 
-        G = _build_graph(
-            routing_mode, edges, base_graph, cap, threshold
-        )
+        G = _build_graph(routing_mode, edges, base_graph, cap, threshold)
 
         if not nx.has_path(G, src, dst):
             ret[app] = []
@@ -468,21 +467,19 @@ def find_feasible_path(
             continue
 
         if routing_mode == "smallest":
-            path_list, selected_delta, selected_e2e_fid = (
-                smallest_bottleneck(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = smallest_bottleneck(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -493,22 +490,20 @@ def find_feasible_path(
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "capacity":
-            path_list, selected_delta, selected_e2e_fid = (
-                capacity_threshold(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    threshold,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = capacity_threshold(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                threshold,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -519,21 +514,19 @@ def find_feasible_path(
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "least":
-            path_list, selected_delta, selected_e2e_fid = (
-                least_capacity(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = least_capacity(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -568,3 +561,73 @@ def find_feasible_path(
             ret[app] = path_list
             e2e_fids[app] = selected_e2e_fid
     return ret, e2e_fids
+
+
+def dynamic_routing(
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    resources: Dict[Tuple[str, str], float],
+    current_time: float,
+    src: str,
+    dst: str,
+    req: Dict[str, Any],
+    pga_params: Dict[str, float],
+    rng: np.random.Generator,
+) -> Tuple[List[str], float, float]:
+    """Select a path for a new request that meets the fidelity requirement and
+    has the least PGA duration among all simple paths that are available at
+    current_time. This function is intended to be used for dynamic routing when
+    a request arrives and we need to select a path for it based on the current
+    state of the network.
+
+    Args:
+        simple_paths (Dict[Tuple[str, str], List[List[str]]]): Pre-computed
+            simple paths and their E2E fidelities.
+        resources (Dict[Tuple[str, str], float]): Current busy-until times for
+        each link.
+        current_time (float): The current time in the simulation.
+        src (str): The source node of the request.
+        dst (str): The destination node of the request.
+        req (Dict[str, Any]): The application request parameters.
+        pga_params (Dict[str, float]): Parameters for the PGA duration
+        calculation.
+        rng (np.random.Generator): Random number generator.
+
+    Returns:
+        Tuple[List[str], float, float]: A tuple containing the selected path,
+        the PGA duration of the selected path, and the E2E fidelity of the
+        selected path.
+    """
+    selected_path = None
+    least_duration = float("inf")
+    selected_e2e_fid = float("nan")
+    tied_count = 0
+
+    for path in all_simple_paths(simple_paths, src, dst):
+        e2e_fid, path = path[0], path[1]
+        if e2e_fid < req["min_fidelity"]:
+            continue
+        if any(resources.get(link, 0.0) > current_time + EPS for link in path):
+            continue
+
+        n_swap = max(0, len(path) - 2)
+        pga_duration = duration_pga(
+            p_packet=pga_params["p_packet"],
+            epr_pairs=int(pga_params["epr_pairs"]),
+            n_swap=n_swap,
+            memory=pga_params["memory"],
+            p_swap=pga_params["p_swap"],
+            p_gen=pga_params["p_gen"],
+            time_slot_duration=pga_params["slot_duration"],
+        )
+        if pga_duration < least_duration - EPS:
+            selected_path = path
+            least_duration = pga_duration
+            selected_e2e_fid = e2e_fid
+            tied_count = 1
+        elif np.isclose(pga_duration, least_duration):
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                selected_path = path
+                least_duration = pga_duration
+                selected_e2e_fid = e2e_fid
+    return selected_path, least_duration, selected_e2e_fid

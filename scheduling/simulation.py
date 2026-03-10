@@ -551,10 +551,7 @@ def simulate_dynamic(
 
             last_available = 0.0
             for link in route_links:
-                last_available = max(
-                    last_available,
-                    resources.get(link, 0.0),
-                )
+                last_available = max(last_available, resources.get(link, 0.0))
 
             if last_available > t + EPS:
                 alt_path = rerouting(
