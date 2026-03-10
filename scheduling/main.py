@@ -96,6 +96,7 @@ def run_simulation(
     verbose: bool = True,
     graph: str | None = None,
     provisioning: bool = True,
+    full_dynamic: bool = True,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -323,6 +324,7 @@ def run_simulation(
             paths,
             rng,
             arrival_rate,
+            full_dynamic,
         )
         feasible = True
     else:
@@ -557,6 +559,13 @@ def main():
         help="Enable provisioning for routing",
     )
     parser.add_argument(
+        "--full-dynamic",
+        "-fd",
+        action="store_true",
+        default=True,
+        help="Enable full dynamic: routing + scheduling",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -605,6 +614,7 @@ def main():
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
         provisioning=args.provisioning,
+        full_dynamic=args.full_dynamic,
     )
     t1 = time.perf_counter()
 
@@ -635,6 +645,8 @@ def main():
         "run_number": run_number,
         "routing": args.routing,
         "capacity_threshold": args.capacity_threshold,
+        "provisioning": args.provisioning,
+        "full_dynamic": args.full_dynamic,
     }
     pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
