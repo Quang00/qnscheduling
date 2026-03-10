@@ -52,6 +52,7 @@ def _run_dynamic(app_specs, durations, pga_params, rng):
         pga_rel_times={"A": 0.0},
         pga_network_paths={"A": [["Alice", "Bob"]]},
         rng=rng,
+        all_links=[("Alice", "Bob")],
     )
 
 
@@ -120,6 +121,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
         pga_network_paths={p: [["Alice", "Bob"]] for p in ("A", "B", "C")},
         rng=rng,
         arrival_rate=None,
+        all_links=[("Alice", "Bob")],
     )
     statuses = set(df["status"])
     assert "drop" in statuses

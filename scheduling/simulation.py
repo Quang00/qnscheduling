@@ -412,6 +412,7 @@ def simulate_dynamic(
     rng: np.random.Generator,
     arrival_rate: float | None = None,
     full_dynamic: bool = True,
+    all_links: List[Tuple[str, str]] | None = None,
 ) -> Tuple[
     pd.DataFrame,
     List[str],
@@ -475,12 +476,6 @@ def simulate_dynamic(
             for u, v in zip(path[0][:-1], path[0][1:], strict=False)
         ]
         for app, path in pga_network_paths.items()
-    }
-    all_links = {
-        tuple(sorted((u, v)))
-        for paths in pga_network_paths.values()
-        for path in paths
-        for u, v in zip(path[:-1], path[1:], strict=False)
     }
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)

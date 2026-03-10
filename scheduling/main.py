@@ -150,6 +150,7 @@ def run_simulation(
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 1
     )
+    all_links = {tuple(sorted((u, v))) for u, v in edges}
     app_specs = generate_n_apps(
         nodes,
         bounds,
@@ -325,6 +326,7 @@ def run_simulation(
             rng,
             arrival_rate,
             full_dynamic,
+            all_links,
         )
         feasible = True
     else:
@@ -362,16 +364,13 @@ def run_simulation(
         )
 
     # Save results
-    all_network_links = {
-        tuple(sorted((u, v))) for u, v in edges
-    }
 
     if link_utilization is None:
         link_utilization = {}
     if link_waiting is None:
         link_waiting = {}
 
-    for link in all_network_links:
+    for link in all_links:
         link_utilization.setdefault(
             link,
             {
