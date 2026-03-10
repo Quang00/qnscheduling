@@ -366,7 +366,6 @@ def rerouting(
     resources: Dict[Tuple[str, str], float],
     pga_params: Dict[str, float],
     deadline: float,
-    delays: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     """Find an alternative path for a PGA before dropping or deferring."""
     candidates = pga_network_paths.get(app, [])
@@ -378,14 +377,7 @@ def rerouting(
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        avail = max(
-            (
-                resources.get(lnk, 0.0)
-                + (delays.get(lnk, 0.0) if delays else 0.0)
-                for lnk in links
-            ),
-            default=0.0,
-        )
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
         n_swap = max(0, len(path) - 2)
         path_duration = duration_pga(
             p_packet=pga_params["p_packet"],
