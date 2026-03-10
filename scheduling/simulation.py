@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from scheduling.pga import duration_pga
+from scheduling.routing import rerouting
 from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -358,41 +358,6 @@ def simulate_static(
     )
 
     return df, pga_names, pga_release_times, link_utilization, link_waiting
-
-
-def rerouting(
-    app: str,
-    pga_network_paths: Dict[str, List[List[str]]],
-    resources: Dict[Tuple[str, str], float],
-    pga_params: Dict[str, float],
-    deadline: float,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    """Find an alternative path for a PGA before dropping or deferring."""
-    candidates = pga_network_paths.get(app, [])
-    best = None
-    best_avail = float("inf")
-
-    for path in candidates:
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
-        n_swap = max(0, len(path) - 2)
-        path_duration = duration_pga(
-            p_packet=pga_params["p_packet"],
-            epr_pairs=int(pga_params["epr_pairs"]),
-            n_swap=n_swap,
-            memory=pga_params["memory"],
-            p_swap=pga_params["p_swap"],
-            p_gen=pga_params["p_gen"],
-            time_slot_duration=pga_params["slot_duration"],
-        )
-        if avail + path_duration <= deadline + EPS and avail < best_avail:
-            best_avail = avail
-            best = (path, links, avail, path_duration)
-
-    return best
 
 
 def simulate_dynamic(
