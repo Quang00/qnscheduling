@@ -327,6 +327,7 @@ def run_simulation(
             arrival_rate,
             full_dynamic,
             all_links,
+            simple_paths,
         )
         feasible = True
     else:
@@ -554,14 +555,12 @@ def main():
         "--provisioning",
         "-pv",
         action="store_true",
-        default=True,
         help="Enable provisioning for routing",
     )
     parser.add_argument(
         "--full-dynamic",
         "-fd",
         action="store_true",
-        default=True,
         help="Enable full dynamic: routing + scheduling",
     )
     parser.add_argument(

@@ -370,57 +370,8 @@ def simulate_dynamic(
     arrival_rate: float | None = None,
     full_dynamic: bool = True,
     all_links: List[Tuple[str, str]] | None = None,
-) -> Tuple[
-    pd.DataFrame,
-    List[str],
-    Dict[str, float],
-    Dict[Tuple[str, str], Dict[str, float]],
-    Dict[Tuple[str, str], Dict[str, float | int]],
-]:
-    """Simulate online dynamic PGA scheduling. PGAs arrive either periodically
-    or according to a Poisson process, attempting to generate EPR pairs over a
-    specified route within a defined time window, considering resource
-    availability and link busy times. The dynamic scheduler processes PGAs
-    as they arrive, making real-time decisions based on current network
-    conditions.
-
-        The scheduler made the following decisions for each PGA:
-
-        - If a PGA cannot start by its deadline due to busy links, it
-            is marked as "drop".
-        - If a PGA cannot be completed due to its duration exceeding
-            the deadline, it is marked as "drop".
-        - If a PGA does not generate the required E2E EPR pairs within its time
-            window, it may be retried if there is time before the deadline.
-        - If a PGA cannot start immediately due to busy links but can still
-            complete within its deadline, it is marked as "defer" and
-            rescheduled to start when resources become available.
-        - If a PGA successfully generates the required E2E EPR pairs within its
-            time window, it is marked as "completed".
-
-    Args:
-        app_specs (Dict[str, Dict[str, Any]]): Application specifications.
-        durations (Dict[str, float]): Duration of each application.
-        pga_parameters (Dict[str, Dict[str, float]]): Parameters for each PGA.
-        pga_rel_times (Dict[str, float]): Release times for each PGA.
-        pga_network_paths (Dict[str, List[str]]): Network paths for each PGA.
-        rng (np.random.Generator): Random number generator.
-        arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
-            When None, arrivals remain periodic.
-
-    Returns:
-        Tuple[
-            pd.DataFrame,
-            List[str],
-            Dict[str, float],
-            Dict[Tuple[str, str], Dict[str, float]],
-        ]: Contains:
-            - DataFrame with PGA performance metrics.
-            - List of PGA names.
-            - Dictionary mapping PGA names to their release times.
-            - Dictionary mapping undirected links to busy time and utilization.
-            - Dictionary mapping undirected links to waiting metrics.
-    """
+    simple_paths: Dict[str, List[List[str]]] | None = None,
+):
     log = []
     pga_release_times = {}
     pga_names = []
@@ -430,9 +381,9 @@ def simulate_dynamic(
     pga_route_links = {
         app: [
             tuple(sorted((u, v)))
-            for u, v in zip(path[0][:-1], path[0][1:], strict=False)
+            for u, v in zip(paths[0][:-1], paths[0][1:], strict=False)
         ]
-        for app, path in pga_network_paths.items()
+        for app, paths in pga_network_paths.items()
     }
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
@@ -446,7 +397,6 @@ def simulate_dynamic(
     periods = {app: app_specs[app].get("period") for app in app_specs}
     inst_req = {app: app_specs[app].get("instances") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
-    completed_instances = {app: 0 for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
     poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
     poisson = (1.0 / arrival_rate) if poisson_enabled else None
@@ -460,20 +410,23 @@ def simulate_dynamic(
     ready_queue = []
 
     def enqueue_release(app: str) -> None:
-        if inst_req[app] <= completed_instances[app]:
-            return
         idx = release_indices[app]
+        if idx >= inst_req[app]:
+            return
         period = periods[app]
 
         if poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
-            poisson_next_release[app] = release + rng.exponential(poisson)
+            poisson_next_release[app] = release + rng.exponential(
+                poisson
+            )
         else:
             release = base_release[app] + period * idx
 
         deadline = release + period
         heapq.heappush(
-            events_queue, (release, deadline, release, app, idx, release)
+            events_queue,
+            (release, deadline, release, app, idx, release, "release"),
         )
         release_indices[app] += 1
 
@@ -487,9 +440,18 @@ def simulate_dynamic(
             t = events_queue[0][0]
 
         while events_queue and events_queue[0][0] <= t + EPS:
-            event_time, deadline, arrival_time, app, i, ready_time = (
-                heapq.heappop(events_queue)
-            )
+            (
+                event_time,
+                deadline,
+                arrival_time,
+                app,
+                i,
+                ready_time,
+                event_type,
+            ) = heapq.heappop(events_queue)
+            if event_type == "release":
+                enqueue_release(app)
+
             heapq.heappush(
                 ready_queue,
                 (deadline, ready_time, arrival_time, app, i, event_time),
@@ -557,14 +519,7 @@ def simulate_dynamic(
                         }
                         log.append(result)
 
-                        track_link_waiting(
-                            wait,
-                            link_waiting,
-                            blocking_links=None
-                        )
-
-                    if inst_req[app] > completed_instances[app]:
-                        enqueue_release(app)
+                        track_link_waiting(wait, link_waiting, None)
                 else:
                     turnaround = max(0.0, t - arrival_time)
                     burst = 0.0
@@ -592,6 +547,7 @@ def simulate_dynamic(
                             app,
                             i,
                             rdy_t,
+                            "resume",
                         ),
                     )
                 continue
@@ -617,15 +573,7 @@ def simulate_dynamic(
                     "deadline": deadline,
                 }
                 log.append(result)
-                track_link_waiting(
-                    result["waiting_time"], link_waiting, blocking_links=None
-                )
-
-                if duration > period + EPS:
-                    completed_instances[app] += 1
-
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
+                track_link_waiting(result["waiting_time"], link_waiting, None)
                 continue
 
             pga = PGA(
@@ -661,9 +609,6 @@ def simulate_dynamic(
 
             status = result.get("status", "")
             if status == "completed":
-                completed_instances[app] += 1
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
                 continue
 
             next_ready_time = result["completion_time"] + EPS
@@ -679,11 +624,9 @@ def simulate_dynamic(
                         app,
                         i,
                         next_ready_time,
+                        "resume",
                     ),
                 )
-            else:
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
