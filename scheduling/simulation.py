@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from scheduling.routing import rerouting
+from scheduling.routing import preprovisioned_routing
 from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -431,13 +431,13 @@ def simulate_dynamic(
     for app in app_specs:
         enqueue_release(app)
 
-    t = 0.0
+    cur_t = 0.0
 
     while events_queue or ready_queue:
         if not ready_queue:
-            t = events_queue[0][0]
+            cur_t = events_queue[0][0]
 
-        while events_queue and events_queue[0][0] <= t + EPS:
+        while events_queue and events_queue[0][0] <= cur_t + EPS:
             (
                 event_time,
                 deadline,
@@ -478,13 +478,13 @@ def simulate_dynamic(
             for link in route_links:
                 last_available = max(last_available, resources.get(link, 0.0))
 
-            if last_available > t + EPS:
-                alt_path = rerouting(
-                    app,
+            if last_available > cur_t + EPS:
+                alt_path = preprovisioned_routing(
                     pga_network_paths,
                     resources,
+                    cur_t,
+                    app,
                     pga_parameters[app],
-                    t,
                     rng,
                 )
                 if alt_path is not None:
@@ -495,21 +495,21 @@ def simulate_dynamic(
                         duration,
                     ) = alt_path
 
-            if last_available > t + EPS:
+            if last_available > cur_t + EPS:
                 if last_available + duration > deadline + EPS:
                     if (app, i) not in drop_logged:
                         drop_logged.add((app, i))
 
-                        turnaround = max(0.0, t - arrival_time)
+                        turnaround = max(0.0, cur_t - arrival_time)
                         burst = 0.0
-                        wait = max(0.0, t - rdy_t)
+                        wait = max(0.0, cur_t - rdy_t)
                         result = {
                             "pga": pga_name,
                             "arrival_time": arrival_time,
                             "ready_time": rdy_t,
                             "start_time": np.nan,
-                            "burst_time": burst,
-                            "completion_time": t,
+                            "burst_time": 0.0,
+                            "completion_time": cur_t,
                             "turnaround_time": turnaround,
                             "waiting_time": wait,
                             "pairs_generated": 0,
@@ -520,16 +520,16 @@ def simulate_dynamic(
 
                         track_link_waiting(wait, link_waiting, None)
                 else:
-                    turnaround = max(0.0, t - arrival_time)
+                    turnaround = max(0.0, cur_t - arrival_time)
                     burst = 0.0
-                    wait = max(0.0, t - rdy_t)
+                    wait = max(0.0, cur_t - rdy_t)
                     result = {
                         "pga": pga_name,
                         "arrival_time": arrival_time,
                         "ready_time": rdy_t,
                         "start_time": np.nan,
                         "burst_time": burst,
-                        "completion_time": t,
+                        "completion_time": cur_t,
                         "turnaround_time": turnaround,
                         "waiting_time": wait,
                         "pairs_generated": 0,
@@ -551,7 +551,7 @@ def simulate_dynamic(
                     )
                 continue
 
-            start_time = t
+            start_time = cur_t
             period = periods[app]
             completion = start_time + duration
 

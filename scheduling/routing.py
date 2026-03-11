@@ -563,15 +563,15 @@ def find_feasible_path(
     return ret, e2e_fids
 
 
-def rerouting(
-    app: str,
-    pga_network_paths: Dict[str, List[List[str]]],
+def preprovisioned_routing(
+    provisioned_paths: Dict[str, List[List[str]]],
     resources: Dict[Tuple[str, str], float],
-    pga_params: Dict[str, float],
     current_time: float,
+    app: str,
+    pga_params: Dict[str, float],
     rng: np.random.Generator,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    candidates = pga_network_paths.get(app, [])
+    candidates = provisioned_paths.get(app, [])
     selected_path = None
     selected_links = []
     selected_duration = float("inf")
