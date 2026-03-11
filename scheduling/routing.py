@@ -568,21 +568,24 @@ def rerouting(
     pga_network_paths: Dict[str, List[List[str]]],
     resources: Dict[Tuple[str, str], float],
     pga_params: Dict[str, float],
-    deadline: float,
+    current_time: float,
+    rng: np.random.Generator,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    """Find an alternative path for a PGA before dropping or deferring."""
     candidates = pga_network_paths.get(app, [])
-    best = None
-    best_avail = float("inf")
+    selected_path = None
+    selected_links = []
+    selected_duration = float("inf")
+    tied_count = 0
 
     for path in candidates:
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
+        if any(resources.get(lnk, 0.0) > current_time + EPS for lnk in links):
+            continue
         n_swap = max(0, len(path) - 2)
-        path_duration = duration_pga(
+        pga_duration = duration_pga(
             p_packet=pga_params["p_packet"],
             epr_pairs=int(pga_params["epr_pairs"]),
             n_swap=n_swap,
@@ -591,11 +594,22 @@ def rerouting(
             p_gen=pga_params["p_gen"],
             time_slot_duration=pga_params["slot_duration"],
         )
-        if avail + path_duration <= deadline + EPS and avail < best_avail:
-            best_avail = avail
-            best = (path, links, avail, path_duration)
+        if pga_duration < selected_duration - EPS:
+            selected_path = path
+            selected_links = links
+            selected_duration = pga_duration
+            tied_count = 1
+        elif np.isclose(pga_duration, selected_duration):
+            tied_count += 1
+            if rng.integers(tied_count) == 0:
+                selected_path = path
+                selected_links = links
+                selected_duration = pga_duration
 
-    return best
+    if selected_path is None:
+        return None
+
+    return selected_path, selected_links, current_time, selected_duration
 
 
 def dynamic_routing(
@@ -607,49 +621,24 @@ def dynamic_routing(
     req: Dict[str, Any],
     pga_params: Dict[str, float],
     rng: np.random.Generator,
-) -> Tuple[List[str], float, float]:
-    """Select a path for a new request that meets the fidelity requirement and
-    has the least PGA duration among all simple paths that are available at
-    current_time. This function is intended to be used for dynamic routing when
-    a request arrives and we need to select a path for it based on the current
-    state of the network.
-
-    Args:
-        simple_paths (Dict[Tuple[str, str], List[List[str]]]): Pre-computed
-            simple paths and their E2E fidelities.
-        resources (Dict[Tuple[str, str], float]): Current busy-until times for
-        each link.
-        current_time (float): The current time in the simulation.
-        src (str): The source node of the request.
-        dst (str): The destination node of the request.
-        req (Dict[str, Any]): The application request parameters.
-        pga_params (Dict[str, float]): Parameters for the PGA duration
-        calculation.
-        rng (np.random.Generator): Random number generator.
-
-    Returns:
-        Tuple[List[str], float, float]: A tuple containing the selected path,
-        the PGA duration of the selected path, and the E2E fidelity of the
-        selected path.
-    """
+) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
+    min_fidelity = req["min_fidelity"]
     selected_path = None
-    least_duration = float("inf")
-    selected_e2e_fid = float("nan")
+    selected_links = []
+    selected_duration = float("inf")
     tied_count = 0
 
-    for path in all_simple_paths(simple_paths, src, dst):
-        e2e_fid, path = path[0], path[1]
-        if e2e_fid < req["min_fidelity"]:
+    for item in all_simple_paths(simple_paths, src, dst):
+        e2e_fid, path = item[0], item[1]
+        if e2e_fid < min_fidelity - EPS:
             continue
+
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        if any(
-            resources.get(lnk, 0.0) > current_time + EPS for lnk in links
-        ):
+        if any(resources.get(lnk, 0.0) > current_time + EPS for lnk in links):
             continue
-
         n_swap = max(0, len(path) - 2)
         pga_duration = duration_pga(
             p_packet=pga_params["p_packet"],
@@ -660,15 +649,19 @@ def dynamic_routing(
             p_gen=pga_params["p_gen"],
             time_slot_duration=pga_params["slot_duration"],
         )
-        if pga_duration < least_duration - EPS:
+        if pga_duration < selected_duration - EPS:
             selected_path = path
-            least_duration = pga_duration
-            selected_e2e_fid = e2e_fid
+            selected_links = links
+            selected_duration = pga_duration
             tied_count = 1
-        elif np.isclose(pga_duration, least_duration):
+        elif np.isclose(pga_duration, selected_duration):
             tied_count += 1
             if rng.integers(tied_count) == 0:
                 selected_path = path
-                least_duration = pga_duration
-                selected_e2e_fid = e2e_fid
-    return selected_path, least_duration, selected_e2e_fid
+                selected_links = links
+                selected_duration = pga_duration
+
+    if selected_path is None:
+        return None
+
+    return selected_path, selected_links, current_time, selected_duration

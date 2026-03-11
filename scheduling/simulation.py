@@ -417,9 +417,7 @@ def simulate_dynamic(
 
         if poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
-            poisson_next_release[app] = release + rng.exponential(
-                poisson
-            )
+            poisson_next_release[app] = release + rng.exponential(poisson)
         else:
             release = base_release[app] + period * idx
 
@@ -486,7 +484,8 @@ def simulate_dynamic(
                     pga_network_paths,
                     resources,
                     pga_parameters[app],
-                    deadline,
+                    t,
+                    rng,
                 )
                 if alt_path is not None:
                     (
