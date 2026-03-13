@@ -552,16 +552,14 @@ def main():
         help="Graph generator (e.g., 'waxman', 'fat', 'gml')",
     )
     parser.add_argument(
-        "--provisioning",
-        "-pv",
-        action="store_true",
-        help="Enable provisioning for routing",
-    )
-    parser.add_argument(
-        "--full-dynamic",
-        "-fd",
-        action="store_true",
-        help="Enable full dynamic: routing + scheduling",
+        "--routing-strategy",
+        "-rs",
+        type=str,
+        choices=["provisioning", "hybrid", "dynamic"],
+        default=None,
+        help="Routing strategy: 'provisioning' (pre-provisioned paths),"
+        "'hybrid' (no provisioning), or"
+        "'dynamic'(full dynamic routing + scheduling)",
     )
     parser.add_argument(
         "--seed",
@@ -611,8 +609,8 @@ def main():
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
-        provisioning=args.provisioning,
-        full_dynamic=args.full_dynamic,
+        provisioning=args.routing_strategy == "provisioning",
+        full_dynamic=args.routing_strategy == "dynamic",
     )
     t1 = time.perf_counter()
 
@@ -643,8 +641,7 @@ def main():
         "run_number": run_number,
         "routing": args.routing,
         "capacity_threshold": args.capacity_threshold,
-        "provisioning": args.provisioning,
-        "full_dynamic": args.full_dynamic,
+        "routing_strategy": args.routing_strategy,
     }
     pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
 
