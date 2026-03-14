@@ -12,6 +12,7 @@ metrics, link utilizations, and other relevant data. While the function
 
 import heapq
 import re
+import time
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -400,6 +401,7 @@ def simulate_dynamic(
     min_arrival = float("inf")
     max_completion = 0.0
     routing_decision_cpt = 0
+    routing_decision_runtime = 0.0
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
     inst_req = {app: app_specs[app].get("instances") for app in app_specs}
@@ -420,17 +422,21 @@ def simulate_dynamic(
     rerouting_candidates = {}
     if full_dynamic and simple_paths is not None:
         for app in app_specs:
+            _t0 = time.perf_counter()
             routing_metadata[app] = compute_path_durations(
                 pga_parameters[app],
                 simple_paths=simple_paths,
                 src=app_specs[app]["src"],
                 dst=app_specs[app]["dst"],
             )
+            routing_decision_runtime += time.perf_counter() - _t0
     elif rerouting_mode:
         for app, app_paths in pga_network_paths.items():
+            _t0 = time.perf_counter()
             rerouting_candidates[app] = compute_path_durations(
                 pga_parameters[app], provisioned_paths=app_paths
             )
+            routing_decision_runtime += time.perf_counter() - _t0
 
     def enqueue_release(app: str) -> None:
         idx = release_indices[app]
@@ -503,12 +509,14 @@ def simulate_dynamic(
                 )
             elif full_dynamic and simple_paths is not None:
                 routing_decision_cpt += 1
+                _t0 = time.perf_counter()
                 routed = dynamic_routing(
                     routing_metadata[app],
                     resources,
                     app_specs[app]["min_fidelity"],
                     deadline,
                 )
+                routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
                     if (app, i) not in drop_logged:
                         drop_logged.add((app, i))
@@ -544,12 +552,14 @@ def simulate_dynamic(
 
                 if last_available > cur_t + EPS and rerouting_mode:
                     routing_decision_cpt += 1
+                    _t0 = time.perf_counter()
                     alt_path = rerouting(
                         rerouting_candidates,
                         resources,
                         app,
                         deadline,
                     )
+                    routing_decision_runtime += time.perf_counter() - _t0
                     if alt_path is not None:
                         (
                             selected_path,
@@ -701,5 +711,6 @@ def simulate_dynamic(
         pga_release_times,
         link_utilization,
         link_waiting,
-        routing_decision_cpt
+        routing_decision_cpt,
+        routing_decision_runtime,
     )

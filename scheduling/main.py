@@ -198,15 +198,20 @@ def run_simulation(
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
+    static_routing_time = 0.0
 
     if static_routing_mode:
+        _t0 = time.perf_counter()
         paths, app_e2e_fidelities = static_routing(
             app_requests, simple_paths, rng
         )
+        static_routing_time = time.perf_counter() - _t0
     elif not fidelity_enabled:
         paths = shortest_paths(edges, app_requests)
         app_e2e_fidelities = {app: float("nan") for app in paths}
+        static_routing_time = 0.0
     else:
+        _t0 = time.perf_counter()
         paths, app_e2e_fidelities = find_feasible_path(
             edges,
             simple_paths,
@@ -223,6 +228,7 @@ def run_simulation(
             rng=rng,
             provisioning=provisioning,
         )
+        static_routing_time = time.perf_counter() - _t0
 
     admitted_paths = {
         app: path_list for app, path_list in paths.items() if path_list
@@ -300,9 +306,7 @@ def run_simulation(
         for app, path_list in paths.items()
     }
     initial_path_map = {
-        app: path_list[0]
-        for app, path_list in paths.items()
-        if path_list
+        app: path_list[0] for app, path_list in paths.items() if path_list
     }
     other_paths_map = {
         app: path_list[1:]
@@ -320,6 +324,7 @@ def run_simulation(
         )
 
     routing_decision_cpt = None
+    routing_decision_runtime = None
     if scheduler == "dynamic":
         (
             df,
@@ -328,6 +333,7 @@ def run_simulation(
             link_utilization,
             link_waiting,
             routing_decision_cpt,
+            routing_decision_runtime,
         ) = simulate_dynamic(
             app_specs,
             durations,
@@ -380,6 +386,9 @@ def run_simulation(
         )
 
     # Save results
+    routing_decision_runtime = (
+        routing_decision_runtime or 0.0
+    ) + static_routing_time
 
     if link_utilization is None:
         link_utilization = {}
@@ -422,6 +431,7 @@ def run_simulation(
         save_csv=save_csv,
         verbose=verbose,
         routing_decision_cpt=routing_decision_cpt,
+        routing_decision_runtime=routing_decision_runtime,
     )
     return feasible, summary
 
