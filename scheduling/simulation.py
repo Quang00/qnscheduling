@@ -17,7 +17,11 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from scheduling.routing import preprovisioned_routing
+from scheduling.routing import (
+    compute_path_durations,
+    dynamic_routing,
+    preprovisioned_routing,
+)
 from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -409,6 +413,16 @@ def simulate_dynamic(
     events_queue = []
     ready_queue = []
 
+    routing_metadata = {}
+    if full_dynamic and simple_paths is not None:
+        for app in app_specs:
+            routing_metadata[app] = compute_path_durations(
+                simple_paths,
+                app_specs[app]["src"],
+                app_specs[app]["dst"],
+                pga_parameters[app],
+            )
+
     def enqueue_release(app: str) -> None:
         idx = release_indices[app]
         if idx >= inst_req[app]:
@@ -470,30 +484,61 @@ def simulate_dynamic(
                 pga_names.append(pga_name)
                 pga_release_times[pga_name] = arrival_time
 
-            route_links = pga_route_links.get(app, [])
-            selected_path = pga_network_paths[app][0]
-            duration = durations.get(app, 0.0)
-
-            last_available = 0.0
-            for link in route_links:
-                last_available = max(last_available, resources.get(link, 0.0))
-
-            if last_available > cur_t + EPS:
-                alt_path = preprovisioned_routing(
-                    pga_network_paths,
+            if full_dynamic and simple_paths is not None:
+                routed = dynamic_routing(
+                    routing_metadata[app],
                     resources,
-                    cur_t,
-                    app,
-                    pga_parameters[app],
-                    rng,
+                    app_specs[app]["min_fidelity"],
+                    deadline,
                 )
-                if alt_path is not None:
-                    (
-                        selected_path,
-                        route_links,
-                        last_available,
-                        duration,
-                    ) = alt_path
+                if routed is None:
+                    if (app, i) not in drop_logged:
+                        drop_logged.add((app, i))
+                        turnaround = max(0.0, cur_t - arrival_time)
+                        wait = max(0.0, cur_t - rdy_t)
+                        result = {
+                            "pga": pga_name,
+                            "arrival_time": arrival_time,
+                            "ready_time": rdy_t,
+                            "start_time": np.nan,
+                            "burst_time": 0.0,
+                            "completion_time": cur_t,
+                            "turnaround_time": turnaround,
+                            "waiting_time": wait,
+                            "pairs_generated": 0,
+                            "status": "drop",
+                            "deadline": deadline,
+                        }
+                        log.append(result)
+                        track_link_waiting(wait, link_waiting, None)
+                    continue
+                selected_path, route_links, last_available, duration = routed
+            else:
+                route_links = pga_route_links.get(app, [])
+                selected_path = pga_network_paths[app][0]
+                duration = durations.get(app, 0.0)
+
+                last_available = 0.0
+                for link in route_links:
+                    last_available = max(
+                        last_available, resources.get(link, 0.0)
+                    )
+
+                if last_available > cur_t + EPS:
+                    alt_path = preprovisioned_routing(
+                        pga_network_paths,
+                        resources,
+                        app,
+                        pga_parameters[app],
+                        deadline,
+                    )
+                    if alt_path is not None:
+                        (
+                            selected_path,
+                            route_links,
+                            last_available,
+                            duration,
+                        ) = alt_path
 
             if last_available > cur_t + EPS:
                 if last_available + duration > deadline + EPS:
