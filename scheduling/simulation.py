@@ -373,6 +373,7 @@ def simulate_dynamic(
     rng: np.random.Generator,
     arrival_rate: float | None = None,
     full_dynamic: bool = True,
+    provisioning: bool = False,
     all_links: List[Tuple[str, str]] | None = None,
     simple_paths: Dict[str, List[List[str]]] | None = None,
 ):
@@ -524,7 +525,7 @@ def simulate_dynamic(
                         last_available, resources.get(link, 0.0)
                     )
 
-                if last_available > cur_t + EPS:
+                if last_available > cur_t + EPS and provisioning:
                     alt_path = preprovisioned_routing(
                         pga_network_paths,
                         resources,

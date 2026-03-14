@@ -326,6 +326,7 @@ def run_simulation(
             rng,
             arrival_rate,
             full_dynamic,
+            provisioning,
             all_links,
             simple_paths,
         )
