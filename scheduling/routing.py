@@ -566,24 +566,20 @@ def find_feasible_path(
 def preprovisioned_routing(
     provisioned_paths: Dict[str, List[List[str]]],
     resources: Dict[Tuple[str, str], float],
-    current_time: float,
     app: str,
     pga_params: Dict[str, float],
-    rng: np.random.Generator,
+    deadline: float,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     candidates = provisioned_paths.get(app, [])
-    selected_path = None
-    selected_links = []
-    selected_duration = float("inf")
-    tied_count = 0
+    best = None
+    best_score = float("inf")
 
     for path in candidates:
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        if any(resources.get(lnk, 0.0) > current_time + EPS for lnk in links):
-            continue
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
         n_swap = max(0, len(path) - 2)
         pga_duration = duration_pga(
             p_packet=pga_params["p_packet"],
@@ -594,51 +590,41 @@ def preprovisioned_routing(
             p_gen=pga_params["p_gen"],
             time_slot_duration=pga_params["slot_duration"],
         )
-        if pga_duration < selected_duration - EPS:
-            selected_path = path
-            selected_links = links
-            selected_duration = pga_duration
-            tied_count = 1
-        elif np.isclose(pga_duration, selected_duration):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path
-                selected_links = links
-                selected_duration = pga_duration
+        finish = avail + pga_duration
+        if finish > deadline + EPS:
+            continue
 
-    if selected_path is None:
-        return None
+        score = (finish, len(path))
+        if best_score is None or score < best_score:
+            best_score = score
+            best = (path, links, avail, pga_duration)
 
-    return selected_path, selected_links, current_time, selected_duration
+    return best
 
 
 def dynamic_routing(
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
     resources: Dict[Tuple[str, str], float],
-    current_time: float,
     src: str,
     dst: str,
     req: Dict[str, Any],
     pga_params: Dict[str, float],
-    rng: np.random.Generator,
+    deadline: float,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     min_fidelity = req["min_fidelity"]
-    selected_path = None
-    selected_links = []
-    selected_duration = float("inf")
-    tied_count = 0
+    best = None
+    best_score = None
 
     for item in all_simple_paths(simple_paths, src, dst):
         e2e_fid, path = item[0], item[1]
-        if e2e_fid < min_fidelity - EPS:
+        if e2e_fid < min_fidelity:
             continue
 
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        if any(resources.get(lnk, 0.0) > current_time + EPS for lnk in links):
-            continue
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
         n_swap = max(0, len(path) - 2)
         pga_duration = duration_pga(
             p_packet=pga_params["p_packet"],
@@ -649,19 +635,13 @@ def dynamic_routing(
             p_gen=pga_params["p_gen"],
             time_slot_duration=pga_params["slot_duration"],
         )
-        if pga_duration < selected_duration - EPS:
-            selected_path = path
-            selected_links = links
-            selected_duration = pga_duration
-            tied_count = 1
-        elif np.isclose(pga_duration, selected_duration):
-            tied_count += 1
-            if rng.integers(tied_count) == 0:
-                selected_path = path
-                selected_links = links
-                selected_duration = pga_duration
+        finish = avail + pga_duration
+        if finish > deadline + EPS:
+            continue
 
-    if selected_path is None:
-        return None
+        score = (finish, len(path))
+        if best_score is None or score < best_score:
+            best_score = score
+            best = (path, links, avail, pga_duration)
 
-    return selected_path, selected_links, current_time, selected_duration
+    return best
