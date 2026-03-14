@@ -399,6 +399,7 @@ def simulate_dynamic(
     }
     min_arrival = float("inf")
     max_completion = 0.0
+    routing_decision_cpt = 0
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
     inst_req = {app: app_specs[app].get("instances") for app in app_specs}
@@ -501,6 +502,7 @@ def simulate_dynamic(
                     default=0.0,
                 )
             elif full_dynamic and simple_paths is not None:
+                routing_decision_cpt += 1
                 routed = dynamic_routing(
                     routing_metadata[app],
                     resources,
@@ -541,6 +543,7 @@ def simulate_dynamic(
                     )
 
                 if last_available > cur_t + EPS and rerouting_mode:
+                    routing_decision_cpt += 1
                     alt_path = rerouting(
                         rerouting_candidates,
                         resources,
@@ -692,9 +695,11 @@ def simulate_dynamic(
         link_busy, min_arrival, max_completion
     )
 
-    for link in all_links:
-        link_waiting.setdefault(
-            link, {"total_waiting_time": 0.0, "pga_waited": 0}
-        )
-
-    return df, pga_names, pga_release_times, link_utilization, link_waiting
+    return (
+        df,
+        pga_names,
+        pga_release_times,
+        link_utilization,
+        link_waiting,
+        routing_decision_cpt
+    )

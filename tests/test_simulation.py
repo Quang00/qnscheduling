@@ -21,7 +21,7 @@ def base_pga_parameters():
 
 
 @pytest.fixture
-def unit_pga_params():
+def unit_params():
     return {
         "p_gen": 1.0,
         "p_swap": 1.0,
@@ -87,7 +87,7 @@ def test_simulate_dynamic_basic(rng):
         "epr_pairs": 1,
         "slot_duration": 0.01,
     }
-    df, _, _, _, _ = _run_dynamic(app_specs, {"A": 0.5}, pga_params, rng)
+    df, _, _, _, _, _ = _run_dynamic(app_specs, {"A": 0.5}, pga_params, rng)
     assert len(df) > 0
 
 
@@ -109,7 +109,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
         "slot_duration": 1.0,
     }
 
-    df, _, _, _, _ = simulate_dynamic(
+    df, _, _, _, _, _ = simulate_dynamic(
         app_specs={
             "A": {"instances": 1, "period": 100.0, "policy": "deadline"},
             "B": {"instances": 1, "period": 6.0, "policy": "deadline"},
@@ -128,14 +128,14 @@ def test_simulate_dynamic_drop_and_defer(rng):
     assert "defer" in statuses
 
 
-def test_simulate_dynamic_drop_exceeds_period(unit_pga_params, rng):
+def test_simulate_dynamic_drop_exceeds_period(unit_params, rng):
     app_specs = {"A": {"instances": 2, "period": 1.0, "policy": "deadline"}}
-    df, _, _, _, _ = _run_dynamic(app_specs, {"A": 5.0}, unit_pga_params, rng)
+    df, _, _, _, _, _ = _run_dynamic(app_specs, {"A": 5.0}, unit_params, rng)
     assert "drop" in set(df["status"])
 
 
-def test_simulate_dynamic_retry(unit_pga_params, rng):
+def test_simulate_dynamic_retry(unit_params, rng):
     app_specs = {"A": {"instances": 20, "period": 1.0, "policy": "deadline"}}
-    params = {**unit_pga_params, "p_gen": 0.5}
-    df, _, _, _, _ = _run_dynamic(app_specs, {"A": 0.1}, params, rng)
+    params = {**unit_params, "p_gen": 0.5}
+    df, _, _, _, _, _ = _run_dynamic(app_specs, {"A": 0.1}, params, rng)
     assert "retry" in set(df["status"])

@@ -244,6 +244,7 @@ def save_results(
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
+    routing_decision_cpt: int | None = None,
 ) -> Dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
@@ -601,6 +602,7 @@ def save_results(
         print(f"Top-10% busy-time share : {top10_busy_share:.4f}")
         print(f"Avg degree       : {avg_deg:.4f}")
         print(f"Fairness         : {fairness:.4f}")
+        print(f"Routing decisions count: {routing_decision_cpt}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
@@ -634,6 +636,7 @@ def save_results(
         "p95_avg_queue_length": float(p95_avg_queue_length),
         "avg_deg": float(avg_deg),
         "fairness": float(fairness),
+        "routing_decision_count": int(routing_decision_cpt),
     }
 
     if save_csv:

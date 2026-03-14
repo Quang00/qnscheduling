@@ -319,6 +319,7 @@ def run_simulation(
             os.path.join(output_dir, "app_requests.csv"), index=False
         )
 
+    routing_decision_cpt = None
     if scheduler == "dynamic":
         (
             df,
@@ -326,6 +327,7 @@ def run_simulation(
             pga_release_times,
             link_utilization,
             link_waiting,
+            routing_decision_cpt,
         ) = simulate_dynamic(
             app_specs,
             durations,
@@ -341,6 +343,8 @@ def run_simulation(
             static_routing_mode,
         )
         feasible = True
+        if not full_dynamic:
+            routing_decision_cpt += 1
     else:
         feasible, schedule = edf_parallel_static(
             pga_rel_times,
@@ -417,6 +421,7 @@ def run_simulation(
         output_dir=output_dir,
         save_csv=save_csv,
         verbose=verbose,
+        routing_decision_cpt=routing_decision_cpt,
     )
     return feasible, summary
 
