@@ -145,6 +145,14 @@ def build_metric_specs(
             "key": "fairness",
             "ylabel": "Fairness",
         },
+        {
+            "key": "routing_decision_count",
+            "ylabel": "Routing decisions",
+        },
+        {
+            "key": "routing_decision_runtime",
+            "ylabel": "Routing computation time (s)",
+        }
     ]
 
     specs = []
@@ -405,17 +413,13 @@ def plot_metrics_vs_load(
             "2.csv",
             "3.csv",
             "4.csv",
-            "5.csv",
-            "6.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Shortest path",
-            "2": "Highest fidelity",
-            "3": "Capacity 0.8",
-            "4": "Capacity 1.0",
-            "5": "Least capacity",
-            "6": "Smallest bottleneck",
+            "1": "Static",
+            "2": "Hybrid",
+            "3": "Rerouting",
+            "4": "Dynamic",
         },
     )
     """

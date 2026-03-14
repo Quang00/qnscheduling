@@ -92,6 +92,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "p95_avg_queue_length": float("nan"),
         "avg_deg": float("nan"),
         "fairness": float("nan"),
+        "routing_decision_count": 0,
+        "routing_decision_runtime": float("nan"),
     }
 
     if summary is not None:

@@ -18,31 +18,43 @@ def main():
         "scheduler": "dynamic",
         "arrival_rate": 5,
         "graph": "gml",
-        "provisioning": True,
     }
 
     scenarios = [
         {
             "id": 1,
-            "name": "shortest",
-            "routing": "shortest",
-            "provisioning": False,
+            "name": "static",
+            "routing_strategy": "static",
         },
         {
             "id": 2,
-            "name": "shortest_provisioning",
-            "routing": "shortest",
-            "provisioning": True,
+            "name": "hybrid",
+            "routing_strategy": "hybrid",
+            "routing": "least",
+        },
+        {
+            "id": 3,
+            "name": "rerouting",
+            "routing_strategy": "rerouting",
+            "routing": "least",
+        },
+        {
+            "id": 4,
+            "name": "dynamic",
+            "routing_strategy": "dynamic",
         },
     ]
 
     for scenario in scenarios:
+        routing_strategy = scenario["routing_strategy"]
         sim_kwargs = dict(
             base_kwargs,
-            routing=scenario["routing"],
-            capacity_threshold=scenario.get("capacity_threshold", None),
-            provisioning=scenario.get("provisioning", True),
+            provisioning=routing_strategy == "rerouting",
+            full_dynamic=routing_strategy == "dynamic",
+            static_routing_mode=routing_strategy == "static",
         )
+        if "routing" in scenario:
+            sim_kwargs["routing"] = scenario["routing"]
 
         print(f"Running {scenario['name']}:")
 
