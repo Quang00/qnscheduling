@@ -20,7 +20,7 @@ import pandas as pd
 from scheduling.routing import (
     compute_path_durations,
     dynamic_routing,
-    preprovisioned_routing,
+    rerouting,
 )
 from utils.helper import compute_link_utilization, track_link_waiting
 
@@ -373,9 +373,10 @@ def simulate_dynamic(
     rng: np.random.Generator,
     arrival_rate: float | None = None,
     full_dynamic: bool = True,
-    provisioning: bool = False,
+    rerouting_mode: bool = False,
     all_links: List[Tuple[str, str]] | None = None,
     simple_paths: Dict[str, List[List[str]]] | None = None,
+    static_routing_mode: bool = False,
 ):
     log = []
     pga_release_times = {}
@@ -485,7 +486,15 @@ def simulate_dynamic(
                 pga_names.append(pga_name)
                 pga_release_times[pga_name] = arrival_time
 
-            if full_dynamic and simple_paths is not None:
+            if static_routing_mode:
+                route_links = pga_route_links.get(app, [])
+                selected_path = pga_network_paths[app][0]
+                duration = durations.get(app, 0.0)
+                last_available = max(
+                    (resources.get(lk, 0.0) for lk in route_links),
+                    default=0.0,
+                )
+            elif full_dynamic and simple_paths is not None:
                 routed = dynamic_routing(
                     routing_metadata[app],
                     resources,
@@ -525,8 +534,8 @@ def simulate_dynamic(
                         last_available, resources.get(link, 0.0)
                     )
 
-                if last_available > cur_t + EPS and provisioning:
-                    alt_path = preprovisioned_routing(
+                if last_available > cur_t + EPS and rerouting_mode:
+                    alt_path = rerouting(
                         pga_network_paths,
                         resources,
                         app,

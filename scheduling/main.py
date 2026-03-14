@@ -59,7 +59,11 @@ import pandas as pd
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
-from scheduling.routing import find_feasible_path, shortest_paths
+from scheduling.routing import (
+    find_feasible_path,
+    shortest_paths,
+    static_routing
+)
 from scheduling.simulation import simulate_dynamic, simulate_static
 from scheduling.static import edf_parallel_static
 from utils.graph_generator import fat_tree, generate_waxman_graph
@@ -97,6 +101,7 @@ def run_simulation(
     graph: str | None = None,
     provisioning: bool = True,
     full_dynamic: bool = True,
+    static_routing_mode: bool = False,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -194,7 +199,11 @@ def run_simulation(
     routing_mode = str(routing)
     admitted_specs = {}
 
-    if not fidelity_enabled:
+    if static_routing_mode:
+        paths, app_e2e_fidelities = static_routing(
+            app_requests, simple_paths, rng
+        )
+    elif not fidelity_enabled:
         paths = shortest_paths(edges, app_requests)
         app_e2e_fidelities = {app: float("nan") for app in paths}
     else:
@@ -329,6 +338,7 @@ def run_simulation(
             provisioning,
             all_links,
             simple_paths,
+            static_routing_mode,
         )
         feasible = True
     else:
@@ -556,11 +566,11 @@ def main():
         "--routing-strategy",
         "-rs",
         type=str,
-        choices=["provisioning", "hybrid", "dynamic"],
+        choices=["static", "hybrid", "rerouting", "dynamic"],
         default=None,
-        help="Routing strategy: 'provisioning' (pre-provisioned paths),"
-        "'hybrid' (no provisioning), or"
-        "'dynamic'(full dynamic routing + scheduling)",
+        help="Routing strategy: 'static' (fixed static paths), 'hybrid' ("
+        "static no rerouting), 'rerouting' (static rerouting),"
+        "or 'dynamic' (dynamic routing)",
     )
     parser.add_argument(
         "--seed",
@@ -610,8 +620,9 @@ def main():
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
-        provisioning=args.routing_strategy == "provisioning",
+        provisioning=args.routing_strategy == "rerouting",
         full_dynamic=args.routing_strategy == "dynamic",
+        static_routing_mode=args.routing_strategy == "static",
     )
     t1 = time.perf_counter()
 

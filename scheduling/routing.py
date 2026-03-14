@@ -563,7 +563,7 @@ def find_feasible_path(
     return ret, e2e_fids
 
 
-def preprovisioned_routing(
+def rerouting(
     provisioned_paths: Dict[str, List[List[str]]],
     resources: Dict[Tuple[str, str], float],
     app: str,
@@ -650,3 +650,37 @@ def dynamic_routing(
             best_score = score
             best = (path, links, avail, pga_duration)
     return best
+
+
+def static_routing(
+    app_requests: Dict[str, Dict[str, Any]],
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    rng: np.random.Generator,
+) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
+    ret = {}
+    e2e_fids = {}
+    for app, req in app_requests.items():
+        src, dst = req["src"], req["dst"]
+        best_fid = float("nan")
+        tied_candidates = []
+        for path in all_simple_paths(simple_paths, src, dst):
+            e2e_fid, path_nodes = path[0], path[1]
+            if not tied_candidates or e2e_fid > best_fid:
+                best_fid = e2e_fid
+                tied_candidates = [list(path_nodes)]
+            elif np.isclose(e2e_fid, best_fid):
+                tied_candidates.append(list(path_nodes))
+        if not tied_candidates:
+            ret[app] = []
+            e2e_fids[app] = float("nan")
+        else:
+            min_len = min(len(p) for p in tied_candidates)
+            shortest = [p for p in tied_candidates if len(p) == min_len]
+            idx = (
+                0
+                if len(shortest) == 1
+                else int(rng.integers(len(shortest)))
+            )
+            ret[app] = [shortest[idx]]
+            e2e_fids[app] = best_fid
+    return ret, e2e_fids
