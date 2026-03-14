@@ -572,7 +572,7 @@ def preprovisioned_routing(
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     candidates = provisioned_paths.get(app, [])
     best = None
-    best_score = float("inf")
+    best_score = None
 
     for path in candidates:
         links = [
@@ -593,7 +593,6 @@ def preprovisioned_routing(
         finish = avail + pga_duration
         if finish > deadline + EPS:
             continue
-
         score = (finish, len(path))
         if best_score is None or score < best_score:
             best_score = score
@@ -602,46 +601,52 @@ def preprovisioned_routing(
     return best
 
 
-def dynamic_routing(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    resources: Dict[Tuple[str, str], float],
+def compute_path_durations(
+    simple_paths: Dict[Tuple[str, str], List],
     src: str,
     dst: str,
-    req: Dict[str, Any],
     pga_params: Dict[str, float],
-    deadline: float,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    min_fidelity = req["min_fidelity"]
-    best = None
-    best_score = None
-
+) -> List[Tuple[float, Any, List[Tuple[str, str]], float]]:
+    duration_by_nswap = {}
+    result = []
     for item in all_simple_paths(simple_paths, src, dst):
         e2e_fid, path = item[0], item[1]
-        if e2e_fid < min_fidelity:
-            continue
-
         links = [
             tuple(sorted((u, v)))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
         n_swap = max(0, len(path) - 2)
-        pga_duration = duration_pga(
-            p_packet=pga_params["p_packet"],
-            epr_pairs=int(pga_params["epr_pairs"]),
-            n_swap=n_swap,
-            memory=pga_params["memory"],
-            p_swap=pga_params["p_swap"],
-            p_gen=pga_params["p_gen"],
-            time_slot_duration=pga_params["slot_duration"],
-        )
+        if n_swap not in duration_by_nswap:
+            duration_by_nswap[n_swap] = duration_pga(
+                p_packet=pga_params["p_packet"],
+                epr_pairs=int(pga_params["epr_pairs"]),
+                n_swap=n_swap,
+                memory=pga_params["memory"],
+                p_swap=pga_params["p_swap"],
+                p_gen=pga_params["p_gen"],
+                time_slot_duration=pga_params["slot_duration"],
+            )
+        result.append((e2e_fid, path, links, duration_by_nswap[n_swap]))
+    return result
+
+
+def dynamic_routing(
+    candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
+    resources: Dict[Tuple[str, str], float],
+    min_fidelity: float,
+    deadline: float,
+) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
+    best = None
+    best_score = None
+    for e2e_fid, path, links, pga_duration in candidate_paths:
+        if e2e_fid < min_fidelity:
+            continue
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
         finish = avail + pga_duration
         if finish > deadline + EPS:
             continue
-
         score = (finish, len(path))
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, avail, pga_duration)
-
     return best
