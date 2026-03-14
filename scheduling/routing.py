@@ -564,32 +564,16 @@ def find_feasible_path(
 
 
 def rerouting(
-    provisioned_paths: Dict[str, List[List[str]]],
+    precomputed: Dict[str, List[Tuple]],
     resources: Dict[Tuple[str, str], float],
     app: str,
-    pga_params: Dict[str, float],
     deadline: float,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    candidates = provisioned_paths.get(app, [])
     best = None
     best_score = None
 
-    for path in candidates:
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
+    for _, path, links, pga_duration in precomputed.get(app, []):
         avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
-        n_swap = max(0, len(path) - 2)
-        pga_duration = duration_pga(
-            p_packet=pga_params["p_packet"],
-            epr_pairs=int(pga_params["epr_pairs"]),
-            n_swap=n_swap,
-            memory=pga_params["memory"],
-            p_swap=pga_params["p_swap"],
-            p_gen=pga_params["p_gen"],
-            time_slot_duration=pga_params["slot_duration"],
-        )
         finish = avail + pga_duration
         if finish > deadline + EPS:
             continue
@@ -602,17 +586,24 @@ def rerouting(
 
 
 def compute_path_durations(
-    simple_paths: Dict[Tuple[str, str], List],
-    src: str,
-    dst: str,
     pga_params: Dict[str, float],
-) -> List[Tuple[float, Any, List[Tuple[str, str]], float]]:
+    simple_paths: Dict[Tuple[str, str], List] | None = None,
+    provisioned_paths: List[List[str]] | None = None,
+    src: str | None = None,
+    dst: str | None = None,
+) -> List[Tuple]:
     duration_by_nswap = {}
     result = []
-    for item in all_simple_paths(simple_paths, src, dst):
-        e2e_fid, path = item[0], item[1]
+    if provisioned_paths is not None:
+        items = ((None, p) for p in provisioned_paths)
+    else:
+        items = (
+            (item[0], item[1])
+            for item in all_simple_paths(simple_paths, src, dst)
+        )
+    for e2e_fid, path in items:
         links = [
-            tuple(sorted((u, v)))
+            (min(u, v), max(u, v))
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
         n_swap = max(0, len(path) - 2)

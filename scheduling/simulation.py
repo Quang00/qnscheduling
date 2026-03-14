@@ -416,13 +416,19 @@ def simulate_dynamic(
     ready_queue = []
 
     routing_metadata = {}
+    rerouting_candidates = {}
     if full_dynamic and simple_paths is not None:
         for app in app_specs:
             routing_metadata[app] = compute_path_durations(
-                simple_paths,
-                app_specs[app]["src"],
-                app_specs[app]["dst"],
                 pga_parameters[app],
+                simple_paths=simple_paths,
+                src=app_specs[app]["src"],
+                dst=app_specs[app]["dst"],
+            )
+    elif rerouting_mode:
+        for app, app_paths in pga_network_paths.items():
+            rerouting_candidates[app] = compute_path_durations(
+                pga_parameters[app], provisioned_paths=app_paths
             )
 
     def enqueue_release(app: str) -> None:
@@ -536,10 +542,9 @@ def simulate_dynamic(
 
                 if last_available > cur_t + EPS and rerouting_mode:
                     alt_path = rerouting(
-                        pga_network_paths,
+                        rerouting_candidates,
                         resources,
                         app,
-                        pga_parameters[app],
                         deadline,
                     )
                     if alt_path is not None:
