@@ -206,6 +206,13 @@ def run_simulation(
             app_requests, simple_paths, rng
         )
         static_routing_time = time.perf_counter() - _t0
+    elif full_dynamic:
+        paths = {
+            app: [[req["src"], req["dst"]]]
+            for app, req in app_requests.items()
+        }
+        app_e2e_fidelities = {app: float("nan") for app in app_requests}
+        static_routing_time = 0.0
     elif not fidelity_enabled:
         paths = shortest_paths(edges, app_requests)
         app_e2e_fidelities = {app: float("nan") for app in paths}
