@@ -148,6 +148,7 @@ def build_metric_specs(
         {
             "key": "routing_decision_count",
             "ylabel": "Routing decisions",
+            "yscale": "log",
         },
         {
             "key": "routing_decision_runtime",
@@ -412,14 +413,12 @@ def plot_metrics_vs_load(
             "1.csv",
             "2.csv",
             "3.csv",
-            "4.csv",
         ],
         multi=True,
         gp_labels={
             "1": "Static",
             "2": "Hybrid",
-            "3": "Rerouting",
-            "4": "Dynamic",
+            "3": "Dynamic",
         },
     )
     """

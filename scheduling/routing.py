@@ -624,7 +624,7 @@ def dynamic_routing(
         else:
             max_util = sum_util = 0.0
 
-        score = (finish, max_util, sum_util, len(path))
+        score = (finish, sum_util, max_util, len(path))
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, avail, pga_duration)
