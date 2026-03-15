@@ -407,6 +407,7 @@ def simulate_dynamic(
     inst_req = {app: app_specs[app].get("instances") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
+    completed_instances = {app: 0 for app in app_specs}
     poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
     poisson = (1.0 / arrival_rate) if poisson_enabled else None
     poisson_next_release = (
@@ -439,9 +440,9 @@ def simulate_dynamic(
             routing_decision_runtime += time.perf_counter() - _t0
 
     def enqueue_release(app: str) -> None:
-        idx = release_indices[app]
-        if idx >= inst_req[app]:
+        if completed_instances[app] >= inst_req[app]:
             return
+        idx = release_indices[app]
         period = periods[app]
 
         if poisson_enabled:
@@ -491,6 +492,8 @@ def simulate_dynamic(
             deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
+            if completed_instances[app] >= inst_req[app]:
+                continue
             min_arrival = min(min_arrival, float(arrival_time))
 
             pga_name = f"{app}{i}"
@@ -681,6 +684,7 @@ def simulate_dynamic(
 
             status = result.get("status", "")
             if status == "completed":
+                completed_instances[app] += 1
                 continue
 
             next_ready_time = result["completion_time"] + EPS
