@@ -180,7 +180,10 @@ def run_simulation(
             for app in app_specs.keys()
         }
     else:
-        pga_rel_times = {app: 0.0 for app in app_specs.keys()}
+        pga_rel_times = {
+            app: float(rng.uniform(0.0, spec["period"]))
+            for app, spec in app_specs.items()
+        }
 
     # Find feasible paths for each application based on fidelity/routing mode
     app_requests = {
