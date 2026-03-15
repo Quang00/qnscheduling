@@ -101,55 +101,33 @@ def smallest_bottleneck(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-    rng: np.random.Generator | None = None,
-    provisioning: bool = True,
+    k: int | None = None,
 ) -> Tuple[List[List[str]], float, float]:
-    """Select the path with the smallest bottleneck capacity among all paths
-    that meet the fidelity requirement. The bottleneck capacity of a path is
-    defined as the maximum capacity utilization of any edge along the path
-    after accounting for the additional load (delta) introduced by the new
-    request.
-    """
-    min_val = None
-    tied_candidates = []
-    all_paths = all_simple_paths(simple_paths, src, dst)
-
-    for path in all_paths:
-        e2e_fid, path = path[0], path[1]
+    candidates = []
+    for e2e_fid, path in all_simple_paths(simple_paths, src, dst):
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
             path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
+        post_loads = [cap[lk] + delta for lk in links]
+        bottleneck = max(post_loads)
+        total_load = sum(post_loads)
+        hop_count = len(path) - 1
+        candidates.append(
+            (bottleneck, total_load, hop_count, path, delta, e2e_fid)
+        )
 
-        max_cap = max(cap[lk] + delta for lk in links)
-        if min_val is None or max_cap < min_val:
-            min_val = max_cap
-            tied_candidates = [(path, delta, e2e_fid)]
-        elif np.isclose(max_cap, min_val):
-            tied_candidates.append((path, delta, e2e_fid))
-
-    if not tied_candidates:
+    if not candidates:
         return [], 0.0, float("nan")
 
-    initial_idx = (
-        0
-        if rng is None or len(tied_candidates) == 1
-        else int(rng.integers(len(tied_candidates)))
-    )
-    selected_path, selected_delta, selected_e2e_fid = (
-        tied_candidates[initial_idx]
-    )
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+    if k is not None:
+        candidates = candidates[:k]
 
-    if provisioning:
-        result = [list(selected_path)] + [
-            list(p)
-            for i, (p, _, _) in enumerate(tied_candidates)
-            if i != initial_idx
-        ]
-    else:
-        result = [list(selected_path)]
-    return result, selected_delta, selected_e2e_fid
+    selected = candidates[0]
+    result = [list(c[3]) for c in candidates]
+    return result, selected[4], selected[5]
 
 
 def least_capacity(
@@ -478,8 +456,7 @@ def find_feasible_path(
                 p_swap,
                 p_gen,
                 time_slot_duration,
-                rng,
-                provisioning,
+                k=None if provisioning else 1,
             )
             if not path_list:
                 ret[app] = []
