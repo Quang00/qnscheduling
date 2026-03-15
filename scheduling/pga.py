@@ -8,14 +8,13 @@ compute the duration of a Packet Generation Attempt (PGA) based on these
 probabilities.
 """
 
+from functools import lru_cache
+
 from scipy.stats import binom
 
 
 def probability_e2e(
-    n_swap: int,
-    memory: int = 1,
-    p_gen: float = 0.001,
-    p_swap: float = 0.95
+    n_swap: int, memory: int = 1, p_gen: float = 0.001, p_swap: float = 0.95
 ) -> float:
     """Calculate the end-to-end probability of generating EPR pairs in a given
     path.
@@ -57,6 +56,7 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
     return binom.sf(k - 1, float(n), p_e2e) >= p_packet
 
 
+@lru_cache(maxsize=None)
 def duration_pga(
     p_packet: float,
     epr_pairs: int,
