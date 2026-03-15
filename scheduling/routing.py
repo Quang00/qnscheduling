@@ -603,6 +603,8 @@ def dynamic_routing(
     resources: Dict[Tuple[str, str], float],
     min_fidelity: float,
     deadline: float,
+    cur_t: float = 0.0,
+    link_busy: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     best = None
     best_score = None
@@ -610,10 +612,19 @@ def dynamic_routing(
         if e2e_fid < min_fidelity:
             continue
         avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
-        finish = avail + pga_duration
+        effective_start = max(avail, cur_t)
+        finish = effective_start + pga_duration
         if finish > deadline + EPS:
             continue
-        score = (finish, len(path))
+
+        if cur_t > 0.0:
+            utils = [link_busy.get(lnk, 0.0) / cur_t for lnk in links]
+            max_util = max(utils, default=0.0)
+            sum_util = sum(utils)
+        else:
+            max_util = sum_util = 0.0
+
+        score = (finish, max_util, sum_util, len(path))
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, avail, pga_duration)
