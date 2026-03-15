@@ -360,7 +360,10 @@ def run_simulation(
         )
         feasible = True
         if not full_dynamic:
-            routing_decision_cpt += 1
+            if static_routing_mode:
+                routing_decision_cpt += 1
+            else:
+                routing_decision_cpt += len(app_specs)
     else:
         feasible, schedule = edf_parallel_static(
             pga_rel_times,
