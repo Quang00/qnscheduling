@@ -440,7 +440,7 @@ def simulate_dynamic(
             routing_decision_runtime += time.perf_counter() - _t0
 
     def enqueue_release(app: str) -> None:
-        if completed_instances[app] >= inst_req[app]:
+        if release_indices[app] >= inst_req[app]:
             return
         idx = release_indices[app]
         period = periods[app]
