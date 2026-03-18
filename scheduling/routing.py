@@ -112,22 +112,18 @@ def smallest_bottleneck(
         )
         post_loads = [cap[lk] + delta for lk in links]
         bottleneck = max(post_loads)
-        total_load = sum(post_loads)
-        hop_count = len(path) - 1
-        candidates.append(
-            (bottleneck, total_load, hop_count, path, delta, e2e_fid)
-        )
+        candidates.append((bottleneck, path, delta, e2e_fid))
 
     if not candidates:
         return [], 0.0, float("nan")
 
-    candidates.sort(key=lambda x: (x[0], x[1], x[2]))
+    candidates.sort(key=lambda x: x[0])
     if k is not None:
         candidates = candidates[:k]
 
     selected = candidates[0]
-    result = [list(c[3]) for c in candidates]
-    return result, selected[4], selected[5]
+    result = [list(c[1]) for c in candidates]
+    return result, selected[2], selected[3]
 
 
 def least_capacity(
@@ -604,30 +600,22 @@ def dynamic_routing(
     min_fidelity: float,
     deadline: float,
     cur_t: float = 0.0,
-    link_busy: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
     best = None
     best_score = None
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
-        effective_start = max(avail, cur_t)
-        finish = effective_start + pga_duration
+        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
+        start = cur_t + max(waits, default=0.0)
+        finish = start + pga_duration
         if finish > deadline + EPS:
             continue
-
-        if cur_t > 0.0:
-            utils = [link_busy.get(lnk, 0.0) / cur_t for lnk in links]
-            max_util = max(utils, default=0.0)
-            sum_util = sum(utils)
-        else:
-            max_util = sum_util = 0.0
-
-        score = (finish, sum_util, max_util, len(path))
+        max_wait = max(waits, default=0.0)
+        score = (finish, max_wait)
         if best_score is None or score < best_score:
             best_score = score
-            best = (path, links, avail, pga_duration)
+            best = (path, links, start, pga_duration)
     return best
 
 
@@ -653,13 +641,11 @@ def static_routing(
             ret[app] = []
             e2e_fids[app] = float("nan")
         else:
-            min_len = min(len(p) for p in tied_candidates)
-            shortest = [p for p in tied_candidates if len(p) == min_len]
             idx = (
                 0
-                if len(shortest) == 1
-                else int(rng.integers(len(shortest)))
+                if len(tied_candidates) == 1
+                else int(rng.integers(len(tied_candidates)))
             )
-            ret[app] = [shortest[idx]]
+            ret[app] = [tied_candidates[idx]]
             e2e_fids[app] = best_fid
     return ret, e2e_fids

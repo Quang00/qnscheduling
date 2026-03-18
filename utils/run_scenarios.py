@@ -3,7 +3,7 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    n_apps_values = [200, 400, 600, 800, 1000]
+    n_apps_values = [100, 200, 300, 400, 500]
     topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
 
@@ -16,6 +16,7 @@ def main():
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
+        "arrival_rate": 5,
         "graph": "gml",
     }
 
@@ -29,7 +30,7 @@ def main():
             "id": 2,
             "name": "hybrid",
             "routing_strategy": "hybrid",
-            "routing": "least",
+            "routing": "smallest",
         },
         {
             "id": 3,

@@ -519,7 +519,6 @@ def simulate_dynamic(
                     app_specs[app]["min_fidelity"],
                     deadline,
                     cur_t,
-                    link_busy,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
