@@ -378,6 +378,7 @@ def simulate_dynamic(
     all_links: List[Tuple[str, str]] | None = None,
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
+    horizon_time: float | None = None,
 ):
     log = []
     pga_release_times = {}
@@ -404,10 +405,8 @@ def simulate_dynamic(
     routing_decision_runtime = 0.0
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
-    inst_req = {app: app_specs[app].get("instances") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     release_indices = {app: 0 for app in app_specs}
-    completed_instances = {app: 0 for app in app_specs}
     poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
     poisson = (1.0 / arrival_rate) if poisson_enabled else None
     poisson_next_release = (
@@ -440,8 +439,6 @@ def simulate_dynamic(
             routing_decision_runtime += time.perf_counter() - _t0
 
     def enqueue_release(app: str) -> None:
-        if release_indices[app] >= inst_req[app]:
-            return
         idx = release_indices[app]
         period = periods[app]
 
@@ -450,6 +447,9 @@ def simulate_dynamic(
             poisson_next_release[app] = release + rng.exponential(poisson)
         else:
             release = base_release[app] + period * idx
+
+        if release > horizon_time + EPS:
+            return
 
         deadline = release + period
         heapq.heappush(
@@ -466,6 +466,9 @@ def simulate_dynamic(
     while events_queue or ready_queue:
         if not ready_queue:
             cur_t = events_queue[0][0]
+
+        if cur_t > horizon_time + EPS:
+            break
 
         while events_queue and events_queue[0][0] <= cur_t + EPS:
             (
@@ -492,8 +495,6 @@ def simulate_dynamic(
             deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
-            if completed_instances[app] >= inst_req[app]:
-                continue
             min_arrival = min(min_arrival, float(arrival_time))
 
             pga_name = f"{app}{i}"
@@ -685,7 +686,6 @@ def simulate_dynamic(
 
             status = result.get("status", "")
             if status == "completed":
-                completed_instances[app] += 1
                 continue
 
             next_ready_time = result["completion_time"] + EPS
