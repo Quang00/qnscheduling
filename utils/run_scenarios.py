@@ -18,6 +18,7 @@ def main():
         "scheduler": "dynamic",
         "arrival_rate": 5,
         "graph": "gml",
+        "windows": (0, 25),
     }
 
     scenarios = [
@@ -30,7 +31,7 @@ def main():
             "id": 2,
             "name": "hybrid",
             "routing_strategy": "hybrid",
-            "routing": "smallest",
+            "routing": "least",
         },
         {
             "id": 3,
