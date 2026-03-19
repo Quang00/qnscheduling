@@ -44,7 +44,13 @@ def _run_static(schedule, period, end_time, base_params, rng):
     )
 
 
-def _run_dynamic(app_specs, durations, pga_params, rng):
+def _run_dynamic(
+    app_specs,
+    durations,
+    pga_params,
+    rng,
+    max_window_time=20.0,
+):
     return simulate_dynamic(
         app_specs=app_specs,
         durations=durations,
@@ -53,6 +59,7 @@ def _run_dynamic(app_specs, durations, pga_params, rng):
         pga_network_paths={"A": [["Alice", "Bob"]]},
         rng=rng,
         all_links=[("Alice", "Bob")],
+        horizon_time=max_window_time,
     )
 
 
@@ -122,6 +129,7 @@ def test_simulate_dynamic_drop_and_defer(rng):
         rng=rng,
         arrival_rate=None,
         all_links=[("Alice", "Bob")],
+        horizon_time=20.0,
     )
     statuses = set(df["status"])
     assert "drop" in statuses

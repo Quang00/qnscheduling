@@ -640,8 +640,16 @@ def save_results(
         "p95_avg_queue_length": float(p95_avg_queue_length),
         "avg_deg": float(avg_deg),
         "fairness": float(fairness),
-        "routing_decision_count": int(routing_decision_cpt),
-        "routing_decision_runtime": float(routing_decision_runtime),
+        "routing_decision_count": (
+            int(routing_decision_cpt)
+            if routing_decision_cpt is not None
+            else None
+        ),
+        "routing_decision_runtime": (
+            float(routing_decision_runtime)
+            if routing_decision_runtime is not None
+            else None
+        ),
     }
 
     if save_csv:
