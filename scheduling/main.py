@@ -102,6 +102,7 @@ def run_simulation(
     provisioning: bool = True,
     full_dynamic: bool = True,
     static_routing_mode: bool = False,
+    windows: tuple[float, float] | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -127,6 +128,9 @@ def run_simulation(
         scheduler (str): Either "static" or "dynamic".
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
+        windows (tuple[float, float] | None): Post-warm-up observation
+            window as (min_time, max_time). In dynamic mode, max_time is used
+            as the simulation horizon.
     Returns:
         tuple[bool, dict]:
             A tuple containing:
@@ -357,6 +361,7 @@ def run_simulation(
             all_links,
             simple_paths,
             static_routing_mode,
+            horizon_time=windows[1] if windows is not None else None,
         )
         feasible = True
         if not full_dynamic:
@@ -498,6 +503,15 @@ def main():
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(
+        "--windows",
+        "-w",
+        type=float,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=None,
+        help="Post–warm-up observation window",
+    )
+    parser.add_argument(
         "--hyperperiod",
         "-hp",
         type=float,
@@ -634,6 +648,7 @@ def main():
         inst_range=args.inst,
         epr_range=args.epr,
         period_range=args.period,
+        windows=args.windows,
         hyperperiod_cycles=args.hyperperiod,
         p_packet=args.ppacket,
         memory=args.memory,
@@ -669,6 +684,12 @@ def main():
         "epr_max": args.epr[1],
         "period_min": args.period[0],
         "period_max": args.period[1],
+        "windows_min": (
+            args.windows[0] if args.windows is not None else None
+        ),
+        "windows_max": (
+            args.windows[1] if args.windows is not None else None
+        ),
         "hyperperiod_cycles": args.hyperperiod,
         "p_packet": args.ppacket,
         "memory": args.memory,
