@@ -508,7 +508,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=None,
+        default=[0, 25.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(

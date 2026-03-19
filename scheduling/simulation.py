@@ -448,7 +448,7 @@ def simulate_dynamic(
         else:
             release = base_release[app] + period * idx
 
-        if release > horizon_time + EPS:
+        if release >= horizon_time:
             return
 
         deadline = release + period
@@ -467,7 +467,7 @@ def simulate_dynamic(
         if not ready_queue:
             cur_t = events_queue[0][0]
 
-        if cur_t > horizon_time + EPS:
+        if cur_t >= horizon_time:
             break
 
         while events_queue and events_queue[0][0] <= cur_t + EPS:
@@ -482,6 +482,9 @@ def simulate_dynamic(
             ) = heapq.heappop(events_queue)
             if event_type == "release":
                 enqueue_release(app)
+
+            if event_time >= horizon_time:
+                continue
 
             heapq.heappush(
                 ready_queue,
