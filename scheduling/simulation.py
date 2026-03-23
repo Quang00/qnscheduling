@@ -408,6 +408,10 @@ def simulate_dynamic(
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
+    max_instances = {
+        app: max(0, int(app_specs[app].get("instances", 0)))
+        for app in app_specs
+    }
     release_indices = {app: 0 for app in app_specs}
     poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
     poisson = (1.0 / arrival_rate) if poisson_enabled else None
@@ -439,11 +443,6 @@ def simulate_dynamic(
                 pga_parameters[app], provisioned_paths=app_paths
             )
             routing_decision_runtime += time.perf_counter() - _t0
-
-    max_instances = {
-        app: max(0, int(app_specs[app].get("instances", 0)))
-        for app in app_specs
-    }
 
     def enqueue_release(app: str) -> None:
         idx = release_indices[app]

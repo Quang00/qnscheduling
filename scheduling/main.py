@@ -455,6 +455,7 @@ def run_simulation(
         verbose=verbose,
         routing_decision_cpt=routing_decision_cpt,
         routing_decision_runtime=routing_decision_runtime,
+        warmup=windows[0] if windows is not None else None,
     )
     return feasible, summary
 
@@ -510,7 +511,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[0, 40.0],
+        default=[0.0, 100.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
