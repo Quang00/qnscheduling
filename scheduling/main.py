@@ -80,7 +80,7 @@ from utils.helper import (
 def run_simulation(
     config: str,
     n_apps: int,
-    inst_range: tuple[int, int],
+    inst_range: int,
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
     hyperperiod_cycles: int,
@@ -481,11 +481,8 @@ def main():
         "--inst",
         "-i",
         type=int,
-        nargs=2,
-        metavar=("MIN", "MAX"),
-        default=[2, 2],
-        help="Number of entanglement packets to generate per application"
-        "(e.g., --inst 1 5)",
+        default=100,
+        help="Number of instances to generate per application",
     )
     parser.add_argument(
         "--epr",
@@ -512,7 +509,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[0, 25.0],
+        default=[0, 40.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
@@ -620,12 +617,14 @@ def main():
     )
     parser.add_argument(
         "--on",
+        "-on",
         type=float,
         default=None,
         help="Burst: On period until x packets generated (Poisson)",
     )
     parser.add_argument(
         "--off",
+        "-off",
         type=float,
         default=None,
         help="Burst: Off application duration (Exponential)",
@@ -696,8 +695,7 @@ def main():
     params = {
         "config": args.config,
         "n_apps": args.apps,
-        "inst_min": args.inst[0],
-        "inst_max": args.inst[1],
+        "inst_range": args.inst,
         "epr_min": args.epr[0],
         "epr_max": args.epr[1],
         "period_min": args.period[0],

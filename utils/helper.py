@@ -111,7 +111,7 @@ def app_params_sim(
 def build_default_sim_args(config: str, args: dict | None) -> dict:
     default_args = {
         "config": config,
-        "inst_range": (100, 100),
+        "inst_range": 100,
         "epr_range": (2, 2),
         "period_range": (1, 1),
         "hyperperiod_cycles": 1000,
@@ -739,7 +739,7 @@ def generate_n_apps(
     nodes: list[str],
     bounds: dict[tuple, tuple],
     n_apps: int,
-    inst_range: tuple[int, int],
+    inst_range: int,
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
     list_policies: list[str],
@@ -750,8 +750,8 @@ def generate_n_apps(
     Args:
         nodes (list): List of available nodes in the network.
         n_apps (int): Number of applications to generate.
-        inst_range (tuple[int, int]): Range (min, max) for the number of
-        instances for each application.
+        inst_range (int): Poisson lambda for the number of instances
+        per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
         pairs for each application.
         period_range (tuple[float, float]): Range (min, max) for the period
@@ -785,7 +785,7 @@ def generate_n_apps(
         apps[name_app] = {
             "src": src,
             "dst": dst,
-            "instances": int(rng.integers(inst_range[0], inst_range[1] + 1)),
+            "instances": int(rng.poisson(lam=inst_range)),
             "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
             "period": float(rng.uniform(period_range[0], period_range[1])),
             "min_fidelity": float(rng.uniform(min_f, max_f)),

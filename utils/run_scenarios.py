@@ -8,7 +8,7 @@ def main():
     simulations_per_point = 200
 
     base_kwargs = {
-        "inst_range": (100, 100),
+        "inst_range": 100,
         "epr_range": (2, 2),
         "period_range": (1, 1),
         "memory": 1000,

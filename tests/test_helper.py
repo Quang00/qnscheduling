@@ -86,7 +86,7 @@ def test_shared_node_but_distinct_links():
 
 def test_build_default_sim_args_no_overrides():
     result = build_default_sim_args("config", None)
-    assert result["inst_range"] == (100, 100)
+    assert result["inst_range"] == 100
     assert result["epr_range"] == (2, 2)
     assert result["period_range"] == (1, 1)
 
@@ -179,7 +179,7 @@ def test_generate_n_apps():
     rng = np.random.default_rng(seed=42)
     nodes = ["Alice", "David"]
     n_apps = 3
-    inst_range = (1, 5)
+    inst_range = 3
     epr_range = (1, 3)
     period_range = (10.0, 20.0)
     list_policies = ["policy1", "policy2"]
