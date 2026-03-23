@@ -456,6 +456,7 @@ def run_simulation(
         routing_decision_cpt=routing_decision_cpt,
         routing_decision_runtime=routing_decision_runtime,
         warmup=windows[0] if windows is not None else None,
+        end_time=windows[1] if windows is not None else None,
     )
     return feasible, summary
 

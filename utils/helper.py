@@ -249,6 +249,7 @@ def save_results(
     routing_decision_cpt: int | None = None,
     routing_decision_runtime: float | None = None,
     warmup: float | None = None,
+    end_time: float | None = None,
 ) -> Dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
@@ -353,6 +354,8 @@ def save_results(
     df = df.sort_values(by="completion_time").reset_index(drop=True)
     if warmup is not None:
         df = df[df["arrival_time"] >= warmup].reset_index(drop=True)
+    if end_time is not None:
+        df = df[df["arrival_time"] <= end_time].reset_index(drop=True)
 
     tot_reqs = df["pga"].nunique()
     df_ord = df.copy()
