@@ -440,9 +440,17 @@ def simulate_dynamic(
             )
             routing_decision_runtime += time.perf_counter() - _t0
 
+    max_instances = {
+        app: max(0, int(app_specs[app].get("instances", 0)))
+        for app in app_specs
+    }
+
     def enqueue_release(app: str) -> None:
         idx = release_indices[app]
         period = periods[app]
+
+        if max_instances[app] > 0 and idx >= max_instances[app]:
+            return
 
         if poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
