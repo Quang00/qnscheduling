@@ -379,6 +379,8 @@ def simulate_dynamic(
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
     horizon_time: float | None = None,
+    burst_on: float | None = None,
+    burst_off: float | None = None,
 ):
     log = []
     pga_release_times = {}
