@@ -8,7 +8,7 @@ def main():
     simulations_per_point = 200
 
     base_kwargs = {
-        "inst_range": 100,
+        "inst_range": 200,
         "epr_range": (2, 2),
         "period_range": (1, 1),
         "memory": 1000,
@@ -18,7 +18,7 @@ def main():
         "scheduler": "dynamic",
         "arrival_rate": 5,
         "graph": "gml",
-        "windows": (0, 25),
+        "windows": (20, 200),
     }
 
     scenarios = [

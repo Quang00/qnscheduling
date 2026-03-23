@@ -477,14 +477,14 @@ def main():
         "--apps",
         "-a",
         type=int,
-        default=2,
+        default=100,
         help="Number of applications to generate",
     )
     parser.add_argument(
         "--inst",
         "-i",
         type=int,
-        default=100,
+        default=200,
         help="Number of instances to generate per application",
     )
     parser.add_argument(
@@ -512,7 +512,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[0.0, 100.0],
+        default=[20.0, 200.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
