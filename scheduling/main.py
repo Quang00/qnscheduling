@@ -615,6 +615,18 @@ def main():
         "or 'dynamic' (dynamic routing)",
     )
     parser.add_argument(
+        "--on",
+        type=float,
+        default=None,
+        help="On period until x entanglement packets are generated (Poisson)",
+    )
+    parser.add_argument(
+        "--off",
+        type=float,
+        default=None,
+        help="Burst: Off application duration (Exponential)",
+    )
+    parser.add_argument(
         "--seed",
         "-s",
         type=int,
