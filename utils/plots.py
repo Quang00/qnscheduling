@@ -99,6 +99,15 @@ def build_metric_specs(
             "ylabel": "95th percentile average queue length",
         },
         {
+            "key": "avg_turnaround_time",
+            "ylabel": "Turnaround time (s)",
+        },
+        {
+            "key": "failed_ratio",
+            "ylabel": "Failed ratio (%)",
+            "percentage": True,
+        },
+        {
             "key": "drop_ratio",
             "ylabel": "Drop ratio (%)",
             "percentage": True,
@@ -180,8 +189,10 @@ def build_metric_specs(
                 file = f"{i['key']}_vs_{x}_value_{v}_{sch_suffix}.png"
                 i["plot_path"] = os.path.join(run_dir, file)
                 i["x_var"] = x
-                i["filter_column"] = "p_packet" if x == "n_apps" else "n_apps"
-                i["filter_value"] = float(v) if x == "n_apps" else int(v)
+                i["filter_column"] = (
+                    "p_packet" if x == "arrival_rate" else "arrival_rate"
+                )
+                i["filter_value"] = float(v)
                 i["color_override"] = group_palette_map.get(str(v))
                 specs.append(i)
     return specs
@@ -227,7 +238,7 @@ def render_plot(
     summary_df["upper"] = summary_df["mean"] + ci95
     x_values = sorted(summary_df[x_var].unique())
 
-    use_categorical = x_var == "n_apps"
+    use_categorical = x_var not in ("p_packet", "load", "arrival_rate")
     if use_categorical:
         x_map = {val: idx for idx, val in enumerate(x_values)}
         summary_df["x_plot"] = summary_df[x_var].map(x_map)
@@ -306,6 +317,7 @@ def render_plot(
         "p_packet": r"$p_{\mathrm{packet}}$",
         "load": "Load",
         "n_apps": "Number of applications",
+        "arrival_rate": r"Arrival rate $\lambda$",
     }
     ax.set_xlabel(xlabel_map.get(x_var, x_var))
     ax.set_ylabel(spec["ylabel"])
@@ -479,7 +491,7 @@ def plot_metrics_vs_load(
         save_path=save_path,
         run_dir=run_dir,
         sch_suffix=sch_suffix,
-        x="n_apps",
+        x="arrival_rate",
         group_column=group_column,
         group_labels=gp_labels,
         group_palette=group_palette,

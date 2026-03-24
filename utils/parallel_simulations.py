@@ -11,7 +11,6 @@ from tqdm.auto import tqdm
 from scheduling.main import run_simulation
 from utils.helper import (
     build_default_sim_args,
-    build_tasks,
     ppacket_dirname,
     prepare_run_dir,
 )
@@ -28,14 +27,12 @@ def _init_worker(default_kwargs: dict[str, Any], run_dir: str) -> None:
 
 
 def simulate_one_ppacket(args: tuple) -> dict:
-    (p_packet, run_seed, n_apps_value, keep_seed_outputs) = args
+    (p_packet, run_seed, arrival_rate, keep_seed_outputs) = args
     default_kwargs = _WORKER_DEFAULT_KWARGS
     run_dir = _WORKER_RUN_DIR
 
     if keep_seed_outputs:
         base_dir = run_dir
-        if n_apps_value is not None:
-            base_dir = os.path.join(run_dir, f"napps_{n_apps_value}")
         ppacket_dir = os.path.join(base_dir, ppacket_dirname(p_packet))
         sd_dir = os.path.join(ppacket_dir, f"seed_{run_seed}")
         os.makedirs(sd_dir, exist_ok=True)
@@ -47,9 +44,9 @@ def simulate_one_ppacket(args: tuple) -> dict:
     sim_kwargs = {**default_kwargs}
     sim_kwargs.update(
         p_packet=p_packet,
+        arrival_rate=arrival_rate,
         seed=run_seed,
         output_dir=sd_dir,
-        n_apps=n_apps_value,
         save_csv=keep_seed_outputs,
         verbose=False,
     )
@@ -101,8 +98,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
 
     return {
         "p_packet": p_packet,
+        "arrival_rate": arrival_rate,
         "seed": run_seed,
-        "n_apps": n_apps_value,
         **summary_metrics,
     }
 
@@ -147,27 +144,23 @@ def run_parallel_sims(
 
 def run_ppacket_parallel_simulations(
     ppacket_values: Sequence[float],
+    arrival_rate_values: Sequence[float],
     simulations_per_point: int,
     seed_start: int,
     run_dir: str,
     default_kwargs: dict,
-    n_apps_values: Sequence[int],
     keep_seed_outputs: bool,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
     raw_csv_path: str | None = None,
 ) -> pd.DataFrame:
-    n_apps_list = [int(v) for v in n_apps_values]
-    if not n_apps_list:
-        raise ValueError("n_apps_values must contain at least one value")
-
-    tasks = build_tasks(
-        ppacket_values=ppacket_values,
-        sim_per_point=simulations_per_point,
-        seed_start=seed_start,
-        n_apps_values=n_apps_list,
-        keep_seed_outputs=keep_seed_outputs,
-    )
+    seed_pool = [seed_start + i for i in range(simulations_per_point)]
+    tasks = [
+        (p_packet, run_seed, arrival_rate, keep_seed_outputs)
+        for p_packet in ppacket_values
+        for arrival_rate in arrival_rate_values
+        for run_seed in seed_pool
+    ]
 
     workers = max_workers or os.cpu_count() or 1
     records = run_parallel_sims(
@@ -185,12 +178,12 @@ def run_ppacket_parallel_simulations(
 
 def run_ppacket_sweep_to_csv(
     ppacket_values: Sequence[float],
+    arrival_rate_values: Sequence[float],
     simulations_per_point: int,
     seed_start: int = 0,
     config: str = "configurations/network/Dumbbell.gml",
     output_dir: str = "results",
     simulation_kwargs: dict | None = None,
-    n_apps_values: Sequence[int] = (100,),
     keep_seed_outputs: bool = False,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
@@ -203,15 +196,14 @@ def run_ppacket_sweep_to_csv(
     raw_csv_path = os.path.join(run_dir, f"{timestamp}_raw.csv")
 
     default_kwargs = build_default_sim_args(config, simulation_kwargs)
-    default_kwargs["n_apps"] = int(n_apps_values[0])
 
     df = run_ppacket_parallel_simulations(
         ppacket_values=ppacket_values,
+        arrival_rate_values=arrival_rate_values,
         simulations_per_point=simulations_per_point,
         seed_start=seed_start,
         run_dir=run_dir,
         default_kwargs=default_kwargs,
-        n_apps_values=n_apps_values,
         keep_seed_outputs=keep_seed_outputs,
         max_workers=max_workers,
         show_progress=show_progress,

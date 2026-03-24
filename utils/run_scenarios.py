@@ -3,7 +3,7 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    n_apps_values = [100, 200, 300, 400, 500]
+    arrival_rate_values = [1, 2, 3, 4, 5]
     topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
 
@@ -16,9 +16,9 @@ def main():
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
-        "arrival_rate": 5,
+        "n_apps": 1,
         "graph": "gml",
-        "windows": (20, 200),
+        "windows": (30, 60),
     }
 
     scenarios = [
@@ -55,10 +55,10 @@ def main():
 
         df, raw_csv_path = run_ppacket_sweep_to_csv(
             ppacket_values=ppacket_values,
+            arrival_rate_values=arrival_rate_values,
             simulations_per_point=simulations_per_point,
             simulation_kwargs=sim_kwargs,
             config=topology,
-            n_apps_values=n_apps_values,
             keep_seed_outputs=False,
         )
         df.insert(0, "scenario", scenario["id"])
