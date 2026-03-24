@@ -162,16 +162,6 @@ def run_simulation(
         nodes, fidelities, diameter + 1
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
-    app_specs = generate_n_apps(
-        nodes,
-        bounds,
-        n_apps=n_apps,
-        inst_range=inst_range,
-        epr_range=epr_range,
-        period_range=period_range,
-        list_policies=["deadline"],
-        rng=rng,
-    )
 
     # Arrival times for each application
     poisson_enabled = (
@@ -180,12 +170,41 @@ def run_simulation(
         and float(arrival_rate) > 0.0
     )
     if poisson_enabled:
+        windows_max = windows[1] if windows is not None else float("inf")
         mean_interarrival = 1.0 / float(arrival_rate)
+        arrival_times = []
+        t = 0.0
+        while True:
+            t += float(rng.exponential(mean_interarrival))
+            if t > windows_max:
+                break
+            arrival_times.append(t)
+        n_generated = len(arrival_times)
+        app_specs = generate_n_apps(
+            nodes,
+            bounds,
+            n_apps=n_generated,
+            inst_range=inst_range,
+            epr_range=epr_range,
+            period_range=period_range,
+            list_policies=["deadline"],
+            rng=rng,
+        )
         pga_rel_times = {
-            app: float(rng.exponential(mean_interarrival))
-            for app in app_specs.keys()
+            app: arrival_times[i]
+            for i, app in enumerate(app_specs.keys())
         }
     else:
+        app_specs = generate_n_apps(
+            nodes,
+            bounds,
+            n_apps=n_apps,
+            inst_range=inst_range,
+            epr_range=epr_range,
+            period_range=period_range,
+            list_policies=["deadline"],
+            rng=rng,
+        )
         pga_rel_times = {
             app: float(rng.uniform(0.0, spec["period"]))
             for app, spec in app_specs.items()
@@ -512,7 +531,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[20.0, 200.0],
+        default=[30.0, 60.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
