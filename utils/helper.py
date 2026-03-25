@@ -791,7 +791,7 @@ def generate_n_apps(
         apps[name_app] = {
             "src": src,
             "dst": dst,
-            "instances": int(rng.poisson(lam=inst_range)),
+            "instances": max(1, int(rng.poisson(lam=inst_range))),
             "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
             "period": float(rng.uniform(period_range[0], period_range[1])),
             "min_fidelity": float(rng.uniform(min_f, max_f)),

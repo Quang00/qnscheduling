@@ -2,7 +2,7 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
 def main():
-    ppacket_values = [0.9]
+    ppacket_values = [0.99]
     arrival_rate_values = [1, 2, 3, 4, 5]
     topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
@@ -18,7 +18,7 @@ def main():
         "scheduler": "dynamic",
         "n_apps": 1,
         "graph": "gml",
-        "windows": (30, 60),
+        "windows": (40, 80),
     }
 
     scenarios = [

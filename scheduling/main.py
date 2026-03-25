@@ -159,7 +159,7 @@ def run_simulation(
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
-        nodes, fidelities, diameter + 1
+        nodes, fidelities, diameter + 2
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
@@ -531,7 +531,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[30.0, 60.0],
+        default=[40.0, 80.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(

@@ -637,7 +637,8 @@ def static_routing(
                 tied_candidates = [list(path_nodes)]
             elif np.isclose(e2e_fid, best_fid):
                 tied_candidates.append(list(path_nodes))
-        if not tied_candidates:
+        min_fid = req.get("min_fidelity", 0.0)
+        if not tied_candidates or best_fid < min_fid:
             ret[app] = []
             e2e_fids[app] = float("nan")
         else:
