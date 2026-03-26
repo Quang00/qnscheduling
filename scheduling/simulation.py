@@ -515,6 +515,7 @@ def simulate_dynamic(
                 pga_names.append(pga_name)
                 pga_release_times[pga_name] = arrival_time
 
+            routed_fid = np.nan
             if static_routing_mode:
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
@@ -555,7 +556,13 @@ def simulate_dynamic(
                         log.append(result)
                         track_link_waiting(wait, link_waiting, None)
                     continue
-                selected_path, route_links, last_available, duration = routed
+                (
+                    selected_path,
+                    route_links,
+                    last_available,
+                    duration,
+                    routed_fid,
+                ) = routed
             else:
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
@@ -585,6 +592,16 @@ def simulate_dynamic(
                             duration,
                         ) = alt_path
 
+            _stamp = (
+                {
+                    "e2e_fidelity": routed_fid,
+                    "pga_duration": duration,
+                    "hops": len(selected_path) - 1,
+                }
+                if full_dynamic and simple_paths is not None
+                else {}
+            )
+
             if last_available > cur_t + EPS:
                 if last_available + duration > deadline + EPS:
                     if (app, i) not in drop_logged:
@@ -605,6 +622,7 @@ def simulate_dynamic(
                             "pairs_generated": 0,
                             "status": "drop",
                             "deadline": deadline,
+                            **_stamp,
                         }
                         log.append(result)
 
@@ -625,6 +643,7 @@ def simulate_dynamic(
                         "pairs_generated": 0,
                         "status": "defer",
                         "deadline": deadline,
+                        **_stamp,
                     }
                     log.append(result)
                     heapq.heappush(
@@ -660,6 +679,7 @@ def simulate_dynamic(
                     "pairs_generated": 0,
                     "status": "drop",
                     "deadline": deadline,
+                    **_stamp,
                 }
                 log.append(result)
                 track_link_waiting(result["waiting_time"], link_waiting, None)
@@ -687,6 +707,7 @@ def simulate_dynamic(
             result = pga.run()
             result["ready_time"] = float(rdy_t)
             result["waiting_time"] = max(0.0, start_time - rdy_t)
+            result.update(_stamp)
 
             track_link_waiting(
                 result.get("waiting_time", 0.0),
