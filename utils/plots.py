@@ -162,6 +162,7 @@ def build_metric_specs(
         {
             "key": "routing_decision_runtime",
             "ylabel": "Routing computation time (s)",
+            "yscale": "log",
         }
     ]
 
