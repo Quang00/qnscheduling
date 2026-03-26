@@ -600,7 +600,7 @@ def dynamic_routing(
     min_fidelity: float,
     deadline: float,
     cur_t: float = 0.0,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
+) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
     best = None
     best_score = None
     for e2e_fid, path, links, pga_duration in candidate_paths:
@@ -615,7 +615,7 @@ def dynamic_routing(
         score = (finish, max_wait)
         if best_score is None or score < best_score:
             best_score = score
-            best = (path, links, start, pga_duration)
+            best = (path, links, start, pga_duration, e2e_fid)
     return best
 
 
