@@ -318,6 +318,10 @@ def save_results(
 
     df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
     app_names = list(app_specs.keys())
+    has_per_row_routing = all(
+        c in df.columns for c in ("hops", "pga_duration", "e2e_fidelity")
+    )
+
     if pga_network_paths:
         path_length = {
             app: max(0, len(path) - 1)
@@ -350,7 +354,16 @@ def save_results(
         }
     )
 
-    df = df.merge(params, on="task", how="left").drop(columns="task")
+    if has_per_row_routing:
+        merge_cols = [
+            c for c in params.columns
+            if c not in ("hops", "pga_duration", "e2e_fidelity")
+        ]
+        df = df.merge(params[merge_cols], on="task", how="left").drop(
+            columns="task"
+        )
+    else:
+        df = df.merge(params, on="task", how="left").drop(columns="task")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
     if warmup is not None:
         df = df[df["arrival_time"] >= warmup].reset_index(drop=True)
@@ -507,7 +520,9 @@ def save_results(
         if not completed_final.empty
         else float("nan")
     )
-    pga_d = np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
+    pga_d = (
+        np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
+    )
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
@@ -515,7 +530,35 @@ def save_results(
     retry_count = len(df.loc[df["status"] == "retry"])
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
     avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
-    avg_hops = params["hops"].mean() if not params.empty else float("nan")
+    if has_per_row_routing:
+        avg_hops = df["hops"].mean() if "hops" in df.columns else float("nan")
+        _empty = pd.Series([], dtype=float)
+        _fid_col = (
+            df["e2e_fidelity"].dropna()
+            if "e2e_fidelity" in df.columns
+            else _empty
+        )
+        avg_e2e_fidelity = (
+            float(_fid_col.mean()) if not _fid_col.empty else float("nan")
+        )
+        _dur_col = (
+            df["pga_duration"].dropna()
+            if "pga_duration" in df.columns
+            else _empty
+        )
+        pga_d = float(_dur_col.mean()) if not _dur_col.empty else float("nan")
+    else:
+        avg_hops = params["hops"].mean() if not params.empty else float("nan")
+        e2e_fidelity_values = [
+            v
+            for v in (app_e2e_fidelities or {}).values()
+            if v is not None and not np.isnan(v)
+        ]
+        avg_e2e_fidelity = (
+            float(np.mean(e2e_fidelity_values))
+            if e2e_fidelity_values
+            else float("nan")
+        )
     admitted_min_fidelities = [
         app_specs[app].get("min_fidelity", float("nan"))
         for app in app_specs.keys()
@@ -523,16 +566,6 @@ def save_results(
     avg_min_fidelity = (
         float(np.mean(admitted_min_fidelities))
         if admitted_min_fidelities
-        else float("nan")
-    )
-    e2e_fidelity_values = [
-        v
-        for v in (app_e2e_fidelities or {}).values()
-        if v is not None and not np.isnan(v)
-    ]
-    avg_e2e_fidelity = (
-        float(np.mean(e2e_fidelity_values))
-        if e2e_fidelity_values
         else float("nan")
     )
 
