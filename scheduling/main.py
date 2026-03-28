@@ -159,7 +159,7 @@ def run_simulation(
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
-        nodes, fidelities, diameter + 2
+        nodes, fidelities, diameter
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
@@ -531,7 +531,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[40.0, 80.0],
+        default=[50.0, 200.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
@@ -567,7 +567,7 @@ def main():
         "--pgen",
         "-pg",
         type=float,
-        default=1e-3,
+        default=1e-2,
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(

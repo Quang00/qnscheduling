@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import PercentFormatter
 
 
 def set_plot_theme(dpi: int) -> None:
@@ -309,9 +309,8 @@ def render_plot(
     if ymin is not None or ymax is not None:
         ax.set_ylim(ymin, ymax)
     if spec.get("percentage"):
-        fmt = spec.get("percentage_format", "{:.1f}%")
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda v, _: fmt.format(v * 100.0))
+            PercentFormatter(xmax=1.0, decimals=2)
         )
 
     xlabel_map = {
