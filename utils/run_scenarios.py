@@ -3,15 +3,15 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.99]
-    arrival_rate_values = [1, 2, 3, 4, 5]
-    topology = "configurations/network/advanced/Surfnet.gml"
+    arrival_rate_values = [1, 3, 5, 7, 9]
+    topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 200
 
     base_kwargs = {
         "inst_range": 200,
         "epr_range": (4, 4),
         "period_range": (1, 1),
-        "memory": 200,
+        "memory": 150,
         "p_swap": 0.5,
         "p_gen": 1e-2,
         "time_slot_duration": 1e-4,
@@ -30,22 +30,10 @@ def main():
         {
             "id": 2,
             "name": "hybrid",
-            "routing_strategy": "hybrid",
-            "routing": "shortest",
-        },
-        {
-            "id": 3,
-            "name": "hybrid",
-            "routing_strategy": "hybrid",
-            "routing": "smallest",
-        },
-        {
-            "id": 4,
-            "name": "hybrid",
             "routing_strategy": "least",
         },
         {
-            "id": 5,
+            "id": 3,
             "name": "dynamic",
             "routing_strategy": "dynamic",
         },

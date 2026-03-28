@@ -726,7 +726,7 @@ def save_results(
 def compute_edge_fidelities(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    F_min: float = 0.8,
+    F_min: float = 0.9,
 ) -> Dict[Tuple, float]:
     fidelities = {}
     L_max = max(distances.values(), default=0.0)
