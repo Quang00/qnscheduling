@@ -30,7 +30,8 @@ def main():
         {
             "id": 2,
             "name": "hybrid",
-            "routing_strategy": "least",
+            "routing_strategy": "hybrid",
+            "routing": "least",
         },
         {
             "id": 3,
