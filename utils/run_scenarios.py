@@ -2,18 +2,18 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
 def main():
-    ppacket_values = [0.99]
-    arrival_rate_values = [1, 2, 3, 4, 5]
+    ppacket_values = [0.9]
+    arrival_rate_values = [1, 3, 5, 7, 9]
     topology = "configurations/network/advanced/Garr201201.gml"
-    simulations_per_point = 200
+    simulations_per_point = 50
 
     base_kwargs = {
         "inst_range": 200,
         "epr_range": (4, 4),
         "period_range": (1, 1),
-        "memory": 150,
-        "p_swap": 0.5,
-        "p_gen": 1e-2,
+        "memory": 1000,
+        "p_swap": 0.6,
+        "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
         "scheduler": "dynamic",
         "n_apps": 100,

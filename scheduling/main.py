@@ -560,14 +560,14 @@ def main():
         "--pswap",
         "-ps",
         type=float,
-        default=0.5,
+        default=0.6,
         help="Probability of swapping an EPR pair in a single trial",
     )
     parser.add_argument(
         "--pgen",
         "-pg",
         type=float,
-        default=1e-2,
+        default=1e-3,
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(
