@@ -3,12 +3,12 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    arrival_rate_values = [1, 3, 5, 7, 9]
+    arrival_rate_values = [1, 2, 3, 4, 5]
+    inst_range_values = [200]
     topology = "configurations/network/advanced/Garr201201.gml"
-    simulations_per_point = 50
+    simulations_per_point = 30
 
     base_kwargs = {
-        "inst_range": 200,
         "epr_range": (4, 4),
         "period_range": (1, 1),
         "memory": 1000,
@@ -56,6 +56,7 @@ def main():
         df, raw_csv_path = run_ppacket_sweep_to_csv(
             ppacket_values=ppacket_values,
             arrival_rate_values=arrival_rate_values,
+            inst_range_values=inst_range_values,
             simulations_per_point=simulations_per_point,
             simulation_kwargs=sim_kwargs,
             config=topology,

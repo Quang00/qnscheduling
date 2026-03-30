@@ -27,7 +27,7 @@ def _init_worker(default_kwargs: dict[str, Any], run_dir: str) -> None:
 
 
 def simulate_one_ppacket(args: tuple) -> dict:
-    (p_packet, run_seed, arrival_rate, keep_seed_outputs) = args
+    (p_packet, run_seed, arrival_rate, inst_range, keep_seed_outputs) = args
     default_kwargs = _WORKER_DEFAULT_KWARGS
     run_dir = _WORKER_RUN_DIR
 
@@ -50,6 +50,8 @@ def simulate_one_ppacket(args: tuple) -> dict:
         save_csv=keep_seed_outputs,
         verbose=False,
     )
+    if inst_range is not None:
+        sim_kwargs["inst_range"] = inst_range
 
     try:
         _, summary = run_simulation(**sim_kwargs)
@@ -97,12 +99,15 @@ def simulate_one_ppacket(args: tuple) -> dict:
     if summary is not None:
         summary_metrics.update(summary)
 
-    return {
+    result = {
         "p_packet": p_packet,
         "arrival_rate": arrival_rate,
         "seed": run_seed,
         **summary_metrics,
     }
+    if inst_range is not None:
+        result["inst_range"] = inst_range
+    return result
 
 
 def run_parallel_sims(
@@ -151,15 +156,18 @@ def run_ppacket_parallel_simulations(
     run_dir: str,
     default_kwargs: dict,
     keep_seed_outputs: bool,
+    inst_range_values: Sequence[int] | None = None,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
     raw_csv_path: str | None = None,
 ) -> pd.DataFrame:
     seed_pool = [seed_start + i for i in range(simulations_per_point)]
+    inst_range_sweep = inst_range_values or [None]
     tasks = [
-        (p_packet, run_seed, arrival_rate, keep_seed_outputs)
+        (p_packet, run_seed, arrival_rate, inst_range, keep_seed_outputs)
         for p_packet in ppacket_values
         for arrival_rate in arrival_rate_values
+        for inst_range in inst_range_sweep
         for run_seed in seed_pool
     ]
 
@@ -186,6 +194,7 @@ def run_ppacket_sweep_to_csv(
     output_dir: str = "results",
     simulation_kwargs: dict | None = None,
     keep_seed_outputs: bool = False,
+    inst_range_values: Sequence[int] | None = None,
     max_workers: Optional[int] = None,
     show_progress: bool = True,
 ) -> tuple[pd.DataFrame, str]:
@@ -206,6 +215,7 @@ def run_ppacket_sweep_to_csv(
         run_dir=run_dir,
         default_kwargs=default_kwargs,
         keep_seed_outputs=keep_seed_outputs,
+        inst_range_values=inst_range_values,
         max_workers=max_workers,
         show_progress=show_progress,
         raw_csv_path=raw_csv_path,
