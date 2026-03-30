@@ -322,6 +322,9 @@ def render_plot(
         "load": "Load",
         "n_apps": "Number of applications",
         "arrival_rate": r"Arrival rate $\lambda$",
+        "inst_range": (
+            "Average number of instances per application"
+        ),
     }
     ax.set_xlabel(xlabel_map.get(x_var, x_var))
     ax.set_ylabel(spec["ylabel"])
@@ -422,6 +425,7 @@ def plot_metrics_vs_load(
     scheduler: str | None = None,
     create_individual: bool = False,
     multi: bool = False,
+    x_var: str = "arrival_rate",
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
@@ -457,15 +461,26 @@ def plot_metrics_vs_load(
     else:
         results_df = pd.read_csv(path)
         run_dir = os.path.dirname(path) or "."
-        if p_packet_values is None:
-            val_list = results_df["p_packet"].dropna().unique().tolist()
+        if x_var == "inst_range":
+            val_list = (
+                results_df["inst_range"].dropna().astype(int).unique().tolist()
+            )
             val_list.sort()
+            def_gp = "arrival_rate"
+            file_prefix = "inst_range"
+            dft_labels = {v: fr"$\lambda={v}$" for v in val_list}
         else:
-            val_list = [float(v) for v in p_packet_values]
+            if p_packet_values is None:
+                val_list = results_df["p_packet"].dropna().unique().tolist()
+                val_list.sort()
+            else:
+                val_list = [float(v) for v in p_packet_values]
+            def_gp = "p_packet"
+            file_prefix = "p_packet"
+            dft_labels = {
+                v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in val_list
+            }
         value_label = str(val_list[0]) if len(val_list) == 1 else "varied"
-        def_gp = "p_packet"
-        file_prefix = "p_packet"
-        dft_labels = {v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in val_list}
 
     scheduler_value = scheduler or "dynamic"
     sch_suffix = scheduler_value.title()
@@ -495,7 +510,7 @@ def plot_metrics_vs_load(
         save_path=save_path,
         run_dir=run_dir,
         sch_suffix=sch_suffix,
-        x="arrival_rate",
+        x=x_var,
         group_column=group_column,
         group_labels=gp_labels,
         group_palette=group_palette,
