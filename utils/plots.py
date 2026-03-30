@@ -129,6 +129,10 @@ def build_metric_specs(
             "ylabel": "Average PGA duration (s)",
         },
         {
+            "key": "avg_burst_time",
+            "ylabel": "Average burst time (s)",
+        },
+        {
             "key": "avg_defer_per_pga",
             "ylabel": "Average deferrals per PGA",
         },

@@ -383,9 +383,7 @@ def save_results(
     drop_total = int((final["status"] == "drop").sum())
     failed_total = int((final["status"] == "failed").sum())
 
-    arrival_min = df["arrival_time"].min()
-    completion_max = df["completion_time"].max()
-    makespan = completion_max - arrival_min
+    makespan = end_time - warmup
 
     if save_csv:
         csv_path = os.path.join(output_dir, "pga_results.csv")
@@ -497,27 +495,26 @@ def save_results(
     admission_rate = float("nan")
     if admitted_apps is not None and total_apps is not None and total_apps > 0:
         admission_rate = float(admitted_apps) / float(total_apps)
-    completed_final = final.loc[final["status"] == "completed"]
     throughput = completed_total / makespan
     pga_duration = list(durations.values()) if durations else []
     avg_wait = (
-        completed_final["waiting_time"].mean()
-        if not completed_final.empty
+        df["waiting_time"].mean()
+        if not df.empty
         else float("nan")
     )
     max_wait = (
-        completed_final["waiting_time"].max()
-        if not completed_final.empty
+        df["waiting_time"].max()
+        if not df.empty
         else float("nan")
     )
     avg_turnaround = (
-        completed_final["turnaround_time"].mean()
-        if not completed_final.empty
+        df["turnaround_time"].mean()
+        if not df.empty
         else float("nan")
     )
     max_turnaround = (
-        completed_final["turnaround_time"].max()
-        if not completed_final.empty
+        df["turnaround_time"].max()
+        if not df.empty
         else float("nan")
     )
     pga_d = (
@@ -530,6 +527,11 @@ def save_results(
     retry_count = len(df.loc[df["status"] == "retry"])
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
     avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
+    avg_burst_time = (
+        df["burst_time"].mean()
+        if not df.empty
+        else float("nan")
+    )
     if has_per_row_routing:
         avg_hops = df["hops"].mean() if "hops" in df.columns else float("nan")
         _empty = pd.Series([], dtype=float)
@@ -621,6 +623,7 @@ def save_results(
         print(f"Drop ratio       : {drop_ratio:.4f}")
         print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
         print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
+        print(f"Avg burst time   : {avg_burst_time:.4f}")
         print(f"Avg waiting time : {avg_wait:.4f}")
         print(f"Max waiting time : {max_wait:.4f}")
         print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
@@ -656,6 +659,7 @@ def save_results(
         "drop_ratio": float(drop_ratio),
         "avg_defer_per_pga": float(avg_defer_per_pga),
         "avg_retry_per_pga": float(avg_retry_per_pga),
+        "avg_burst_time": float(avg_burst_time),
         "avg_waiting_time": float(avg_wait),
         "max_waiting_time": float(max_wait),
         "avg_turnaround_time": float(avg_turnaround),
