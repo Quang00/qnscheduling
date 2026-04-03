@@ -611,8 +611,9 @@ def dynamic_routing(
         finish = start + pga_duration
         if finish > deadline + EPS:
             continue
-        max_wait = max(waits, default=0.0)
-        score = (finish, max_wait)
+        sum_wait = sum(waits)
+        avg_wait = sum_wait / len(links)
+        score = (finish, avg_wait)
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, start, pga_duration, e2e_fid)
