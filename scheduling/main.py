@@ -103,8 +103,6 @@ def run_simulation(
     full_dynamic: bool = True,
     static_routing_mode: bool = False,
     windows: tuple[float, float] | None = None,
-    burst_on: float | None = None,
-    burst_off: float | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -384,8 +382,6 @@ def run_simulation(
             simple_paths,
             static_routing_mode,
             horizon_time=windows[1] if windows is not None else None,
-            burst_on=burst_on,
-            burst_off=burst_off,
         )
         feasible = True
         if not full_dynamic:
@@ -638,20 +634,6 @@ def main():
         "or 'dynamic' (dynamic routing)",
     )
     parser.add_argument(
-        "--on",
-        "-on",
-        type=float,
-        default=None,
-        help="Burst: On period until x packets generated (Poisson)",
-    )
-    parser.add_argument(
-        "--off",
-        "-off",
-        type=float,
-        default=None,
-        help="Burst: Off application duration (Exponential)",
-    )
-    parser.add_argument(
         "--seed",
         "-s",
         type=int,
@@ -703,8 +685,6 @@ def main():
         provisioning=args.routing_strategy == "rerouting",
         full_dynamic=args.routing_strategy == "dynamic",
         static_routing_mode=args.routing_strategy == "static",
-        burst_on=args.on,
-        burst_off=args.off,
     )
     t1 = time.perf_counter()
 
