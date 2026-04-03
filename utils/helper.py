@@ -383,7 +383,10 @@ def save_results(
     drop_total = int((final["status"] == "drop").sum())
     failed_total = int((final["status"] == "failed").sum())
 
-    makespan = end_time - warmup
+    if end_time is not None and warmup is not None:
+        makespan = end_time - warmup
+    else:
+        makespan = float("nan")
 
     if save_csv:
         csv_path = os.path.join(output_dir, "pga_results.csv")
