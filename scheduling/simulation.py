@@ -532,6 +532,19 @@ def simulate_dynamic(
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
+                    log.append({
+                        "pga": pga_name,
+                        "arrival_time": arrival_time,
+                        "ready_time": rdy_t,
+                        "start_time": np.nan,
+                        "burst_time": 0.0,
+                        "completion_time": cur_t,
+                        "turnaround_time": max(0.0, cur_t - arrival_time),
+                        "waiting_time": max(0.0, cur_t - rdy_t),
+                        "pairs_generated": 0,
+                        "status": "drop",
+                        "deadline": deadline,
+                    })
                     continue
                 (
                     selected_path,
@@ -611,6 +624,21 @@ def simulate_dynamic(
                             "resume",
                         ),
                     )
+                else:
+                    log.append({
+                        "pga": pga_name,
+                        "arrival_time": arrival_time,
+                        "ready_time": rdy_t,
+                        "start_time": np.nan,
+                        "burst_time": 0.0,
+                        "completion_time": cur_t,
+                        "turnaround_time": max(0.0, cur_t - arrival_time),
+                        "waiting_time": max(0.0, cur_t - rdy_t),
+                        "pairs_generated": 0,
+                        "status": "drop",
+                        "deadline": deadline,
+                        **_stamp,
+                    })
                 continue
 
             start_time = cur_t
