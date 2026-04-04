@@ -433,12 +433,14 @@ def plot_metrics_vs_load(
             "1.csv",
             "2.csv",
             "3.csv",
+            "4.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Static",
-            "2": "Hybrid",
-            "3": "Dynamic",
+            "1": "Precomputed",
+            "2": "Proactive",
+            "3": "Hybrid",
+            "4": "Reactive",
         },
     )
     """
