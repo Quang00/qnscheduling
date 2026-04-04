@@ -645,6 +645,27 @@ def simulate_dynamic(
             start_time = cur_t
             completion = start_time + duration
 
+            if (
+                app_specs[app].get("policy") == "deadline"
+                and deadline is not None
+                and start_time + duration > deadline + EPS
+            ):
+                log.append({
+                    "pga": pga_name,
+                    "arrival_time": arrival_time,
+                    "ready_time": rdy_t,
+                    "start_time": np.nan,
+                    "burst_time": 0.0,
+                    "completion_time": cur_t,
+                    "turnaround_time": max(0.0, cur_t - arrival_time),
+                    "waiting_time": max(0.0, cur_t - rdy_t),
+                    "pairs_generated": 0,
+                    "status": "drop",
+                    "deadline": deadline,
+                    **_stamp,
+                })
+                continue
+
             pga = PGA(
                 name=pga_name,
                 arrival=arrival_time,
