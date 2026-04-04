@@ -606,17 +606,12 @@ def dynamic_routing(
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
-        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
-        start = cur_t + max(waits, default=0.0)
-        finish = start + pga_duration
+        finish = cur_t + pga_duration
         if finish > deadline + EPS:
             continue
-        sum_wait = sum(waits)
-        avg_wait = sum_wait / len(links)
-        score = (finish, avg_wait)
-        if best_score is None or score < best_score:
-            best_score = score
-            best = (path, links, start, pga_duration, e2e_fid)
+        if best_score is None or finish < best_score:
+            best_score = finish
+            best = (path, links, cur_t, pga_duration, e2e_fid)
     return best
 
 

@@ -384,7 +384,6 @@ def simulate_dynamic(
     pga_release_times = {}
     pga_names = []
     seen_pgas = set()
-    drop_logged = set()
 
     pga_route_links = {
         app: [
@@ -534,25 +533,6 @@ def simulate_dynamic(
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
-                    if (app, i) not in drop_logged:
-                        drop_logged.add((app, i))
-                        turnaround = max(0.0, cur_t - arrival_time)
-                        wait = max(0.0, cur_t - rdy_t)
-                        result = {
-                            "pga": pga_name,
-                            "arrival_time": arrival_time,
-                            "ready_time": rdy_t,
-                            "start_time": np.nan,
-                            "burst_time": 0.0,
-                            "completion_time": cur_t,
-                            "turnaround_time": turnaround,
-                            "waiting_time": wait,
-                            "pairs_generated": 0,
-                            "status": "drop",
-                            "deadline": deadline,
-                        }
-                        log.append(result)
-                        track_link_waiting(wait, link_waiting, None)
                     continue
                 (
                     selected_path,
@@ -601,31 +581,7 @@ def simulate_dynamic(
             )
 
             if last_available > cur_t + EPS:
-                if last_available + duration > deadline + EPS:
-                    if (app, i) not in drop_logged:
-                        drop_logged.add((app, i))
-
-                        turnaround = max(0.0, cur_t - arrival_time)
-                        burst = 0.0
-                        wait = max(0.0, cur_t - rdy_t)
-                        result = {
-                            "pga": pga_name,
-                            "arrival_time": arrival_time,
-                            "ready_time": rdy_t,
-                            "start_time": np.nan,
-                            "burst_time": 0.0,
-                            "completion_time": cur_t,
-                            "turnaround_time": turnaround,
-                            "waiting_time": wait,
-                            "pairs_generated": 0,
-                            "status": "drop",
-                            "deadline": deadline,
-                            **_stamp,
-                        }
-                        log.append(result)
-
-                        track_link_waiting(wait, link_waiting, None)
-                else:
+                if last_available + duration <= deadline + EPS:
                     turnaround = max(0.0, cur_t - arrival_time)
                     burst = 0.0
                     wait = max(0.0, cur_t - rdy_t)
@@ -659,29 +615,7 @@ def simulate_dynamic(
                 continue
 
             start_time = cur_t
-            period = periods[app]
             completion = start_time + duration
-
-            if completion > deadline + EPS or duration > period + EPS:
-                turnaround = max(0.0, start_time - arrival_time)
-                wait = max(0.0, start_time - rdy_t)
-                result = {
-                    "pga": pga_name,
-                    "arrival_time": arrival_time,
-                    "ready_time": float(rdy_t),
-                    "start_time": start_time,
-                    "burst_time": 0.0,
-                    "completion_time": start_time,
-                    "turnaround_time": turnaround,
-                    "waiting_time": wait,
-                    "pairs_generated": 0,
-                    "status": "drop",
-                    "deadline": deadline,
-                    **_stamp,
-                }
-                log.append(result)
-                track_link_waiting(result["waiting_time"], link_waiting, None)
-                continue
 
             pga = PGA(
                 name=pga_name,
