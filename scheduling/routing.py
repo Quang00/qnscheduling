@@ -538,22 +538,20 @@ def find_feasible_path(
 
 def rerouting(
     precomputed: Dict[str, List[Tuple]],
-    resources: Dict[Tuple[str, str], float],
-    app: str,
     deadline: float,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
+    cur_t: float,
+    app: str,
+) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
     best = None
     best_score = None
 
-    for _, path, links, pga_duration in precomputed.get(app, []):
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=0.0)
-        finish = avail + pga_duration
+    for e2e_fid, path, links, pga_duration in precomputed.get(app, []):
+        finish = cur_t + pga_duration
         if finish > deadline + EPS:
             continue
-        score = (finish, len(path))
-        if best_score is None or score < best_score:
-            best_score = score
-            best = (path, links, avail, pga_duration)
+        if best_score is None or finish < best_score:
+            best_score = finish
+            best = (path, links, cur_t, pga_duration, e2e_fid)
 
     return best
 

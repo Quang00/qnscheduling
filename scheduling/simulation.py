@@ -569,9 +569,9 @@ def simulate_dynamic(
                     _t0 = time.perf_counter()
                     alt_path = rerouting(
                         rerouting_candidates,
-                        resources,
-                        app,
                         deadline,
+                        cur_t,
+                        app,
                     )
                     routing_decision_runtime += time.perf_counter() - _t0
                     if alt_path is not None:
@@ -580,6 +580,7 @@ def simulate_dynamic(
                             route_links,
                             last_available,
                             duration,
+                            routed_fid,
                         ) = alt_path
 
             _stamp = (
