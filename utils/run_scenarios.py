@@ -26,18 +26,24 @@ def main():
     scenarios = [
         {
             "id": 1,
-            "name": "static",
+            "name": "precomputed",
             "routing_strategy": "static",
         },
         {
             "id": 2,
-            "name": "hybrid",
+            "name": "proactive",
             "routing_strategy": "hybrid",
             "routing": "least",
         },
         {
             "id": 3,
-            "name": "dynamic",
+            "name": "hybrid",
+            "routing_strategy": "rerouting",
+            "routing": "least",
+        },
+        {
+            "id": 4,
+            "name": "reactive",
             "routing_strategy": "dynamic",
         },
     ]
