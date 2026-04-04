@@ -526,7 +526,6 @@ def simulate_dynamic(
                 _t0 = time.perf_counter()
                 routed = dynamic_routing(
                     routing_metadata[app],
-                    resources,
                     app_specs[app]["min_fidelity"],
                     deadline,
                     cur_t,

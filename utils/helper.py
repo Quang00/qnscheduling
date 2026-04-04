@@ -381,7 +381,7 @@ def save_results(
     )
     completed_total = int((final["status"] == "completed").sum())
     drop_total = int((final["status"] == "drop").sum())
-    failed_total = int((final["status"] == "failed").sum())
+    failed_total = tot_reqs - completed_total - drop_total
 
     if end_time is not None and warmup is not None:
         makespan = end_time - warmup

@@ -596,7 +596,6 @@ def compute_path_durations(
 
 def dynamic_routing(
     candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
-    resources: Dict[Tuple[str, str], float],
     min_fidelity: float,
     deadline: float,
     cur_t: float = 0.0,
