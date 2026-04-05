@@ -566,7 +566,12 @@ def simulate_dynamic(
                         last_available, resources.get(link, 0.0)
                     )
 
-                if last_available > cur_t + EPS and rerouting_mode:
+                would_drop = last_available + duration > deadline + EPS
+                if (
+                    last_available > cur_t + EPS
+                    and rerouting_mode
+                    and would_drop
+                ):
                     routing_decision_cpt += 1
                     _t0 = time.perf_counter()
                     alt_path = rerouting(
