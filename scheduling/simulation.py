@@ -531,6 +531,7 @@ def simulate_dynamic(
                     app_specs[app]["min_fidelity"],
                     deadline,
                     cur_t,
+                    resources,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -555,9 +556,6 @@ def simulate_dynamic(
                     duration,
                     routed_fid,
                 ) = routed
-                last_available = max(
-                    resources.get(lk, 0.0) for lk in route_links
-                ) if route_links else 0.0
             else:
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
@@ -582,6 +580,7 @@ def simulate_dynamic(
                         deadline,
                         cur_t,
                         app,
+                        resources,
                     )
                     routing_decision_runtime += time.perf_counter() - _t0
                     if alt_path is not None:
@@ -592,9 +591,6 @@ def simulate_dynamic(
                             duration,
                             routed_fid,
                         ) = alt_path
-                        last_available = max(
-                            resources.get(lk, 0.0) for lk in route_links
-                        ) if route_links else 0.0
 
             _stamp = (
                 {
