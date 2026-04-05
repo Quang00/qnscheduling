@@ -591,7 +591,8 @@ def simulate_dynamic(
                     "pga_duration": duration,
                     "hops": len(selected_path) - 1,
                 }
-                if full_dynamic and simple_paths is not None
+                if (full_dynamic and simple_paths is not None)
+                or rerouting_mode
                 else {}
             )
 
