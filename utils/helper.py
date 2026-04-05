@@ -424,7 +424,6 @@ def save_results(
         )
 
         if makespan and makespan > 0:
-            lk_ut_df["busy_time"] = lk_ut_df["busy_time"].clip(upper=makespan)
             lk_ut_df["utilization"] = lk_ut_df["busy_time"] / makespan
         lk_ut_df = (
             lk_ut_df

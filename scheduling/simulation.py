@@ -555,6 +555,9 @@ def simulate_dynamic(
                     duration,
                     routed_fid,
                 ) = routed
+                last_available = max(
+                    resources.get(lk, 0.0) for lk in route_links
+                ) if route_links else 0.0
             else:
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
@@ -589,6 +592,9 @@ def simulate_dynamic(
                             duration,
                             routed_fid,
                         ) = alt_path
+                        last_available = max(
+                            resources.get(lk, 0.0) for lk in route_links
+                        ) if route_links else 0.0
 
             _stamp = (
                 {
@@ -705,6 +711,13 @@ def simulate_dynamic(
                     link_waiting,
                     blocking_links=result.get("blocking_links"),
                 )
+                if result["completion_time"] > horizon_time:
+                    excess = result["completion_time"] - horizon_time
+                    for lk in route_links:
+                        if lk in link_busy_record:
+                            link_busy_record[lk] = max(
+                                0.0, link_busy_record[lk] - excess
+                            )
 
             max_completion = max(max_completion, result["completion_time"])
 
@@ -731,7 +744,7 @@ def simulate_dynamic(
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
-        link_busy_record, warmup_time, max_completion
+        link_busy_record, warmup_time, horizon_time,
     )
 
     return (
