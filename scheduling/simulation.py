@@ -379,6 +379,7 @@ def simulate_dynamic(
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
     horizon_time: float | None = None,
+    warmup_time: float = 0.0,
 ):
     log = []
     pga_release_times = {}
@@ -394,6 +395,7 @@ def simulate_dynamic(
     }
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
+    link_busy_record = dict.fromkeys(all_links, 0.0)
     link_waiting = {
         link: {"total_waiting_time": 0.0, "pga_waited": 0}
         for link in all_links
@@ -666,6 +668,7 @@ def simulate_dynamic(
                 })
                 continue
 
+            recording = start_time >= warmup_time
             pga = PGA(
                 name=pga_name,
                 arrival=arrival_time,
@@ -673,7 +676,7 @@ def simulate_dynamic(
                 end=completion,
                 route=selected_path,
                 resources=resources,
-                link_busy=link_busy,
+                link_busy=link_busy_record if recording else link_busy,
                 p_gen=pga_parameters[app]["p_gen"],
                 epr_pairs=int(pga_parameters[app]["epr_pairs"]),
                 slot_duration=pga_parameters[app]["slot_duration"],
@@ -690,11 +693,12 @@ def simulate_dynamic(
             result["waiting_time"] = max(0.0, start_time - rdy_t)
             result.update(_stamp)
 
-            track_link_waiting(
-                result.get("waiting_time", 0.0),
-                link_waiting,
-                blocking_links=result.get("blocking_links"),
-            )
+            if recording:
+                track_link_waiting(
+                    result.get("waiting_time", 0.0),
+                    link_waiting,
+                    blocking_links=result.get("blocking_links"),
+                )
 
             max_completion = max(max_completion, result["completion_time"])
 
@@ -721,7 +725,7 @@ def simulate_dynamic(
 
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
-        link_busy, min_arrival, max_completion
+        link_busy_record, warmup_time, max_completion
     )
 
     return (

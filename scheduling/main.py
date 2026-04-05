@@ -382,6 +382,7 @@ def run_simulation(
             simple_paths,
             static_routing_mode,
             horizon_time=windows[1] if windows is not None else None,
+            warmup_time=windows[0] if windows is not None else 0.0,
         )
         feasible = True
         if not full_dynamic:
