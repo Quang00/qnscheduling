@@ -423,6 +423,14 @@ def save_results(
             .reset_index(drop=True)
         )
 
+        if makespan and makespan > 0:
+            lk_ut_df["utilization"] = lk_ut_df["busy_time"] / makespan
+        lk_ut_df = (
+            lk_ut_df
+            .sort_values("utilization", ascending=False)
+            .reset_index(drop=True)
+        )
+
         busy_time_sum = lk_ut_df["busy_time"].sum()
         avg_link_utilization = float((busy_time_sum / makespan) / n_edges)
         p90_link_utilization = float(lk_ut_df["utilization"].quantile(0.9))
