@@ -603,6 +603,7 @@ def dynamic_routing(
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
+    link_waiting: Dict[Tuple[str, str], Dict] = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
     best = None
     best_score = None
@@ -612,10 +613,17 @@ def dynamic_routing(
         waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
         start = cur_t + max(waits, default=0.0)
         finish = start + pga_duration
-        if finish > deadline + EPS:
-            continue
-        sum_wait = sum(waits)
-        score = (finish, sum_wait)
+        sum_avg_hist_wait = 0.0
+        if link_waiting and links:
+            vals = [
+                lw["total_waiting_time"] / lw["pga_waited"]
+                for lnk in links
+                if (lw := link_waiting.get(lnk))
+                and lw.get("pga_waited", 0) > 0
+            ]
+            if vals:
+                sum_avg_hist_wait = sum(vals)
+        score = finish + sum_avg_hist_wait
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, start, pga_duration, e2e_fid)

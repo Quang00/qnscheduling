@@ -396,6 +396,14 @@ def simulate_dynamic(
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
     link_busy_record = dict.fromkeys(all_links, 0.0)
+    link_waiting_routing = (
+        {
+            link: {"total_waiting_time": 0.0, "pga_waited": 0}
+            for link in all_links
+        }
+        if full_dynamic and simple_paths is not None
+        else None
+    )
     link_waiting = {
         link: {"total_waiting_time": 0.0, "pga_waited": 0}
         for link in all_links
@@ -532,6 +540,7 @@ def simulate_dynamic(
                     deadline,
                     cur_t,
                     resources,
+                    link_waiting_routing,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -700,6 +709,13 @@ def simulate_dynamic(
             result["ready_time"] = float(rdy_t)
             result["waiting_time"] = max(0.0, start_time - rdy_t)
             result.update(_stamp)
+
+            if link_waiting_routing is not None:
+                track_link_waiting(
+                    result.get("waiting_time", 0.0),
+                    link_waiting_routing,
+                    blocking_links=result.get("blocking_links"),
+                )
 
             if recording:
                 track_link_waiting(
