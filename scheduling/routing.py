@@ -613,7 +613,9 @@ def dynamic_routing(
         waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
         start = cur_t + max(waits, default=0.0)
         finish = start + pga_duration
-        sum_avg_hist_wait = 0.0
+        if finish > deadline + EPS:
+            continue
+        avg_hist_wait = 0.0
         if link_waiting and links:
             vals = [
                 lw["total_waiting_time"] / lw["pga_waited"]
@@ -622,8 +624,8 @@ def dynamic_routing(
                 and lw.get("pga_waited", 0) > 0
             ]
             if vals:
-                sum_avg_hist_wait = sum(vals)
-        score = finish + sum_avg_hist_wait
+                avg_hist_wait = sum(vals)
+        score = finish + avg_hist_wait
         if best_score is None or score < best_score:
             best_score = score
             best = (path, links, start, pga_duration, e2e_fid)
