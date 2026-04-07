@@ -823,13 +823,15 @@ def generate_n_apps(
     """
     apps = {}
     feasible = []
+    min_fidelity_threshold = 0.51
     for i in range(len(nodes)):
         for j in range(i + 1, len(nodes)):
             src, dst = nodes[i], nodes[j]
             min_f, max_f = fidelity_bounds(bounds, src, dst)
-            min_f = max(min_f, 0.51)
-            if max_f >= min_f:
-                feasible.append((src, dst, float(min_f), float(max_f)))
+            if max_f > min_fidelity_threshold:
+                feasible.append(
+                    (src, dst, min_fidelity_threshold, float(max_f))
+                )
 
     pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
@@ -842,7 +844,7 @@ def generate_n_apps(
             "instances": max(1, int(rng.poisson(lam=inst_range))),
             "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
             "period": float(rng.uniform(period_range[0], period_range[1])),
-            "min_fidelity": float(rng.uniform(min_f, max_f)),
+            "min_fidelity": min_fidelity_threshold,
             "policy": rng.choice(list_policies),
         }
 

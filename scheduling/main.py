@@ -157,7 +157,7 @@ def run_simulation(
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
-        nodes, fidelities, diameter
+        nodes, fidelities, diameter + 2
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
