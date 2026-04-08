@@ -534,13 +534,13 @@ def simulate_dynamic(
             elif full_dynamic and simple_paths is not None:
                 routing_decision_cpt += 1
                 _t0 = time.perf_counter()
-                routed = dynamic_routing(
+                routed, next_avail = dynamic_routing(
                     routing_metadata[app],
                     app_specs[app]["min_fidelity"],
                     deadline,
                     cur_t,
                     resources,
-                    link_waiting_routing,
+                    rng,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -554,9 +554,22 @@ def simulate_dynamic(
                         "turnaround_time": max(0.0, cur_t - arrival_time),
                         "waiting_time": max(0.0, cur_t - rdy_t),
                         "pairs_generated": 0,
-                        "status": "drop",
+                        "status": "defer" if next_avail else "drop",
                         "deadline": deadline,
                     })
+                    if next_avail is not None:
+                        heapq.heappush(
+                            events_queue,
+                            (
+                                next_avail,
+                                deadline,
+                                arrival_time,
+                                app,
+                                i,
+                                rdy_t,
+                                "resume"
+                            ),
+                        )
                     continue
                 (
                     selected_path,

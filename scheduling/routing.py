@@ -603,33 +603,33 @@ def dynamic_routing(
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
-    link_waiting: Dict[Tuple[str, str], Dict] = None,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
-    best = None
-    best_score = None
+    rng: np.random.Generator | None = None,
+) -> Tuple[Tuple | None, float | None]:
+    next_avail = None
+    best_duration = None
+    tied = []
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
-        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
-        start = cur_t + max(waits, default=0.0)
-        finish = start + pga_duration
+        avail = max((resources.get(lnk, 0.0) for lnk in links), default=cur_t)
+        if avail > cur_t + EPS:
+            if avail < deadline - EPS:
+                if next_avail is None or avail < next_avail:
+                    next_avail = avail
+            continue
+        finish = cur_t + pga_duration
         if finish > deadline + EPS:
             continue
-        avg_hist_wait = 0.0
-        if link_waiting and links:
-            vals = [
-                lw["total_waiting_time"] / lw["pga_waited"]
-                for lnk in links
-                if (lw := link_waiting.get(lnk))
-                and lw.get("pga_waited", 0) > 0
-            ]
-            if vals:
-                avg_hist_wait = sum(vals)
-        score = finish + avg_hist_wait
-        if best_score is None or score < best_score:
-            best_score = score
-            best = (path, links, start, pga_duration, e2e_fid)
-    return best
+        if best_duration is None or pga_duration < best_duration:
+            best_duration = pga_duration
+            tied = [(path, links, e2e_fid)]
+        elif pga_duration == best_duration:
+            tied.append((path, links, e2e_fid))
+    if not tied:
+        return None, next_avail
+    idx = 0 if rng is None or len(tied) == 1 else int(rng.integers(len(tied)))
+    path, links, e2e_fid = tied[idx]
+    return (path, links, cur_t, best_duration, e2e_fid), next_avail
 
 
 def static_routing(
