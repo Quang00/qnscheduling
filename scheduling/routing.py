@@ -639,8 +639,19 @@ def static_routing(
 ) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
     ret = {}
     e2e_fids = {}
+    path_cache = {}
     for app, req in app_requests.items():
         src, dst = req["src"], req["dst"]
+        if (src, dst) in path_cache:
+            chosen_path, best_fid = path_cache[(src, dst)]
+            min_fid = req.get("min_fidelity", 0.0)
+            if not chosen_path or best_fid < min_fid:
+                ret[app] = []
+                e2e_fids[app] = float("nan")
+            else:
+                ret[app] = [chosen_path]
+                e2e_fids[app] = best_fid
+            continue
         best_fid = float("nan")
         tied_candidates = []
         for path in all_simple_paths(simple_paths, src, dst):
@@ -652,6 +663,7 @@ def static_routing(
                 tied_candidates.append(list(path_nodes))
         min_fid = req.get("min_fidelity", 0.0)
         if not tied_candidates or best_fid < min_fid:
+            path_cache[(src, dst)] = ([], best_fid)
             ret[app] = []
             e2e_fids[app] = float("nan")
         else:
@@ -660,6 +672,8 @@ def static_routing(
                 if len(tied_candidates) == 1
                 else int(rng.integers(len(tied_candidates)))
             )
-            ret[app] = [tied_candidates[idx]]
+            chosen_path = tied_candidates[idx]
+            path_cache[(src, dst)] = (chosen_path, best_fid)
+            ret[app] = [chosen_path]
             e2e_fids[app] = best_fid
     return ret, e2e_fids
