@@ -652,18 +652,19 @@ def static_routing(
                 ret[app] = [chosen_path]
                 e2e_fids[app] = best_fid
             continue
-        best_fid = float("nan")
+        best_len = float("inf")
         tied_candidates = []
         for path in all_simple_paths(simple_paths, src, dst):
             e2e_fid, path_nodes = path[0], path[1]
-            if not tied_candidates or e2e_fid > best_fid:
-                best_fid = e2e_fid
-                tied_candidates = [list(path_nodes)]
-            elif np.isclose(e2e_fid, best_fid):
-                tied_candidates.append(list(path_nodes))
+            path_len = len(path_nodes)
+            if path_len < best_len:
+                best_len = path_len
+                tied_candidates = [(list(path_nodes), e2e_fid)]
+            elif path_len == best_len:
+                tied_candidates.append((list(path_nodes), e2e_fid))
         min_fid = req.get("min_fidelity", 0.0)
-        if not tied_candidates or best_fid < min_fid:
-            path_cache[(src, dst)] = ([], best_fid)
+        if not tied_candidates:
+            path_cache[(src, dst)] = ([], float("nan"))
             ret[app] = []
             e2e_fids[app] = float("nan")
         else:
@@ -672,8 +673,13 @@ def static_routing(
                 if len(tied_candidates) == 1
                 else int(rng.integers(len(tied_candidates)))
             )
-            chosen_path = tied_candidates[idx]
-            path_cache[(src, dst)] = (chosen_path, best_fid)
-            ret[app] = [chosen_path]
-            e2e_fids[app] = best_fid
+            chosen_path, chosen_fid = tied_candidates[idx]
+            if chosen_fid < min_fid:
+                path_cache[(src, dst)] = ([], chosen_fid)
+                ret[app] = []
+                e2e_fids[app] = float("nan")
+            else:
+                path_cache[(src, dst)] = (chosen_path, chosen_fid)
+                ret[app] = [chosen_path]
+                e2e_fids[app] = chosen_fid
     return ret, e2e_fids
