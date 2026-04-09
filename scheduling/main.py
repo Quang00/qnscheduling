@@ -50,6 +50,7 @@ Run the script from the command line with appropriate arguments:
 """
 
 import argparse
+import json
 import os
 import re
 import time
@@ -528,7 +529,7 @@ def main():
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
-        default=[50.0, 200.0],
+        default=[5.0, 10.0],
         help="Post–warm-up observation window",
     )
     parser.add_argument(
@@ -723,10 +724,11 @@ def main():
         "capacity_threshold": args.capacity_threshold,
         "routing_strategy": args.routing_strategy,
     }
-    pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
+    with open(os.path.join(run_dir, "params.json"), "w") as f:
+        json.dump(params, f, indent=2)
 
     path_results = os.path.join(run_dir, "pga_results.csv")
-    path_params = os.path.join(run_dir, "params.csv")
+    path_params = os.path.join(run_dir, "params.json")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     path_link_wait = os.path.join(run_dir, "link_waiting.csv")
     print(f"Saved results to: {path_results}")
