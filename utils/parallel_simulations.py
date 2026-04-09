@@ -1,3 +1,4 @@
+import json
 import multiprocessing as mp
 import os
 import shutil
@@ -220,4 +221,22 @@ def run_ppacket_sweep_to_csv(
         show_progress=show_progress,
         raw_csv_path=raw_csv_path,
     )
+
+    args_json_path = os.path.join(run_dir, f"{timestamp}_args.json")
+    args_record = {
+        "ppacket_values": list(ppacket_values),
+        "arrival_rate_values": list(arrival_rate_values),
+        "inst_range_values": (
+            list(inst_range_values) if inst_range_values is not None else None
+        ),
+        "simulations_per_point": simulations_per_point,
+        "seed_start": seed_start,
+        "config": config,
+        "keep_seed_outputs": keep_seed_outputs,
+        "max_workers": max_workers,
+        "simulation_kwargs": default_kwargs,
+    }
+    with open(args_json_path, "w") as f:
+        json.dump(args_record, f, indent=2)
+
     return df, raw_csv_path
