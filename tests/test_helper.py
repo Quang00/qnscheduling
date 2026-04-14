@@ -151,8 +151,9 @@ def test_save_results_basic(tmp_path):
             output_dir=tmpdir,
             verbose=False,
         )
-        csv_files = {f for f in os.listdir(tmpdir) if f.endswith(".csv")}
-        assert "pga_results.csv" in csv_files
+        all_files = set(os.listdir(tmpdir))
+        csv_files = {f for f in all_files if f.endswith(".csv")}
+        assert "pga_results.parquet" in all_files
         assert "link_utilization.csv" in csv_files
         assert "link_waiting.csv" in csv_files
 

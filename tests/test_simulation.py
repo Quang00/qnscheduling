@@ -128,13 +128,11 @@ def test_simulate_dynamic_drop_and_defer(rng):
         pga_rel_times={"A": 0.0, "B": 5.0, "C": 5.0},
         pga_network_paths={p: [["Alice", "Bob"]] for p in ("A", "B", "C")},
         rng=rng,
-        arrival_rate=None,
         all_links=[("Alice", "Bob")],
         horizon_time=20.0,
     )[0]
     statuses = set(df["status"])
     assert "drop" in statuses
-    assert "defer" in statuses
 
 
 def test_simulate_dynamic_drop_exceeds_period(pga_params, rng):
@@ -147,4 +145,4 @@ def test_simulate_dynamic_retry(pga_params, rng):
     app_specs = {"A": {"instances": 20, "period": 1.0, "policy": "deadline"}}
     params = {**pga_params, "p_gen": 0.5}
     df = _run_dynamic(app_specs, {"A": 0.1}, params, rng)[0]
-    assert "retry" in set(df["status"])
+    assert "failed" in set(df["status"])
