@@ -3,12 +3,12 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 def main():
     ppacket_values = [0.9]
-    arrival_rate_values = [1, 3, 5, 7, 9]
-    inst_range_values = [200]
+    arrival_rate_values = [1, 3, 5, 7]
+    inst_range_values = [100]
     # arrival_rate_values = [3]
-    # inst_range_values = [100, 200, 300, 400, 500]
+    # inst_range_values = [50, 100, 150, 200]
     topology = "configurations/network/advanced/Garr201201.gml"
-    simulations_per_point = 30
+    simulations_per_point = 20
 
     base_kwargs = {
         "epr_range": (4, 4),
@@ -20,7 +20,6 @@ def main():
         "scheduler": "dynamic",
         "n_apps": 100,
         "graph": "gml",
-        "windows": (50, 200),
     }
 
     scenarios = [
