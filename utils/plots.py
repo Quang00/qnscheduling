@@ -45,6 +45,10 @@ def build_metric_specs(
             "ylabel": "Throughput (completed PGAs/s)",
         },
         {
+            "key": "app_throughput",
+            "ylabel": "Application Throughput (served apps/s)",
+        },
+        {
             "key": "completed_ratio",
             "ylabel": "Completion ratio (%)",
             "percentage": True,

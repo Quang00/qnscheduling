@@ -595,12 +595,24 @@ def save_results(
         .unstack(fill_value=0)
         .reindex(expected_tasks, fill_value=0)
     )
+    released_per_task = (
+        tmp.groupby("task")["pga"]
+        .nunique()
+        .reindex(expected_tasks, fill_value=0)
+    )
 
     for col in ["completed", "failed"]:
         if col not in per_task.columns:
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
+    served_count = sum(
+        1
+        for task in expected_tasks
+        if int(released_per_task.get(task, 0))
+        == int(app_specs[task]["instances"] if task in app_specs else 0)
+    )
+    app_throughput = served_count / makespan if makespan else float("nan")
     fairness = float("nan")
     completion_ratios = []
     for task in expected_tasks:
@@ -624,11 +636,22 @@ def save_results(
             row = per_task.loc[task]
             completed = int(row.get("completed", 0))
             failed = int(row.get("failed", 0))
-            print(f"    {task:<4} completed: {completed}, failed: {failed}")
+            instances = (
+                int(app_specs[task]["instances"])
+                if task in app_specs else 0
+            )
+            released = int(released_per_task.get(task, 0))
+            served = released == instances
+            print(
+                f"    {task:<4} released: {released}/{instances},"
+                f" completed: {completed}, failed: {failed},"
+                f" served: {served}"
+            )
 
         print(f"Admission rate   : {admission_rate:.4f}")
         print(f"Completion time  : {makespan:.4f}")
         print(f"Throughput       : {throughput:.4f} completed PGAs/s")
+        print(f"App throughput   : {app_throughput:.4f} served apps/s")
         print(f"Completion ratio : {completed_ratio:.4f}")
         print(f"Failed ratio     : {failed_ratio:.4f}")
         print(f"Drop ratio       : {drop_ratio:.4f}")
@@ -665,6 +688,7 @@ def save_results(
         "admission_rate": float(admission_rate),
         "makespan": float(makespan),
         "throughput": float(throughput),
+        "app_throughput": float(app_throughput),
         "completed_ratio": float(completed_ratio),
         "failed_ratio": float(failed_ratio),
         "drop_ratio": float(drop_ratio),
@@ -723,10 +747,16 @@ def save_results(
     )
     per_task_df = per_task_df.merge(
         params.rename(columns={"task": "task_name"})[
-            ["task_name", "pga_duration"]
+            ["task_name", "pga_duration", "instances"]
         ],
         on="task_name",
         how="left",
+    )
+    per_task_df["released"] = (
+        per_task_df["task_name"].map(released_per_task).fillna(0).astype(int)
+    )
+    per_task_df["served"] = (
+        per_task_df["released"] == per_task_df["instances"]
     )
     if save_csv:
         per_task_path = os.path.join(output_dir, "summary_per_app.csv")
