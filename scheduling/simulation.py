@@ -384,6 +384,7 @@ def simulate_dynamic(
     instance_arrival_rate: float = 10.0,
 ):
     log = []
+    defer_counts = {}
     pga_release_times = {}
     pga_names = []
     seen_pgas = set()
@@ -550,20 +551,10 @@ def simulate_dynamic(
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
-                    log.append({
-                        "pga": pga_name,
-                        "arrival_time": arrival_time,
-                        "ready_time": rdy_t,
-                        "start_time": np.nan,
-                        "burst_time": 0.0,
-                        "completion_time": cur_t,
-                        "turnaround_time": max(0.0, cur_t - arrival_time),
-                        "waiting_time": max(0.0, cur_t - rdy_t),
-                        "pairs_generated": 0,
-                        "status": "defer" if next_avail else "drop",
-                        "deadline": deadline,
-                    })
                     if next_avail is not None:
+                        defer_counts[pga_name] = (
+                            defer_counts.get(pga_name, 0) + 1
+                        )
                         heapq.heappush(
                             events_queue,
                             (
@@ -576,6 +567,20 @@ def simulate_dynamic(
                                 "resume"
                             ),
                         )
+                    else:
+                        log.append({
+                            "pga": pga_name,
+                            "arrival_time": arrival_time,
+                            "ready_time": rdy_t,
+                            "start_time": np.nan,
+                            "burst_time": 0.0,
+                            "completion_time": cur_t,
+                            "turnaround_time": max(0.0, cur_t - arrival_time),
+                            "waiting_time": max(0.0, cur_t - rdy_t),
+                            "pairs_generated": 0,
+                            "status": "drop",
+                            "deadline": deadline,
+                        })
                     continue
                 (
                     selected_path,
@@ -633,24 +638,9 @@ def simulate_dynamic(
 
             if last_available > cur_t + EPS:
                 if last_available + duration <= deadline + EPS:
-                    turnaround = max(0.0, cur_t - arrival_time)
-                    burst = 0.0
-                    wait = max(0.0, cur_t - rdy_t)
-                    result = {
-                        "pga": pga_name,
-                        "arrival_time": arrival_time,
-                        "ready_time": rdy_t,
-                        "start_time": np.nan,
-                        "burst_time": burst,
-                        "completion_time": cur_t,
-                        "turnaround_time": turnaround,
-                        "waiting_time": wait,
-                        "pairs_generated": 0,
-                        "status": "defer",
-                        "deadline": deadline,
-                        **_stamp,
-                    }
-                    log.append(result)
+                    defer_counts[pga_name] = (
+                        defer_counts.get(pga_name, 0) + 1
+                    )
                     heapq.heappush(
                         events_queue,
                         (
@@ -757,6 +747,7 @@ def simulate_dynamic(
                 continue
 
     df = pd.DataFrame(log)
+    del log
     link_utilization = compute_link_utilization(
         link_busy_record, warmup_time, horizon_time,
     )
@@ -769,4 +760,5 @@ def simulate_dynamic(
         link_waiting,
         routing_decision_cpt,
         routing_decision_runtime,
+        defer_counts,
     )

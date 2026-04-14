@@ -56,7 +56,6 @@ import re
 import time
 
 import numpy as np
-import pandas as pd
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
@@ -350,35 +349,9 @@ def run_simulation(
     if save_csv:
         os.makedirs(output_dir, exist_ok=True)
 
-    app_req_df = (
-        pd.DataFrame.from_dict(app_requests, orient="index")
-        .reset_index()
-        .rename(columns={"index": "app"})
-    )
-    hops_map = {
-        app: (len(path_list[0]) - 1)
-        for app, path_list in paths.items()
-    }
-    initial_path_map = {
-        app: path_list[0] for app, path_list in paths.items() if path_list
-    }
-    other_paths_map = {
-        app: path_list[1:]
-        for app, path_list in paths.items()
-        if len(path_list) > 1
-    }
-    app_req_df["hops"] = app_req_df["app"].map(hops_map)
-    app_req_df["initial_path"] = app_req_df["app"].map(initial_path_map)
-    app_req_df["other_paths"] = app_req_df["app"].map(other_paths_map)
-    app_req_df["e2e_fidelity"] = app_req_df["app"].map(app_e2e_fidelities)
-    app_req_df["admitted"] = app_req_df["app"].isin(app_specs)
-    if save_csv:
-        app_req_df.to_csv(
-            os.path.join(output_dir, "app_requests.csv"), index=False
-        )
-
     routing_decision_cpt = None
     routing_decision_runtime = None
+    defer_counts = None
     if scheduler == "dynamic":
         (
             df,
@@ -388,6 +361,7 @@ def run_simulation(
             link_waiting,
             routing_decision_cpt,
             routing_decision_runtime,
+            defer_counts,
         ) = simulate_dynamic(
             app_specs,
             durations,
@@ -495,7 +469,9 @@ def run_simulation(
         routing_decision_runtime=routing_decision_runtime,
         warmup=windows[0] if windows is not None else None,
         end_time=windows[1] if windows is not None else None,
+        defer_counts=defer_counts if scheduler == "dynamic" else None,
     )
+    del df
     return feasible, summary
 
 
