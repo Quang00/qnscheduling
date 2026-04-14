@@ -753,23 +753,6 @@ def simulate_dynamic(
             if status == "completed":
                 continue
 
-            next_ready_time = result["completion_time"] + EPS
-            if next_ready_time + duration <= deadline + EPS:
-                if status == "failed":
-                    result["status"] = "retry"
-                heapq.heappush(
-                    events_queue,
-                    (
-                        next_ready_time,
-                        deadline,
-                        arrival_time,
-                        app,
-                        i,
-                        next_ready_time,
-                        "resume",
-                    ),
-                )
-
     df = pd.DataFrame(log)
     link_utilization = compute_link_utilization(
         link_busy_record, warmup_time, horizon_time,
