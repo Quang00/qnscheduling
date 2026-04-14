@@ -53,6 +53,10 @@ def simulate_one_ppacket(args: tuple) -> dict:
     )
     if inst_range is not None:
         sim_kwargs["inst_range"] = inst_range
+    effective_inst = sim_kwargs.get("inst_range", 100)
+    effective_rate = sim_kwargs.get("instance_arrival_rate", 10.0) or 10.0
+    max_obs = 3 * effective_inst * 10 * (1.0 / effective_rate)
+    sim_kwargs["windows"] = (0.15 * max_obs, max_obs)
 
     try:
         _, summary = run_simulation(**sim_kwargs)
@@ -61,39 +65,23 @@ def simulate_one_ppacket(args: tuple) -> dict:
             shutil.rmtree(sd_dir, ignore_errors=True)
 
     summary_metrics = {
-        "admission_rate": float("nan"),
-        "makespan": float("nan"),
         "throughput": float("nan"),
         "app_throughput": float("nan"),
         "service_ratio": float("nan"),
         "completed_ratio": float("nan"),
-        "failed_ratio": float("nan"),
         "drop_ratio": float("nan"),
-        "avg_defer_per_pga": float("nan"),
-        "avg_retry_per_pga": float("nan"),
-        "avg_burst_time": float("nan"),
         "avg_waiting_time": float("nan"),
-        "max_waiting_time": float("nan"),
         "avg_turnaround_time": float("nan"),
-        "max_turnaround_time": float("nan"),
         "avg_service_time": float("nan"),
         "avg_hops": float("nan"),
-        "avg_min_fidelity": float("nan"),
         "avg_e2e_fidelity": float("nan"),
-        "single_path_share_pct": float("nan"),
-        "two_path_share_pct": float("nan"),
         "avg_pga_duration": float("nan"),
-        "total_busy_time": float("nan"),
-        "top5_busy_share": float("nan"),
-        "top10_busy_share": float("nan"),
         "avg_link_utilization": float("nan"),
         "p90_link_utilization": float("nan"),
         "p95_link_utilization": float("nan"),
         "p90_link_avg_wait": float("nan"),
         "p95_link_avg_wait": float("nan"),
         "avg_queue_length": float("nan"),
-        "p90_avg_queue_length": float("nan"),
-        "p95_avg_queue_length": float("nan"),
         "avg_deg": float("nan"),
         "fairness": float("nan"),
         "routing_decision_count": 0,

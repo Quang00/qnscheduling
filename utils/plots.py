@@ -31,16 +31,6 @@ def build_metric_specs(
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
-            "key": "admission_rate",
-            "ylabel": "Admission rate (%)",
-            "percentage": True,
-        },
-        {
-            "key": "makespan",
-            "ylabel": "Completion time (s)",
-            "yscale": "log",
-        },
-        {
             "key": "throughput",
             "ylabel": "Throughput (completed PGAs/s)",
         },
@@ -56,16 +46,6 @@ def build_metric_specs(
         {
             "key": "completed_ratio",
             "ylabel": "Completion ratio (%)",
-            "percentage": True,
-        },
-        {
-            "key": "top5_busy_share",
-            "ylabel": "Share of non-idle time in top 5% links (%)",
-            "percentage": True,
-        },
-        {
-            "key": "top10_busy_share",
-            "ylabel": "Share of non-idle time in top 10% links (%)",
             "percentage": True,
         },
         {
@@ -100,14 +80,6 @@ def build_metric_specs(
             "ylabel": "Average queue length",
         },
         {
-            "key": "p90_avg_queue_length",
-            "ylabel": "90th percentile average queue length",
-        },
-        {
-            "key": "p95_avg_queue_length",
-            "ylabel": "95th percentile average queue length",
-        },
-        {
             "key": "avg_turnaround_time",
             "ylabel": "Average turnaround time (s)",
         },
@@ -130,42 +102,12 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
-            "key": "avg_min_fidelity",
-            "ylabel": "Average minimum fidelity",
-        },
-        {
             "key": "avg_e2e_fidelity",
             "ylabel": "Average E2E fidelity",
         },
         {
             "key": "avg_pga_duration",
             "ylabel": "Average PGA duration (s)",
-        },
-        {
-            "key": "avg_burst_time",
-            "ylabel": "Average burst time (s)",
-        },
-        {
-            "key": "avg_defer_per_pga",
-            "ylabel": "Average deferrals per PGA",
-        },
-        {
-            "key": "avg_retry_per_pga",
-            "ylabel": "Average retries per PGA",
-        },
-        {
-            "key": "single_path_share_pct",
-            "ylabel": "Requests with exactly 1 candidate path (%)",
-            "percentage": True,
-        },
-        {
-            "key": "two_path_share_pct",
-            "ylabel": "Requests with $\\leq$ 2 candidate paths (%)",
-            "percentage": True,
-        },
-        {
-            "key": "avg_deg",
-            "ylabel": "Average node degree",
         },
         {
             "key": "fairness",
