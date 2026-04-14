@@ -372,7 +372,6 @@ def simulate_dynamic(
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[List[str]]],
     rng: np.random.Generator,
-    arrival_rate: float | None = None,
     full_dynamic: bool = True,
     rerouting_mode: bool = False,
     all_links: List[Tuple[str, str]] | None = None,
@@ -381,7 +380,8 @@ def simulate_dynamic(
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
     rng_routing: np.random.Generator | None = None,
-    rng_arrivals: np.random.Generator | None = None,
+    rng_arrivals: Dict[str, np.random.Generator] | None = None,
+    instance_arrival_rate: float = 10.0,
 ):
     log = []
     pga_release_times = {}
@@ -422,11 +422,10 @@ def simulate_dynamic(
         for app in app_specs
     }
     release_indices = {app: 0 for app in app_specs}
-    poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
-    poisson = (1.0 / arrival_rate) if poisson_enabled else None
+    instance_poisson_enabled = instance_arrival_rate > 0.0
     poisson_next_release = (
         {app: float(base_release.get(app, 0.0)) for app in app_specs}
-        if poisson_enabled
+        if instance_poisson_enabled
         else {}
     )
 
@@ -460,10 +459,14 @@ def simulate_dynamic(
         if max_instances[app] > 0 and idx >= max_instances[app]:
             return
 
-        if poisson_enabled:
+        if instance_poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
-            _rng_arr = rng_arrivals if rng_arrivals is not None else rng
-            poisson_next_release[app] = release + _rng_arr.exponential(poisson)
+            _rng_arr = (
+                rng_arrivals.get(app) if rng_arrivals is not None else None
+            ) or rng
+            poisson_next_release[app] = release + _rng_arr.exponential(
+                1.0 / instance_arrival_rate
+            )
         else:
             release = base_release[app] + period * idx
 

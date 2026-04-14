@@ -95,6 +95,7 @@ def run_simulation(
     output_dir: str,
     scheduler: str = "static",
     arrival_rate: float | None = None,
+    instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     capacity_threshold: float = 0.8,
     save_csv: bool = True,
@@ -139,9 +140,11 @@ def run_simulation(
             - dict: summary metrics dictionary
     """
     ss = np.random.SeedSequence(seed)
+    child_seeds = ss.spawn(4)
     rng, rng_arrivals, rng_routing = (
-        np.random.default_rng(s) for s in ss.spawn(3)
+        np.random.default_rng(s) for s in child_seeds[:3]
     )
+    ss_app_arrivals = child_seeds[3]
 
     # Generate network data and applications based on the configuration file
     fidelities = {}
@@ -211,6 +214,15 @@ def run_simulation(
             app: float(rng.uniform(0.0, spec["period"]))
             for app, spec in app_specs.items()
         }
+
+    rng_arrivals_per_app = {
+        app: np.random.default_rng(s)
+        for app, s in zip(
+            app_specs.keys(),
+            ss_app_arrivals.spawn(len(app_specs)),
+            strict=True,
+        )
+    }
 
     # Find feasible paths for each application based on fidelity/routing mode
     app_requests = {
@@ -383,7 +395,6 @@ def run_simulation(
             pga_rel_times,
             paths,
             rng,
-            arrival_rate,
             full_dynamic,
             provisioning,
             all_links,
@@ -392,7 +403,8 @@ def run_simulation(
             horizon_time=windows[1] if windows is not None else None,
             warmup_time=windows[0] if windows is not None else 0.0,
             rng_routing=rng_routing,
-            rng_arrivals=rng_arrivals,
+            rng_arrivals=rng_arrivals_per_app,
+            instance_arrival_rate=instance_arrival_rate,
         )
         feasible = True
         if not full_dynamic:
