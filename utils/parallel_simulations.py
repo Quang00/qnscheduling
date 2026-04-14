@@ -65,6 +65,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
         "makespan": float("nan"),
         "throughput": float("nan"),
         "app_throughput": float("nan"),
+        "service_ratio": float("nan"),
         "completed_ratio": float("nan"),
         "failed_ratio": float("nan"),
         "drop_ratio": float("nan"),

@@ -613,6 +613,11 @@ def save_results(
         == int(app_specs[task]["instances"] if task in app_specs else 0)
     )
     app_throughput = served_count / makespan if makespan else float("nan")
+    n_apps_in_window = int(tmp["task"].nunique())
+    service_ratio = (
+        served_count / n_apps_in_window
+        if n_apps_in_window > 0 else float("nan")
+    )
     fairness = float("nan")
     completion_ratios = []
     for task in expected_tasks:
@@ -652,6 +657,7 @@ def save_results(
         print(f"Completion time  : {makespan:.4f}")
         print(f"Throughput       : {throughput:.4f} completed PGAs/s")
         print(f"App throughput   : {app_throughput:.4f} served apps/s")
+        print(f"Service ratio    : {service_ratio:.4f}")
         print(f"Completion ratio : {completed_ratio:.4f}")
         print(f"Failed ratio     : {failed_ratio:.4f}")
         print(f"Drop ratio       : {drop_ratio:.4f}")
@@ -689,6 +695,7 @@ def save_results(
         "makespan": float(makespan),
         "throughput": float(throughput),
         "app_throughput": float(app_throughput),
+        "service_ratio": float(service_ratio),
         "completed_ratio": float(completed_ratio),
         "failed_ratio": float(failed_ratio),
         "drop_ratio": float(drop_ratio),
