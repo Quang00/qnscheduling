@@ -138,7 +138,10 @@ def run_simulation(
             - bool: whether the schedule is feasible
             - dict: summary metrics dictionary
     """
-    rng = np.random.default_rng(seed)
+    ss = np.random.SeedSequence(seed)
+    rng, rng_arrivals, rng_routing = (
+        np.random.default_rng(s) for s in ss.spawn(3)
+    )
 
     # Generate network data and applications based on the configuration file
     fidelities = {}
@@ -174,7 +177,7 @@ def run_simulation(
         arrival_times = []
         t = 0.0
         while True:
-            t += float(rng.exponential(mean_interarrival))
+            t += float(rng_arrivals.exponential(mean_interarrival))
             if t > windows_max:
                 break
             arrival_times.append(t)
@@ -231,7 +234,7 @@ def run_simulation(
     if static_routing_mode:
         _t0 = time.perf_counter()
         paths, app_e2e_fidelities = static_routing(
-            app_requests, simple_paths, rng
+            app_requests, simple_paths, rng_routing
         )
         static_routing_time = time.perf_counter() - _t0
     elif full_dynamic:
@@ -260,7 +263,7 @@ def run_simulation(
             p_swap=p_swap,
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
-            rng=rng,
+            rng=rng_routing,
             provisioning=provisioning,
         )
         static_routing_time = time.perf_counter() - _t0
@@ -384,6 +387,8 @@ def run_simulation(
             static_routing_mode,
             horizon_time=windows[1] if windows is not None else None,
             warmup_time=windows[0] if windows is not None else 0.0,
+            rng_routing=rng_routing,
+            rng_arrivals=rng_arrivals,
         )
         feasible = True
         if not full_dynamic:

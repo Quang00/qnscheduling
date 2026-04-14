@@ -380,6 +380,8 @@ def simulate_dynamic(
     static_routing_mode: bool = False,
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
+    rng_routing: np.random.Generator | None = None,
+    rng_arrivals: np.random.Generator | None = None,
 ):
     log = []
     pga_release_times = {}
@@ -460,7 +462,8 @@ def simulate_dynamic(
 
         if poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
-            poisson_next_release[app] = release + rng.exponential(poisson)
+            _rng_arr = rng_arrivals if rng_arrivals is not None else rng
+            poisson_next_release[app] = release + _rng_arr.exponential(poisson)
         else:
             release = base_release[app] + period * idx
 
@@ -540,7 +543,7 @@ def simulate_dynamic(
                     deadline,
                     cur_t,
                     resources,
-                    rng,
+                    rng_routing if rng_routing is not None else rng,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
