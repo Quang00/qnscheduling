@@ -306,14 +306,18 @@ def run_simulation(
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
-    durations = compute_durations(
-        initial_paths,
-        epr_pairs,
-        p_packet,
-        memory,
-        p_swap,
-        p_gen,
-        time_slot_duration,
+    durations = (
+        {}
+        if full_dynamic
+        else compute_durations(
+            initial_paths,
+            epr_pairs,
+            p_packet,
+            memory,
+            p_swap,
+            p_gen,
+            time_slot_duration,
+        )
     )
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
