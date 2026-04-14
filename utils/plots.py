@@ -109,7 +109,7 @@ def build_metric_specs(
         },
         {
             "key": "avg_turnaround_time",
-            "ylabel": "Turnaround time (s)",
+            "ylabel": "Average turnaround time (s)",
         },
         {
             "key": "avg_service_time",
