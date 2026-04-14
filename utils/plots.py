@@ -112,6 +112,10 @@ def build_metric_specs(
             "ylabel": "Turnaround time (s)",
         },
         {
+            "key": "avg_service_time",
+            "ylabel": "Average service time (s)",
+        },
+        {
             "key": "failed_ratio",
             "ylabel": "Failed ratio (%)",
             "percentage": True,

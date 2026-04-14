@@ -606,13 +606,23 @@ def save_results(
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
-    served_count = sum(
-        1
-        for task in expected_tasks
+    served_tasks = {
+        task for task in expected_tasks
         if int(released_per_task.get(task, 0))
         == int(app_specs[task]["instances"] if task in app_specs else 0)
-    )
+    }
+    served_count = len(served_tasks)
     app_throughput = served_count / makespan if makespan else float("nan")
+    service_times = []
+    for served_task in served_tasks:
+        task_df = tmp[tmp["task"] == served_task]
+        first = task_df["arrival_time"].min()
+        last = task_df["completion_time"].max()
+        if pd.notna(first) and pd.notna(last):
+            service_times.append(last - first)
+    avg_service_time = (
+        float(np.mean(service_times)) if service_times else float("nan")
+    )
     n_apps_in_window = int(tmp["task"].nunique())
     service_ratio = (
         served_count / n_apps_in_window
@@ -664,6 +674,7 @@ def save_results(
         print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
         print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
         print(f"Avg burst time   : {avg_burst_time:.4f}")
+        print(f"Avg service time : {avg_service_time:.4f}")
         print(f"Avg waiting time : {avg_wait:.4f}")
         print(f"Max waiting time : {max_wait:.4f}")
         print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
@@ -705,6 +716,7 @@ def save_results(
         "avg_waiting_time": float(avg_wait),
         "max_waiting_time": float(max_wait),
         "avg_turnaround_time": float(avg_turnaround),
+        "avg_service_time": float(avg_service_time),
         "max_turnaround_time": float(max_turnaround),
         "avg_hops": float(avg_hops),
         "avg_min_fidelity": float(avg_min_fidelity),
