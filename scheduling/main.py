@@ -522,7 +522,7 @@ def main():
         "--inst",
         "-i",
         type=int,
-        default=200,
+        default=100,
         help="Number of instances to generate per application",
     )
     parser.add_argument(
@@ -543,15 +543,6 @@ def main():
         metavar=("MIN", "MAX"),
         default=[1.0, 1.0],
         help="Period of the application (e.g., --period 1.0 5.0)",
-    )
-    parser.add_argument(
-        "--windows",
-        "-w",
-        type=float,
-        nargs=2,
-        metavar=("MIN", "MAX"),
-        default=[5.0, 10.0],
-        help="Post–warm-up observation window",
     )
     parser.add_argument(
         "--hyperperiod",
@@ -671,6 +662,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    max_observation_window = 3 * args.inst * 10 * (1.0 / 10.0)
+    warmup = 0.15 * max_observation_window
+    windows = (warmup, max_observation_window)
+
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
 
     run_number = 1
@@ -690,7 +686,7 @@ def main():
         inst_range=args.inst,
         epr_range=args.epr,
         period_range=args.period,
-        windows=args.windows,
+        windows=windows,
         hyperperiod_cycles=args.hyperperiod,
         p_packet=args.ppacket,
         memory=args.memory,
@@ -725,12 +721,8 @@ def main():
         "epr_max": args.epr[1],
         "period_min": args.period[0],
         "period_max": args.period[1],
-        "windows_min": (
-            args.windows[0] if args.windows is not None else None
-        ),
-        "windows_max": (
-            args.windows[1] if args.windows is not None else None
-        ),
+        "windows_min": windows[0],
+        "windows_max": windows[1],
         "hyperperiod_cycles": args.hyperperiod,
         "p_packet": args.ppacket,
         "memory": args.memory,
