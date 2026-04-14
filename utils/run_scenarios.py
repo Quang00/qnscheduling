@@ -1,5 +1,3 @@
-import os
-
 from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
@@ -11,7 +9,6 @@ def main():
     # inst_range_values = [50, 100, 150, 200]
     topology = "configurations/network/advanced/Garr201201.gml"
     simulations_per_point = 20
-    max_workers = max(1, (os.cpu_count() or 4) // 2)
 
     base_kwargs = {
         "epr_range": (4, 4),
@@ -71,7 +68,6 @@ def main():
             simulation_kwargs=sim_kwargs,
             config=topology,
             keep_seed_outputs=False,
-            max_workers=max_workers,
         )
         df.insert(0, "scenario", scenario["id"])
         df.to_csv(raw_csv_path, index=False)
