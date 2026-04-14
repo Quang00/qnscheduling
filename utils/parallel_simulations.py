@@ -114,7 +114,7 @@ def run_parallel_sims(
     if n_tasks == 0:
         return []
     n_procs = min(max_workers, n_tasks)
-    chunksize = max(1, n_tasks // (n_procs * 4))
+    chunksize = 1
     pool = mp_ctx.Pool(
         processes=n_procs,
         initializer=_init_worker,
@@ -123,14 +123,8 @@ def run_parallel_sims(
     try:
         it = pool.imap_unordered(simulate_one_ppacket, tasks, chunksize)
         if show_progress:
-            records = [
-                rec for rec in tqdm(
-                    it, total=n_tasks, desc="Simulations", unit="run"
-                )
-            ]
-        else:
-            records = list(it)
-
+            it = tqdm(it, total=n_tasks, desc="Simulations", unit="run")
+        records = list(it)
         pool.close()
         return records
     except (KeyboardInterrupt, Exception):
