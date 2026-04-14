@@ -250,6 +250,7 @@ def save_results(
     routing_decision_runtime: float | None = None,
     warmup: float | None = None,
     end_time: float | None = None,
+    defer_counts: Dict[str, int] | None = None,
 ) -> Dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
@@ -322,6 +323,18 @@ def save_results(
         c in df.columns for c in ("hops", "pga_duration", "e2e_fidelity")
     )
 
+    if not save_csv:
+        _keep = [
+            "pga", "status", "waiting_time", "turnaround_time",
+            "burst_time", "arrival_time", "completion_time", "task",
+        ]
+        if has_per_row_routing:
+            _keep += [
+                c for c in ("hops", "e2e_fidelity", "pga_duration")
+                if c in df.columns
+            ]
+        df = df[[c for c in _keep if c in df.columns]]
+
     if pga_network_paths:
         path_length = {
             app: max(0, len(path) - 1)
@@ -371,16 +384,15 @@ def save_results(
         df = df[df["arrival_time"] <= end_time].reset_index(drop=True)
 
     tot_reqs = df["pga"].nunique()
-    df_ord = df.copy()
-    df_ord["_order_time"] = df_ord["completion_time"].fillna(-np.inf)
-    final = (
-        df_ord.sort_values(["pga", "_order_time"])
+    final_status = (
+        df.assign(_order_time=df["completion_time"].fillna(-np.inf))
+        .sort_values(["pga", "_order_time"])
         .groupby("pga", as_index=False)
         .tail(1)
-        .drop(columns="_order_time")
     )
-    completed_total = int((final["status"] == "completed").sum())
-    drop_total = int((final["status"] == "drop").sum())
+    completed_total = int((final_status["status"] == "completed").sum())
+    drop_total = int((final_status["status"] == "drop").sum())
+    del final_status
     failed_total = tot_reqs - completed_total - drop_total
 
     if end_time is not None and warmup is not None:
@@ -389,8 +401,8 @@ def save_results(
         makespan = float("nan")
 
     if save_csv:
-        csv_path = os.path.join(output_dir, "pga_results.csv")
-        df.to_csv(csv_path, index=False)
+        csv_path = os.path.join(output_dir, "pga_results.parquet")
+        df.to_parquet(csv_path, index=False)
 
         if verbose:
             print("\n=== Preview PGA Results ===")
@@ -534,8 +546,11 @@ def save_results(
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
-    defer_count = len(df.loc[df["status"] == "defer"])
-    retry_count = len(df.loc[df["status"] == "retry"])
+    if defer_counts is not None:
+        defer_count = sum(defer_counts.values())
+    else:
+        defer_count = int((df["status"] == "defer").sum())
+    retry_count = int((df["status"] == "retry").sum())
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
     avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
     avg_burst_time = (
@@ -586,17 +601,16 @@ def save_results(
         print("\n=== Summary ===")
         print(f"Total PGAs       : {total}")
 
-    tmp = df.copy()
-    tmp["task"] = tmp["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
+    df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
     expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in pga_names})
     per_task = (
-        tmp.groupby(["task", "status"])
+        df.groupby(["task", "status"])
         .size()
         .unstack(fill_value=0)
         .reindex(expected_tasks, fill_value=0)
     )
     released_per_task = (
-        tmp.groupby("task")["pga"]
+        df.groupby("task")["pga"]
         .nunique()
         .reindex(expected_tasks, fill_value=0)
     )
@@ -615,7 +629,7 @@ def save_results(
     app_throughput = served_count / makespan if makespan else float("nan")
     service_times = []
     for served_task in served_tasks:
-        task_df = tmp[tmp["task"] == served_task]
+        task_df = df[df["task"] == served_task]
         first = task_df["arrival_time"].min()
         last = task_df["completion_time"].max()
         if pd.notna(first) and pd.notna(last):
@@ -623,7 +637,7 @@ def save_results(
     avg_service_time = (
         float(np.mean(service_times)) if service_times else float("nan")
     )
-    n_apps_in_window = int(tmp["task"].nunique())
+    n_apps_in_window = int(df["task"].nunique())
     service_ratio = (
         served_count / n_apps_in_window
         if n_apps_in_window > 0 else float("nan")
@@ -753,33 +767,6 @@ def save_results(
         overall_df = pd.DataFrame([summary_metrics])
         overall_path = os.path.join(output_dir, "summary.csv")
         overall_df.to_csv(overall_path, index=False)
-
-    for col in ["defer", "retry", "drop"]:
-        if col not in per_task.columns:
-            per_task[col] = 0
-
-    per_task_cols = ["completed", "failed", "defer", "retry", "drop"]
-    per_task_df = (
-        per_task.loc[tasks_sorted, per_task_cols]
-        .reset_index()
-        .rename(columns={"task": "task_name"})
-    )
-    per_task_df = per_task_df.merge(
-        params.rename(columns={"task": "task_name"})[
-            ["task_name", "pga_duration", "instances"]
-        ],
-        on="task_name",
-        how="left",
-    )
-    per_task_df["released"] = (
-        per_task_df["task_name"].map(released_per_task).fillna(0).astype(int)
-    )
-    per_task_df["served"] = (
-        per_task_df["released"] == per_task_df["instances"]
-    )
-    if save_csv:
-        per_task_path = os.path.join(output_dir, "summary_per_app.csv")
-        per_task_df.to_csv(per_task_path, index=False)
 
     return summary_metrics
 
