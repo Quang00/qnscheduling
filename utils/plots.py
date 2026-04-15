@@ -110,6 +110,10 @@ def build_metric_specs(
             "ylabel": "Average PGA duration (s)",
         },
         {
+            "key": "avg_routing_efficiency",
+            "ylabel": "Routing efficiency",
+        },
+        {
             "key": "fairness",
             "ylabel": "Fairness",
         },

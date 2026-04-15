@@ -558,6 +558,7 @@ def save_results(
         if not df.empty
         else float("nan")
     )
+    avg_path_efficiency = float("nan")
     if has_per_row_routing:
         avg_hops = df["hops"].mean() if "hops" in df.columns else float("nan")
         _empty = pd.Series([], dtype=float)
@@ -575,6 +576,14 @@ def save_results(
             else _empty
         )
         pga_d = float(_dur_col.mean()) if not _dur_col.empty else float("nan")
+        _eff_col = (
+            df["routing_efficiency"].dropna()
+            if "routing_efficiency" in df.columns
+            else _empty
+        )
+        avg_path_efficiency = (
+            float(_eff_col.mean()) if not _eff_col.empty else float("nan")
+        )
     else:
         avg_hops = params["hops"].mean() if not params.empty else float("nan")
         e2e_fidelity_values = [
@@ -704,6 +713,7 @@ def save_results(
         print(f"Single-path share: {single_path_share:.2f}")
         print(f"Two-path share   : {two_path_share:.2f}")
         print(f"Avg PGA duration : {pga_d:.4f}")
+        print(f"Avg routing efficiency: {avg_path_efficiency:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
@@ -738,6 +748,7 @@ def save_results(
         "single_path_share_pct": float(single_path_share),
         "two_path_share_pct": float(two_path_share),
         "avg_pga_duration": float(pga_d),
+        "avg_routing_efficiency": float(avg_path_efficiency),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),

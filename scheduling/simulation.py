@@ -434,6 +434,7 @@ def simulate_dynamic(
     ready_queue = []
 
     routing_metadata = {}
+    pga_best = {}
     rerouting_candidates = {}
     if full_dynamic and simple_paths is not None:
         for app in app_specs:
@@ -445,6 +446,15 @@ def simulate_dynamic(
                 dst=app_specs[app]["dst"],
             )
             routing_decision_runtime += time.perf_counter() - _t0
+            min_fid = app_specs[app].get("min_fidelity", 0.0)
+            feasible_durs = [
+                dur
+                for fid, _, _, dur in routing_metadata[app]
+                if fid >= min_fid
+            ]
+            pga_best[app] = (
+                min(feasible_durs) if feasible_durs else float("nan")
+            )
     elif rerouting_mode:
         for app, app_paths in pga_network_paths.items():
             _t0 = time.perf_counter()
@@ -635,6 +645,13 @@ def simulate_dynamic(
                 or rerouting_mode
                 else {}
             )
+            if full_dynamic and simple_paths is not None:
+                best = pga_best.get(app, float("nan"))
+                _stamp["routing_efficiency"] = (
+                    best / duration
+                    if duration > 0 and not np.isnan(best)
+                    else float("nan")
+                )
 
             if last_available > cur_t + EPS:
                 if last_available + duration <= deadline + EPS:
