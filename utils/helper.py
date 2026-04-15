@@ -330,7 +330,10 @@ def save_results(
         ]
         if has_per_row_routing:
             _keep += [
-                c for c in ("hops", "e2e_fidelity", "pga_duration")
+                c for c in (
+                    "hops", "e2e_fidelity", "pga_duration",
+                    "routing_efficiency",
+                )
                 if c in df.columns
             ]
         df = df[[c for c in _keep if c in df.columns]]
