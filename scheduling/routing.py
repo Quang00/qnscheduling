@@ -604,10 +604,11 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
     rng: np.random.Generator | None = None,
-    mode: str = "shortest",
+    mode: str = "greedy",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
     global_min = None
+    best_earliest = None
     available = []
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
@@ -617,12 +618,27 @@ def dynamic_routing(
         if global_min is None or pga_duration < global_min:
             global_min = pga_duration
         avail = max((resources.get(lnk, 0.0) for lnk in links), default=cur_t)
+        finish = max(avail, cur_t) + pga_duration
+        if (
+            best_earliest is None
+            or finish < best_earliest[0]
+        ):
+            best_earliest = (finish, avail, path, links, pga_duration, e2e_fid)
         if avail > cur_t + EPS:
             if avail < deadline - EPS:
                 if next_avail is None or avail < next_avail:
                     next_avail = avail
             continue
         available.append((pga_duration, path, links, e2e_fid))
+
+    if mode == "earliest":
+        if best_earliest is None:
+            return None, next_avail
+        _, avail_eft, path, links, pga_duration, e2e_fid = best_earliest
+        if avail_eft <= cur_t + EPS:
+            return (path, links, cur_t, pga_duration, e2e_fid), next_avail
+        defer_to = avail_eft if avail_eft < deadline - EPS else None
+        return None, defer_to
 
     if not available:
         return None, next_avail
