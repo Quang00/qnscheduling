@@ -604,29 +604,40 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
     rng: np.random.Generator | None = None,
+    mode: str = "shortest",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
-    best_duration = None
-    tied = []
+    global_min = None
+    available = []
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
+        if cur_t + pga_duration > deadline + EPS:
+            continue
+        if global_min is None or pga_duration < global_min:
+            global_min = pga_duration
         avail = max((resources.get(lnk, 0.0) for lnk in links), default=cur_t)
         if avail > cur_t + EPS:
             if avail < deadline - EPS:
                 if next_avail is None or avail < next_avail:
                     next_avail = avail
             continue
-        finish = cur_t + pga_duration
-        if finish > deadline + EPS:
-            continue
-        if best_duration is None or pga_duration < best_duration:
-            best_duration = pga_duration
-            tied = [(path, links, e2e_fid)]
-        elif pga_duration == best_duration:
-            tied.append((path, links, e2e_fid))
-    if not tied:
+        available.append((pga_duration, path, links, e2e_fid))
+
+    if not available:
         return None, next_avail
+
+    best_duration = min(d for d, *_ in available)
+
+    if mode == "shortest":
+        if best_duration != global_min:
+            return None, next_avail
+        _, path, links, e2e_fid = next(
+            candida for candida in available if candida[0] == best_duration
+        )
+        return (path, links, cur_t, best_duration, e2e_fid), next_avail
+
+    tied = [(p, lnks, f) for d, p, lnks, f in available if d == best_duration]
     idx = 0 if rng is None or len(tied) == 1 else int(rng.integers(len(tied)))
     path, links, e2e_fid = tied[idx]
     return (path, links, cur_t, best_duration, e2e_fid), next_avail
