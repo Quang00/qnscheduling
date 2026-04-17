@@ -619,15 +619,16 @@ def dynamic_routing(
             global_min = pga_duration
         avail = max((resources.get(lnk, 0.0) for lnk in links), default=cur_t)
         finish = max(avail, cur_t) + pga_duration
+        if finish > deadline + EPS:
+            continue
         if (
             best_earliest is None
             or finish < best_earliest[0]
         ):
             best_earliest = (finish, avail, path, links, pga_duration, e2e_fid)
         if avail > cur_t + EPS:
-            if avail < deadline - EPS:
-                if next_avail is None or avail < next_avail:
-                    next_avail = avail
+            if next_avail is None or avail < next_avail:
+                next_avail = avail
             continue
         available.append((pga_duration, path, links, e2e_fid))
 
