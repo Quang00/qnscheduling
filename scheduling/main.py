@@ -150,20 +150,22 @@ def run_simulation(
     simple_paths = {}
     avg_deg = float("nan")
     diameter = float("nan")
+    end_nodes = None
     if graph == "waxman":
-        nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
-            rng=rng
+        nodes, edges, fidelities, avg_deg, diameter, end_nodes = (
+            generate_waxman_graph(rng=rng)
         )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, qpus, diameter = fat_tree()
-        nodes = qpus
+        nodes, edges, fidelities, end_nodes, diameter = fat_tree()
     elif graph == "gml":
-        nodes, edges, distances, fidelities, diameter = gml_data(config)
+        nodes, edges, distances, fidelities, diameter, end_nodes = gml_data(
+            config
+        )
     bounds, simple_paths = fidelity_bounds_and_paths(
-        nodes, fidelities, diameter + 2
+        end_nodes, fidelities, diameter + 2
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
@@ -185,7 +187,7 @@ def run_simulation(
             arrival_times.append(t)
         n_generated = len(arrival_times)
         app_specs = generate_n_apps(
-            nodes,
+            end_nodes,
             bounds,
             n_apps=n_generated,
             inst_range=inst_range,
@@ -200,7 +202,7 @@ def run_simulation(
         }
     else:
         app_specs = generate_n_apps(
-            nodes,
+            end_nodes,
             bounds,
             n_apps=n_apps,
             inst_range=inst_range,

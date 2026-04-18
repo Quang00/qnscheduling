@@ -812,8 +812,9 @@ def compute_edge_fidelities(
 
 def gml_data(
     gml_file: str,
-) -> Tuple[list, list, dict[tuple, float], float]:
-    """Extracts nodes, edges, and distances from a GML file.
+) -> Tuple[list, list, dict[tuple, float], dict, float, list]:
+    """Extracts nodes, edges, distances, fidelities, diameter, and end nodes
+    from a GML file.
 
     Args:
         gml_file (str): Path to the GML file.
@@ -821,9 +822,13 @@ def gml_data(
     Returns:
         nodes (list): List of nodes.
         edges (list): List of edges (source, target).
+        distances (dict[tuple, float]): Dict mapping directed edges to
+        distances.
         fidelities (dict[tuple, float]): Dict mapping directed edges to
         fidelities.
         diameter (float): Diameter of the graph.
+        end_nodes (list): Degree-1 leaf nodes, or minimum-degree nodes if no
+        degree-1 nodes exist.
     """
     G = nx.read_gml(gml_file)
 
@@ -836,11 +841,16 @@ def gml_data(
     fidelities = compute_edge_fidelities(G, distances)
     diameter = float(nx.diameter(G))
 
-    return nodes, edges, distances, fidelities, diameter
+    end_nodes = [n for n, d in G.degree() if d == 1]
+    if not end_nodes:
+        min_deg = min(d for _, d in G.degree())
+        end_nodes = [n for n, d in G.degree() if d == min_deg]
+
+    return nodes, edges, distances, fidelities, diameter, end_nodes
 
 
 def generate_n_apps(
-    nodes: list[str],
+    end_nodes: list[str],
     bounds: dict[tuple, tuple],
     n_apps: int,
     inst_range: int,
@@ -852,7 +862,7 @@ def generate_n_apps(
     """Generates a specified number of applications with random parameters.
 
     Args:
-        nodes (list): List of available nodes in the network.
+        end_nodes (list): List of end nodes in the network.
         n_apps (int): Number of applications to generate.
         inst_range (int): Poisson lambda for the number of instances
         per application.
@@ -874,9 +884,9 @@ def generate_n_apps(
     apps = {}
     feasible = []
     min_fidelity_threshold = 0.51
-    for i in range(len(nodes)):
-        for j in range(i + 1, len(nodes)):
-            src, dst = nodes[i], nodes[j]
+    for i in range(len(end_nodes)):
+        for j in range(i + 1, len(end_nodes)):
+            src, dst = end_nodes[i], end_nodes[j]
             min_f, max_f = fidelity_bounds(bounds, src, dst)
             if max_f > min_fidelity_threshold:
                 feasible.append(

@@ -12,7 +12,7 @@ def generate_waxman_graph(
     max_retries: int = 5000,
     max_avg_degree: float = 3.0,
     max_hops: int = 8,
-) -> tuple[list, list, dict, float, float]:
+) -> tuple[list, list, dict, float, float, list]:
     """Generates a Waxman graph with constraints on connectivity,
     average degree, and diameter.
 
@@ -31,12 +31,13 @@ def generate_waxman_graph(
         max_hops (int, optional): Maximum diameter of the graph. Defaults to 8.
 
     Returns:
-        tuple[list, list, dict, float, float]: A tuple containing:
+        tuple[list, list, dict, float, float, list]: A tuple containing:
             - List of nodes in the graph.
             - List of edges in the graph.
             - Dictionary mapping edges to their fidelities.
             - Average degree of the graph.
             - Diameter of the graph.
+            - End nodes: degree-1 leaf nodes, or minimum-degree nodes if none.
     """
     G = None
     diameter = float("nan")
@@ -52,7 +53,7 @@ def generate_waxman_graph(
             continue
         break
     else:
-        return [], [], {}, 0.0, float("nan")
+        return [], [], {}, 0.0, float("nan"), []
 
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
@@ -65,7 +66,12 @@ def generate_waxman_graph(
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
 
-    return nodes, edges, fidelites, avg_deg, diameter
+    end_node_count = max(2, n // 3)
+    end_nodes = list(
+        rng.choice(nodes, size=end_node_count, replace=False)
+    )
+
+    return nodes, edges, fidelites, avg_deg, diameter, end_nodes
 
 
 def fat_tree(
