@@ -37,7 +37,6 @@ def generate_waxman_graph(
             - Dictionary mapping edges to their fidelities.
             - Average degree of the graph.
             - Diameter of the graph.
-            - End nodes: degree-1 leaf nodes, or minimum-degree nodes if none.
     """
     G = None
     diameter = float("nan")
@@ -66,12 +65,7 @@ def generate_waxman_graph(
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
 
-    end_node_count = max(2, n // 3)
-    end_nodes = list(
-        rng.choice(nodes, size=end_node_count, replace=False)
-    )
-
-    return nodes, edges, fidelites, avg_deg, diameter, end_nodes
+    return nodes, edges, fidelites, avg_deg, diameter, nodes
 
 
 def fat_tree(

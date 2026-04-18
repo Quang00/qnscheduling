@@ -604,7 +604,7 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
     rng: np.random.Generator | None = None,
-    mode: str = "shortest",
+    mode: str = "greedy",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
     global_min = None
