@@ -604,7 +604,7 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
     rng: np.random.Generator | None = None,
-    mode: str = "greedy",
+    mode: str = "shortest",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
     global_min = None
@@ -680,28 +680,20 @@ def static_routing(
                 ret[app] = [chosen_path]
                 e2e_fids[app] = best_fid
             continue
-        best_len = float("inf")
-        tied_candidates = []
+        best_fid = float("-inf")
+        chosen_path = []
         for path in all_simple_paths(simple_paths, src, dst):
             e2e_fid, path_nodes = path[0], path[1]
-            path_len = len(path_nodes)
-            if path_len < best_len:
-                best_len = path_len
-                tied_candidates = [(list(path_nodes), e2e_fid)]
-            elif path_len == best_len:
-                tied_candidates.append((list(path_nodes), e2e_fid))
+            if e2e_fid > best_fid:
+                best_fid = e2e_fid
+                chosen_path = list(path_nodes)
         min_fid = req.get("min_fidelity", 0.0)
-        if not tied_candidates:
+        if not chosen_path:
             path_cache[(src, dst)] = ([], float("nan"))
             ret[app] = []
             e2e_fids[app] = float("nan")
         else:
-            idx = (
-                0
-                if len(tied_candidates) == 1
-                else int(rng.integers(len(tied_candidates)))
-            )
-            chosen_path, chosen_fid = tied_candidates[idx]
+            chosen_fid = best_fid
             if chosen_fid < min_fid:
                 path_cache[(src, dst)] = ([], chosen_fid)
                 ret[app] = []
