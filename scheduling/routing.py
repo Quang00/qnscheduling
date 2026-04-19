@@ -610,23 +610,29 @@ def dynamic_routing(
     global_min = None
     best_earliest = None
     available = []
+    deadline_eps = deadline + EPS
+    cur_t_eps = cur_t + EPS
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
-        if cur_t + pga_duration > deadline + EPS:
+        if cur_t + pga_duration > deadline_eps:
             continue
         if global_min is None or pga_duration < global_min:
             global_min = pga_duration
-        avail = max((resources.get(lnk, 0.0) for lnk in links), default=cur_t)
-        finish = max(avail, cur_t) + pga_duration
-        if finish > deadline + EPS:
+        avail = cur_t
+        for lnk in links:
+            v = resources.get(lnk, 0.0)
+            if v > avail:
+                avail = v
+        finish = (avail if avail > cur_t else cur_t) + pga_duration
+        if finish > deadline_eps:
             continue
         if (
             best_earliest is None
             or finish < best_earliest[0]
         ):
             best_earliest = (finish, avail, path, links, pga_duration, e2e_fid)
-        if avail > cur_t + EPS:
+        if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
             continue
@@ -636,7 +642,7 @@ def dynamic_routing(
         if best_earliest is None:
             return None, next_avail
         _, avail_eft, path, links, pga_duration, e2e_fid = best_earliest
-        if avail_eft <= cur_t + EPS:
+        if avail_eft <= cur_t_eps:
             return (path, links, cur_t, pga_duration, e2e_fid), next_avail
         defer_to = avail_eft if avail_eft < deadline - EPS else None
         return None, defer_to
@@ -644,7 +650,7 @@ def dynamic_routing(
     if not available:
         return None, next_avail
 
-    best_duration = min(d for d, *_ in available)
+    best_duration = min(item[0] for item in available)
 
     if mode == "shortest":
         if best_duration != global_min:
