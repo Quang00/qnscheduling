@@ -165,7 +165,8 @@ class PGA:
 
         for link in self.links:
             lk_b_t = self.resources.get(link, 0.0)
-            wait_until = max(wait_until, lk_b_t)
+            if lk_b_t > wait_until:
+                wait_until = lk_b_t
 
         for link in self.links:
             lk_b_t = self.resources.get(link, 0.0)
@@ -173,7 +174,8 @@ class PGA:
                 blocking_links.append(link)
 
         current_time = self.start
-        t_budget = max(0.0, self.end - self.start)
+        diff = self.end - self.start
+        t_budget = diff if diff > 0.0 else 0.0
         status = "failed"
 
         if t_budget > EPS and self.policy == "deadline":
@@ -199,7 +201,9 @@ class PGA:
                 pairs_generated = int(csum[-1]) if len(csum) else 0
 
             current_time = self.start + attempts_run * self.slot_duration
-            completion = min(self.end, current_time)
+            completion = (
+                current_time if current_time < self.end else self.end
+            )
             self._update_resources_and_links(completion, attempts_run)
         else:
             completion = self.start
@@ -316,7 +320,8 @@ def simulate_static(
         r0 = float(pga_rel_times.get(app, 0.0))
         T = float(pga_periods.get(app, 0.0))
         arrival = r0 + idx * T
-        min_arrival = min(min_arrival, arrival)
+        if arrival < min_arrival:
+            min_arrival = arrival
 
         pga = PGA(
             name=pga_name,
@@ -531,7 +536,9 @@ def simulate_dynamic(
             deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
-            min_arrival = min(min_arrival, float(arrival_time))
+            at = float(arrival_time)
+            if at < min_arrival:
+                min_arrival = at
 
             pga_name = f"{app}{i}"
             if pga_name not in seen_pgas:
