@@ -609,7 +609,8 @@ def dynamic_routing(
     next_avail = None
     global_min = None
     best_earliest = None
-    available = []
+    best_dur = float("inf")
+    best_items = []
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
     for e2e_fid, path, links, pga_duration in candidate_paths:
@@ -636,7 +637,11 @@ def dynamic_routing(
             if next_avail is None or avail < next_avail:
                 next_avail = avail
             continue
-        available.append((pga_duration, path, links, e2e_fid))
+        if pga_duration < best_dur:
+            best_dur = pga_duration
+            best_items = [(path, links, e2e_fid)]
+        elif pga_duration == best_dur:
+            best_items.append((path, links, e2e_fid))
 
     if mode == "earliest":
         if best_earliest is None:
@@ -647,23 +652,19 @@ def dynamic_routing(
         defer_to = avail_eft if avail_eft < deadline - EPS else None
         return None, defer_to
 
-    if not available:
+    if not best_items:
         return None, next_avail
 
-    best_duration = min(item[0] for item in available)
-
     if mode == "shortest":
-        if best_duration != global_min:
+        if best_dur != global_min:
             return None, next_avail
-        _, path, links, e2e_fid = next(
-            candida for candida in available if candida[0] == best_duration
-        )
-        return (path, links, cur_t, best_duration, e2e_fid), next_avail
+        path, links, e2e_fid = best_items[0]
+        return (path, links, cur_t, best_dur, e2e_fid), next_avail
 
-    tied = [(p, lnks, f) for d, p, lnks, f in available if d == best_duration]
-    idx = 0 if rng is None or len(tied) == 1 else int(rng.integers(len(tied)))
-    path, links, e2e_fid = tied[idx]
-    return (path, links, cur_t, best_duration, e2e_fid), next_avail
+    n = len(best_items)
+    idx = 0 if rng is None or n == 1 else int(rng.integers(n))
+    path, links, e2e_fid = best_items[idx]
+    return (path, links, cur_t, best_dur, e2e_fid), next_avail
 
 
 def static_routing(
