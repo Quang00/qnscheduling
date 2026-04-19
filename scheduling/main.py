@@ -315,7 +315,8 @@ def run_simulation(
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
     initial_paths = {app: path_list[0] for app, path_list in paths.items()}
-    parallel_map = parallelizable_tasks(initial_paths)
+    if scheduler == "static":
+        parallel_map = parallelizable_tasks(initial_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
