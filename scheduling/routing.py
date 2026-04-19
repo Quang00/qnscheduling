@@ -608,7 +608,6 @@ def dynamic_routing(
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
     global_min = None
-    best_earliest = None
     best_dur = float("inf")
     best_items = []
     deadline_eps = deadline + EPS
@@ -628,11 +627,6 @@ def dynamic_routing(
         finish = (avail if avail > cur_t else cur_t) + pga_duration
         if finish > deadline_eps:
             continue
-        if (
-            best_earliest is None
-            or finish < best_earliest[0]
-        ):
-            best_earliest = (finish, avail, path, links, pga_duration, e2e_fid)
         if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
@@ -642,15 +636,6 @@ def dynamic_routing(
             best_items = [(path, links, e2e_fid)]
         elif pga_duration == best_dur:
             best_items.append((path, links, e2e_fid))
-
-    if mode == "earliest":
-        if best_earliest is None:
-            return None, next_avail
-        _, avail_eft, path, links, pga_duration, e2e_fid = best_earliest
-        if avail_eft <= cur_t_eps:
-            return (path, links, cur_t, pga_duration, e2e_fid), next_avail
-        defer_to = avail_eft if avail_eft < deadline - EPS else None
-        return None, defer_to
 
     if not best_items:
         return None, next_avail
