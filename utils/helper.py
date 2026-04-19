@@ -375,11 +375,9 @@ def save_results(
             c for c in params.columns
             if c not in ("hops", "pga_duration", "e2e_fidelity")
         ]
-        df = df.merge(params[merge_cols], on="task", how="left").drop(
-            columns="task"
-        )
+        df = df.merge(params[merge_cols], on="task", how="left")
     else:
-        df = df.merge(params, on="task", how="left").drop(columns="task")
+        df = df.merge(params, on="task", how="left")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
     if warmup is not None:
         df = df[df["arrival_time"] >= warmup].reset_index(drop=True)
@@ -613,8 +611,7 @@ def save_results(
         print("\n=== Summary ===")
         print(f"Total PGAs       : {total}")
 
-    df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
-    expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in pga_names})
+    expected_tasks = sorted(app_specs.keys())
     per_task = (
         df.groupby(["task", "status"])
         .size()
@@ -639,13 +636,19 @@ def save_results(
     }
     served_count = len(served_tasks)
     app_throughput = served_count / makespan if makespan else float("nan")
-    service_times = []
-    for served_task in served_tasks:
-        task_df = df[df["task"] == served_task]
-        first = task_df["arrival_time"].min()
-        last = task_df["completion_time"].max()
-        if pd.notna(first) and pd.notna(last):
-            service_times.append(last - first)
+    served_agg = (
+        df[df["task"].isin(served_tasks)]
+        .groupby("task", observed=True)
+        .agg(
+            first=("arrival_time", "min"),
+            last=("completion_time", "max"),
+        )
+    )
+    service_times = [
+        row["last"] - row["first"]
+        for _, row in served_agg.iterrows()
+        if pd.notna(row["first"]) and pd.notna(row["last"])
+    ]
     avg_service_time = (
         float(np.mean(service_times)) if service_times else float("nan")
     )
