@@ -27,48 +27,44 @@ def fat_tree_k4():
 
 class TestGenerateWaxmanGraph:
     def test_waxman_basic(self, waxman_result):
-        nodes, edges, fidelities, avg_deg, diameter, end_nodes = waxman_result
+        nodes, edges, fidelities, avg_deg, diameter = waxman_result
         assert isinstance(nodes, list)
         assert isinstance(edges, list)
         assert isinstance(fidelities, dict)
         assert isinstance(avg_deg, float)
         assert isinstance(diameter, float)
-        assert isinstance(end_nodes, list)
 
     def test_nodes_and_edges_nonempty(self, waxman_result):
-        nodes, edges, _, _, _, _ = waxman_result
+        nodes, edges, _, _, _ = waxman_result
         assert len(nodes) == 20
         assert len(edges) > 0
 
     def test_fidelity_keys_match_edges(self, waxman_result):
-        _, edges, fidelities, _, _, _ = waxman_result
+        _, edges, fidelities, _, _ = waxman_result
         assert set(fidelities.keys()) == set(edges)
 
     def test_fidelity_values_in_range(self, waxman_result):
-        _, _, fidelities, _, _, _ = waxman_result
+        _, _, fidelities, _, _ = waxman_result
         for f in fidelities.values():
             assert 0.0 <= f <= 1.0
 
     def test_avg_degree_within_limit(self, waxman_result):
-        _, _, _, avg_deg, _, _ = waxman_result
+        _, _, _, avg_deg, _ = waxman_result
         assert avg_deg <= MAX_AVG_DEGREE
 
     def test_diameter_within_limit(self, waxman_result):
-        _, _, _, _, diameter, _ = waxman_result
+        _, _, _, _, diameter = waxman_result
         assert diameter <= MAX_HOPS
 
     def test_impossible_constraints_returns_empty(self):
         rng = np.random.default_rng(42)
-        nodes, edges, fidelities, avg_deg, diameter, end_nodes = (
-            generate_waxman_graph(
-                n=20, rng=rng, max_retries=5, max_avg_degree=0.1, max_hops=1
-            )
+        nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
+            n=20, rng=rng, max_retries=5, max_avg_degree=0.1, max_hops=1
         )
         assert nodes == []
         assert edges == []
         assert fidelities == {}
         assert avg_deg == 0.0
-        assert end_nodes == []
 
 
 @pytest.mark.parametrize(

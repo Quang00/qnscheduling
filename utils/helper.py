@@ -815,9 +815,9 @@ def compute_edge_fidelities(
 
 def gml_data(
     gml_file: str,
-) -> Tuple[list, list, dict[tuple, float], dict, float, list]:
-    """Extracts nodes, edges, distances, fidelities, diameter, and end nodes
-    from a GML file.
+) -> Tuple[list, list, dict[tuple, float], dict, float]:
+    """Extracts nodes, edges, distances, fidelities, and diameter from a GML
+    file.
 
     Args:
         gml_file (str): Path to the GML file.
@@ -830,8 +830,6 @@ def gml_data(
         fidelities (dict[tuple, float]): Dict mapping directed edges to
         fidelities.
         diameter (float): Diameter of the graph.
-        end_nodes (list): Degree-1 leaf nodes, or minimum-degree nodes if no
-        degree-1 nodes exist.
     """
     G = nx.read_gml(gml_file)
 
@@ -844,12 +842,7 @@ def gml_data(
     fidelities = compute_edge_fidelities(G, distances)
     diameter = float(nx.diameter(G))
 
-    end_nodes = [n for n, d in G.degree() if d == 1]
-    if not end_nodes:
-        min_deg = min(d for _, d in G.degree())
-        end_nodes = [n for n, d in G.degree() if d == min_deg]
-
-    return nodes, edges, distances, fidelities, diameter, end_nodes
+    return nodes, edges, distances, fidelities, diameter
 
 
 def generate_n_apps(
