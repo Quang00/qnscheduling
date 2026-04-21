@@ -604,12 +604,12 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
     rng: np.random.Generator | None = None,
-    mode: str = "greedy",
+    mode: str = "work-conserving",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
-    global_min = None
+    global_best_duration = None
     best_dur = float("inf")
-    best_items = []
+    best_path = []
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
     for e2e_fid, path, links, pga_duration in candidate_paths:
@@ -617,8 +617,8 @@ def dynamic_routing(
             continue
         if cur_t + pga_duration > deadline_eps:
             continue
-        if global_min is None or pga_duration < global_min:
-            global_min = pga_duration
+        if global_best_duration is None or pga_duration < global_best_duration:
+            global_best_duration = pga_duration
         avail = cur_t
         for lnk in links:
             v = resources.get(lnk, 0.0)
@@ -633,22 +633,22 @@ def dynamic_routing(
             continue
         if pga_duration < best_dur:
             best_dur = pga_duration
-            best_items = [(path, links, e2e_fid)]
+            best_path = [(path, links, e2e_fid)]
         elif pga_duration == best_dur:
-            best_items.append((path, links, e2e_fid))
+            best_path.append((path, links, e2e_fid))
 
-    if not best_items:
+    if not best_path:
         return None, next_avail
 
-    if mode == "shortest":
-        if best_dur != global_min:
+    if mode == "non-work-conserving":
+        if best_dur != global_best_duration:
             return None, next_avail
-        path, links, e2e_fid = best_items[0]
+        path, links, e2e_fid = best_path[0]
         return (path, links, cur_t, best_dur, e2e_fid), next_avail
 
-    n = len(best_items)
+    n = len(best_path)
     idx = 0 if rng is None or n == 1 else int(rng.integers(n))
-    path, links, e2e_fid = best_items[idx]
+    path, links, e2e_fid = best_path[idx]
     return (path, links, cur_t, best_dur, e2e_fid), next_avail
 
 
