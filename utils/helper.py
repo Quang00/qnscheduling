@@ -111,7 +111,7 @@ def app_params_sim(
 def build_default_sim_args(config: str, args: dict | None) -> dict:
     default_args = {
         "config": config,
-        "inst_range": (100, 100),
+        "inst_range": 100,
         "epr_range": (2, 2),
         "period_range": (1, 1),
         "hyperperiod_cycles": 1000,
@@ -123,7 +123,9 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "capacity_threshold": 0.8,
         "time_slot_duration": 1e-4,
         "graph": "gml",
-        "provisioning": True,
+        "provisioning": False,
+        "full_dynamic": True,
+        "static_routing_mode": False,
     }
     if args:
         default_args.update(args)
@@ -244,6 +246,11 @@ def save_results(
     output_dir: str = "results",
     save_csv: bool = True,
     verbose: bool = True,
+    routing_decision_cpt: int | None = None,
+    routing_decision_runtime: float | None = None,
+    warmup: float | None = None,
+    end_time: float | None = None,
+    defer_counts: Dict[str, int] | None = None,
 ) -> Dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
@@ -312,6 +319,25 @@ def save_results(
 
     df["task"] = df["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
     app_names = list(app_specs.keys())
+    has_per_row_routing = all(
+        c in df.columns for c in ("hops", "pga_duration", "e2e_fidelity")
+    )
+
+    if not save_csv:
+        _keep = [
+            "pga", "status", "waiting_time", "turnaround_time",
+            "burst_time", "arrival_time", "completion_time", "task",
+        ]
+        if has_per_row_routing:
+            _keep += [
+                c for c in (
+                    "hops", "e2e_fidelity", "pga_duration",
+                    "routing_efficiency",
+                )
+                if c in df.columns
+            ]
+        df = df[[c for c in _keep if c in df.columns]]
+
     if pga_network_paths:
         path_length = {
             app: max(0, len(path) - 1)
@@ -344,29 +370,40 @@ def save_results(
         }
     )
 
-    df = df.merge(params, on="task", how="left").drop(columns="task")
+    if has_per_row_routing:
+        merge_cols = [
+            c for c in params.columns
+            if c not in ("hops", "pga_duration", "e2e_fidelity")
+        ]
+        df = df.merge(params[merge_cols], on="task", how="left")
+    else:
+        df = df.merge(params, on="task", how="left")
     df = df.sort_values(by="completion_time").reset_index(drop=True)
+    if warmup is not None:
+        df = df[df["arrival_time"] >= warmup].reset_index(drop=True)
+    if end_time is not None:
+        df = df[df["arrival_time"] <= end_time].reset_index(drop=True)
 
     tot_reqs = df["pga"].nunique()
-    df_ord = df.copy()
-    df_ord["_order_time"] = df_ord["completion_time"].fillna(-np.inf)
-    final = (
-        df_ord.sort_values(["pga", "_order_time"])
+    final_status = (
+        df.assign(_order_time=df["completion_time"].fillna(-np.inf))
+        .sort_values(["pga", "_order_time"])
         .groupby("pga", as_index=False)
         .tail(1)
-        .drop(columns="_order_time")
     )
-    completed_total = int((final["status"] == "completed").sum())
-    drop_total = int((final["status"] == "drop").sum())
-    failed_total = int((final["status"] == "failed").sum())
+    completed_total = int((final_status["status"] == "completed").sum())
+    drop_total = int((final_status["status"] == "drop").sum())
+    del final_status
+    failed_total = tot_reqs - completed_total - drop_total
 
-    arrival_min = df["arrival_time"].min()
-    completion_max = df["completion_time"].max()
-    makespan = completion_max - arrival_min
+    if end_time is not None and warmup is not None:
+        makespan = end_time - warmup
+    else:
+        makespan = float("nan")
 
     if save_csv:
-        csv_path = os.path.join(output_dir, "pga_results.csv")
-        df.to_csv(csv_path, index=False)
+        csv_path = os.path.join(output_dir, "pga_results.parquet")
+        df.to_parquet(csv_path, index=False)
 
         if verbose:
             print("\n=== Preview PGA Results ===")
@@ -395,6 +432,14 @@ def save_results(
         ]
         lk_ut_df = (
             pd.DataFrame(link_util_rows)
+            .sort_values("utilization", ascending=False)
+            .reset_index(drop=True)
+        )
+
+        if makespan and makespan > 0:
+            lk_ut_df["utilization"] = lk_ut_df["busy_time"] / makespan
+        lk_ut_df = (
+            lk_ut_df
             .sort_values("utilization", ascending=False)
             .reset_index(drop=True)
         )
@@ -474,38 +519,84 @@ def save_results(
     admission_rate = float("nan")
     if admitted_apps is not None and total_apps is not None and total_apps > 0:
         admission_rate = float(admitted_apps) / float(total_apps)
-    completed_final = final.loc[final["status"] == "completed"]
     throughput = completed_total / makespan
     pga_duration = list(durations.values()) if durations else []
     avg_wait = (
-        completed_final["waiting_time"].mean()
-        if not completed_final.empty
+        df["waiting_time"].mean()
+        if not df.empty
         else float("nan")
     )
     max_wait = (
-        completed_final["waiting_time"].max()
-        if not completed_final.empty
+        df["waiting_time"].max()
+        if not df.empty
         else float("nan")
     )
     avg_turnaround = (
-        completed_final["turnaround_time"].mean()
-        if not completed_final.empty
+        df["turnaround_time"].mean()
+        if not df.empty
         else float("nan")
     )
     max_turnaround = (
-        completed_final["turnaround_time"].max()
-        if not completed_final.empty
+        df["turnaround_time"].max()
+        if not df.empty
         else float("nan")
     )
-    pga_d = np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
+    pga_d = (
+        np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
+    )
     completed_ratio = completed_total / tot_reqs if tot_reqs else float("nan")
     drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
     failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
-    defer_count = len(df.loc[df["status"] == "defer"])
-    retry_count = len(df.loc[df["status"] == "retry"])
+    if defer_counts is not None:
+        defer_count = sum(defer_counts.values())
+    else:
+        defer_count = int((df["status"] == "defer").sum())
+    retry_count = int((df["status"] == "retry").sum())
     avg_defer_per_pga = defer_count / tot_reqs if tot_reqs else float("nan")
     avg_retry_per_pga = retry_count / tot_reqs if tot_reqs else float("nan")
-    avg_hops = params["hops"].mean() if not params.empty else float("nan")
+    avg_burst_time = (
+        df["burst_time"].mean()
+        if not df.empty
+        else float("nan")
+    )
+    avg_path_efficiency = float("nan")
+    if has_per_row_routing:
+        avg_hops = df["hops"].mean() if "hops" in df.columns else float("nan")
+        _empty = pd.Series([], dtype=float)
+        _fid_col = (
+            df["e2e_fidelity"].dropna()
+            if "e2e_fidelity" in df.columns
+            else _empty
+        )
+        avg_e2e_fidelity = (
+            float(_fid_col.mean()) if not _fid_col.empty else float("nan")
+        )
+        _dur_col = (
+            df["pga_duration"].dropna()
+            if "pga_duration" in df.columns
+            else _empty
+        )
+        pga_d = float(_dur_col.mean()) if not _dur_col.empty else float("nan")
+        _eff_col = (
+            df["routing_efficiency"].dropna()
+            if "routing_efficiency" in df.columns
+            else _empty
+        )
+        avg_path_efficiency = (
+            float(_eff_col.mean()) if not _eff_col.empty else float("nan")
+        )
+    else:
+        avg_hops = params["hops"].mean() if not params.empty else float("nan")
+        e2e_fidelity_values = [
+            v
+            for v in (app_e2e_fidelities or {}).values()
+            if v is not None and not np.isnan(v)
+        ]
+        avg_e2e_fidelity = (
+            float(np.mean(e2e_fidelity_values))
+            if e2e_fidelity_values
+            else float("nan")
+        )
     admitted_min_fidelities = [
         app_specs[app].get("min_fidelity", float("nan"))
         for app in app_specs.keys()
@@ -515,28 +606,21 @@ def save_results(
         if admitted_min_fidelities
         else float("nan")
     )
-    e2e_fidelity_values = [
-        v
-        for v in (app_e2e_fidelities or {}).values()
-        if v is not None and not np.isnan(v)
-    ]
-    avg_e2e_fidelity = (
-        float(np.mean(e2e_fidelity_values))
-        if e2e_fidelity_values
-        else float("nan")
-    )
 
     if verbose:
         print("\n=== Summary ===")
         print(f"Total PGAs       : {total}")
 
-    tmp = df.copy()
-    tmp["task"] = tmp["pga"].astype(str).str.replace(r"\d+$", "", regex=True)
-    expected_tasks = sorted({re.sub(r"\d+$", "", j) for j in pga_names})
+    expected_tasks = sorted(app_specs.keys())
     per_task = (
-        tmp.groupby(["task", "status"])
+        df.groupby(["task", "status"])
         .size()
         .unstack(fill_value=0)
+        .reindex(expected_tasks, fill_value=0)
+    )
+    released_per_task = (
+        df.groupby("task")["pga"]
+        .nunique()
         .reindex(expected_tasks, fill_value=0)
     )
 
@@ -545,6 +629,34 @@ def save_results(
             per_task[col] = 0
 
     tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
+    served_tasks = {
+        task for task in expected_tasks
+        if int(released_per_task.get(task, 0))
+        == int(app_specs[task]["instances"] if task in app_specs else 0)
+    }
+    served_count = len(served_tasks)
+    app_throughput = served_count / makespan if makespan else float("nan")
+    served_agg = (
+        df[df["task"].isin(served_tasks)]
+        .groupby("task", observed=True)
+        .agg(
+            first=("arrival_time", "min"),
+            last=("completion_time", "max"),
+        )
+    )
+    service_times = [
+        row["last"] - row["first"]
+        for _, row in served_agg.iterrows()
+        if pd.notna(row["first"]) and pd.notna(row["last"])
+    ]
+    avg_service_time = (
+        float(np.mean(service_times)) if service_times else float("nan")
+    )
+    n_apps_in_window = int(df["task"].nunique())
+    service_ratio = (
+        served_count / n_apps_in_window
+        if n_apps_in_window > 0 else float("nan")
+    )
     fairness = float("nan")
     completion_ratios = []
     for task in expected_tasks:
@@ -568,16 +680,30 @@ def save_results(
             row = per_task.loc[task]
             completed = int(row.get("completed", 0))
             failed = int(row.get("failed", 0))
-            print(f"    {task:<4} completed: {completed}, failed: {failed}")
+            instances = (
+                int(app_specs[task]["instances"])
+                if task in app_specs else 0
+            )
+            released = int(released_per_task.get(task, 0))
+            served = released == instances
+            print(
+                f"    {task:<4} released: {released}/{instances},"
+                f" completed: {completed}, failed: {failed},"
+                f" served: {served}"
+            )
 
         print(f"Admission rate   : {admission_rate:.4f}")
         print(f"Completion time  : {makespan:.4f}")
         print(f"Throughput       : {throughput:.4f} completed PGAs/s")
+        print(f"App throughput   : {app_throughput:.4f} served apps/s")
+        print(f"Service ratio    : {service_ratio:.4f}")
         print(f"Completion ratio : {completed_ratio:.4f}")
         print(f"Failed ratio     : {failed_ratio:.4f}")
         print(f"Drop ratio       : {drop_ratio:.4f}")
         print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
         print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
+        print(f"Avg burst time   : {avg_burst_time:.4f}")
+        print(f"Avg service time : {avg_service_time:.4f}")
         print(f"Avg waiting time : {avg_wait:.4f}")
         print(f"Max waiting time : {max_wait:.4f}")
         print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
@@ -593,6 +719,7 @@ def save_results(
         print(f"Single-path share: {single_path_share:.2f}")
         print(f"Two-path share   : {two_path_share:.2f}")
         print(f"Avg PGA duration : {pga_d:.4f}")
+        print(f"Avg routing efficiency: {avg_path_efficiency:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
@@ -601,19 +728,25 @@ def save_results(
         print(f"Top-10% busy-time share : {top10_busy_share:.4f}")
         print(f"Avg degree       : {avg_deg:.4f}")
         print(f"Fairness         : {fairness:.4f}")
+        print(f"Routing decisions count: {routing_decision_cpt}")
+        print(f"Routing decisions runtime: {routing_decision_runtime}")
 
     summary_metrics = {
         "admission_rate": float(admission_rate),
         "makespan": float(makespan),
         "throughput": float(throughput),
+        "app_throughput": float(app_throughput),
+        "service_ratio": float(service_ratio),
         "completed_ratio": float(completed_ratio),
         "failed_ratio": float(failed_ratio),
         "drop_ratio": float(drop_ratio),
         "avg_defer_per_pga": float(avg_defer_per_pga),
         "avg_retry_per_pga": float(avg_retry_per_pga),
+        "avg_burst_time": float(avg_burst_time),
         "avg_waiting_time": float(avg_wait),
         "max_waiting_time": float(max_wait),
         "avg_turnaround_time": float(avg_turnaround),
+        "avg_service_time": float(avg_service_time),
         "max_turnaround_time": float(max_turnaround),
         "avg_hops": float(avg_hops),
         "avg_min_fidelity": float(avg_min_fidelity),
@@ -621,6 +754,7 @@ def save_results(
         "single_path_share_pct": float(single_path_share),
         "two_path_share_pct": float(two_path_share),
         "avg_pga_duration": float(pga_d),
+        "avg_routing_efficiency": float(avg_path_efficiency),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),
@@ -634,33 +768,22 @@ def save_results(
         "p95_avg_queue_length": float(p95_avg_queue_length),
         "avg_deg": float(avg_deg),
         "fairness": float(fairness),
+        "routing_decision_count": (
+            int(routing_decision_cpt)
+            if routing_decision_cpt is not None
+            else None
+        ),
+        "routing_decision_runtime": (
+            float(routing_decision_runtime)
+            if routing_decision_runtime is not None
+            else None
+        ),
     }
 
     if save_csv:
         overall_df = pd.DataFrame([summary_metrics])
         overall_path = os.path.join(output_dir, "summary.csv")
         overall_df.to_csv(overall_path, index=False)
-
-    for col in ["defer", "retry", "drop"]:
-        if col not in per_task.columns:
-            per_task[col] = 0
-
-    per_task_cols = ["completed", "failed", "defer", "retry", "drop"]
-    per_task_df = (
-        per_task.loc[tasks_sorted, per_task_cols]
-        .reset_index()
-        .rename(columns={"task": "task_name"})
-    )
-    per_task_df = per_task_df.merge(
-        params.rename(columns={"task": "task_name"})[
-            ["task_name", "pga_duration"]
-        ],
-        on="task_name",
-        how="left",
-    )
-    if save_csv:
-        per_task_path = os.path.join(output_dir, "summary_per_app.csv")
-        per_task_df.to_csv(per_task_path, index=False)
 
     return summary_metrics
 
@@ -671,7 +794,7 @@ def save_results(
 def compute_edge_fidelities(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    F_min: float = 0.8,
+    F_min: float = 0.9,
 ) -> Dict[Tuple, float]:
     fidelities = {}
     L_max = max(distances.values(), default=0.0)
@@ -692,8 +815,9 @@ def compute_edge_fidelities(
 
 def gml_data(
     gml_file: str,
-) -> Tuple[list, list, dict[tuple, float], float]:
-    """Extracts nodes, edges, and distances from a GML file.
+) -> Tuple[list, list, dict[tuple, float], dict, float]:
+    """Extracts nodes, edges, distances, fidelities, and diameter from a GML
+    file.
 
     Args:
         gml_file (str): Path to the GML file.
@@ -701,6 +825,8 @@ def gml_data(
     Returns:
         nodes (list): List of nodes.
         edges (list): List of edges (source, target).
+        distances (dict[tuple, float]): Dict mapping directed edges to
+        distances.
         fidelities (dict[tuple, float]): Dict mapping directed edges to
         fidelities.
         diameter (float): Diameter of the graph.
@@ -720,10 +846,10 @@ def gml_data(
 
 
 def generate_n_apps(
-    nodes: list[str],
+    end_nodes: list[str],
     bounds: dict[tuple, tuple],
     n_apps: int,
-    inst_range: tuple[int, int],
+    inst_range: int,
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
     list_policies: list[str],
@@ -732,10 +858,10 @@ def generate_n_apps(
     """Generates a specified number of applications with random parameters.
 
     Args:
-        nodes (list): List of available nodes in the network.
+        end_nodes (list): List of end nodes in the network.
         n_apps (int): Number of applications to generate.
-        inst_range (tuple[int, int]): Range (min, max) for the number of
-        instances for each application.
+        inst_range (int): Poisson lambda for the number of instances
+        per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
         pairs for each application.
         period_range (tuple[float, float]): Range (min, max) for the period
@@ -753,13 +879,15 @@ def generate_n_apps(
     """
     apps = {}
     feasible = []
-    for i in range(len(nodes)):
-        for j in range(i + 1, len(nodes)):
-            src, dst = nodes[i], nodes[j]
+    min_fidelity_threshold = 0.51
+    for i in range(len(end_nodes)):
+        for j in range(i + 1, len(end_nodes)):
+            src, dst = end_nodes[i], end_nodes[j]
             min_f, max_f = fidelity_bounds(bounds, src, dst)
-            min_f = max(min_f, 0.51)
-            if max_f >= min_f:
-                feasible.append((src, dst, float(min_f), float(max_f)))
+            if max_f > min_fidelity_threshold:
+                feasible.append(
+                    (src, dst, min_fidelity_threshold, float(max_f))
+                )
 
     pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
@@ -769,10 +897,12 @@ def generate_n_apps(
         apps[name_app] = {
             "src": src,
             "dst": dst,
-            "instances": int(rng.integers(inst_range[0], inst_range[1] + 1)),
+            "instances": max(
+                1, min(3 * inst_range, int(rng.poisson(lam=inst_range)))
+            ),
             "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
             "period": float(rng.uniform(period_range[0], period_range[1])),
-            "min_fidelity": float(rng.uniform(min_f, max_f)),
+            "min_fidelity": min_fidelity_threshold,
             "policy": rng.choice(list_policies),
         }
 

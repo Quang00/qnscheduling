@@ -5,8 +5,9 @@ import networkx as nx
 import numpy as np
 
 from scheduling.pga import duration_pga
-
 from utils.helper import all_simple_paths
+
+EPS = 1e-12
 
 
 def shortest_paths(
@@ -100,55 +101,29 @@ def smallest_bottleneck(
     p_swap: float,
     p_gen: float,
     time_slot_duration: float,
-    rng: np.random.Generator | None = None,
-    provisioning: bool = True,
+    k: int | None = None,
 ) -> Tuple[List[List[str]], float, float]:
-    """Select the path with the smallest bottleneck capacity among all paths
-    that meet the fidelity requirement. The bottleneck capacity of a path is
-    defined as the maximum capacity utilization of any edge along the path
-    after accounting for the additional load (delta) introduced by the new
-    request.
-    """
-    min_val = None
-    tied_candidates = []
-    all_paths = all_simple_paths(simple_paths, src, dst)
-
-    for path in all_paths:
-        e2e_fid, path = path[0], path[1]
+    candidates = []
+    for e2e_fid, path in all_simple_paths(simple_paths, src, dst):
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
             path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
         )
+        post_loads = [cap[lk] + delta for lk in links]
+        bottleneck = max(post_loads)
+        candidates.append((bottleneck, path, delta, e2e_fid))
 
-        max_cap = max(cap[lk] + delta for lk in links)
-        if min_val is None or max_cap < min_val:
-            min_val = max_cap
-            tied_candidates = [(path, delta, e2e_fid)]
-        elif np.isclose(max_cap, min_val):
-            tied_candidates.append((path, delta, e2e_fid))
-
-    if not tied_candidates:
+    if not candidates:
         return [], 0.0, float("nan")
 
-    initial_idx = (
-        0
-        if rng is None or len(tied_candidates) == 1
-        else int(rng.integers(len(tied_candidates)))
-    )
-    selected_path, selected_delta, selected_e2e_fid = (
-        tied_candidates[initial_idx]
-    )
+    candidates.sort(key=lambda x: x[0])
+    if k is not None:
+        candidates = candidates[:k]
 
-    if provisioning:
-        result = [list(selected_path)] + [
-            list(p)
-            for i, (p, _, _) in enumerate(tied_candidates)
-            if i != initial_idx
-        ]
-    else:
-        result = [list(selected_path)]
-    return result, selected_delta, selected_e2e_fid
+    selected = candidates[0]
+    result = [list(c[1]) for c in candidates]
+    return result, selected[2], selected[3]
 
 
 def least_capacity(
@@ -458,9 +433,7 @@ def find_feasible_path(
             e2e_fids[app] = float("nan")
             continue
 
-        G = _build_graph(
-            routing_mode, edges, base_graph, cap, threshold
-        )
+        G = _build_graph(routing_mode, edges, base_graph, cap, threshold)
 
         if not nx.has_path(G, src, dst):
             ret[app] = []
@@ -468,21 +441,18 @@ def find_feasible_path(
             continue
 
         if routing_mode == "smallest":
-            path_list, selected_delta, selected_e2e_fid = (
-                smallest_bottleneck(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = smallest_bottleneck(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                k=None if provisioning else 1,
             )
             if not path_list:
                 ret[app] = []
@@ -493,22 +463,20 @@ def find_feasible_path(
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "capacity":
-            path_list, selected_delta, selected_e2e_fid = (
-                capacity_threshold(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    threshold,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = capacity_threshold(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                threshold,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -519,21 +487,19 @@ def find_feasible_path(
             e2e_fids[app] = selected_e2e_fid
             continue
         elif routing_mode == "least":
-            path_list, selected_delta, selected_e2e_fid = (
-                least_capacity(
-                    simple_paths,
-                    src,
-                    dst,
-                    req,
-                    cap,
-                    p_packet,
-                    memory,
-                    p_swap,
-                    p_gen,
-                    time_slot_duration,
-                    rng,
-                    provisioning,
-                )
+            path_list, selected_delta, selected_e2e_fid = least_capacity(
+                simple_paths,
+                src,
+                dst,
+                req,
+                cap,
+                p_packet,
+                memory,
+                p_swap,
+                p_gen,
+                time_slot_duration,
+                rng,
+                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -567,4 +533,165 @@ def find_feasible_path(
 
             ret[app] = path_list
             e2e_fids[app] = selected_e2e_fid
+    return ret, e2e_fids
+
+
+def rerouting(
+    precomputed: Dict[str, List[Tuple]],
+    deadline: float,
+    cur_t: float,
+    app: str,
+    resources: Dict[Tuple[str, str], float] | None = None,
+) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
+    best = None
+    best_score = None
+
+    for e2e_fid, path, links, pga_duration in precomputed.get(app, []):
+        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
+        start = cur_t + max(waits, default=0.0)
+        finish = start + pga_duration
+        if finish > deadline + EPS:
+            continue
+        sum_wait = sum(waits)
+        score = (finish, sum_wait)
+        if best_score is None or score < best_score:
+            best_score = score
+            best = (path, links, start, pga_duration, e2e_fid)
+
+    return best
+
+
+def compute_path_durations(
+    pga_params: Dict[str, float],
+    simple_paths: Dict[Tuple[str, str], List] | None = None,
+    provisioned_paths: List[List[str]] | None = None,
+    src: str | None = None,
+    dst: str | None = None,
+) -> List[Tuple]:
+    duration_by_nswap = {}
+    result = []
+    if provisioned_paths is not None:
+        items = ((None, p) for p in provisioned_paths)
+    else:
+        items = (
+            (item[0], item[1])
+            for item in all_simple_paths(simple_paths, src, dst)
+        )
+    for e2e_fid, path in items:
+        links = [
+            (min(u, v), max(u, v))
+            for u, v in zip(path[:-1], path[1:], strict=False)
+        ]
+        n_swap = max(0, len(path) - 2)
+        if n_swap not in duration_by_nswap:
+            duration_by_nswap[n_swap] = duration_pga(
+                p_packet=pga_params["p_packet"],
+                epr_pairs=int(pga_params["epr_pairs"]),
+                n_swap=n_swap,
+                memory=pga_params["memory"],
+                p_swap=pga_params["p_swap"],
+                p_gen=pga_params["p_gen"],
+                time_slot_duration=pga_params["slot_duration"],
+            )
+        result.append((e2e_fid, path, links, duration_by_nswap[n_swap]))
+    return result
+
+
+def dynamic_routing(
+    candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
+    min_fidelity: float,
+    deadline: float,
+    cur_t: float = 0.0,
+    resources: Dict[Tuple[str, str], float] = None,
+    rng: np.random.Generator | None = None,
+    mode: str = "work-conserving",
+) -> Tuple[Tuple | None, float | None]:
+    next_avail = None
+    global_best_duration = None
+    best_dur = float("inf")
+    best_path = []
+    deadline_eps = deadline + EPS
+    cur_t_eps = cur_t + EPS
+    for e2e_fid, path, links, pga_duration in candidate_paths:
+        if e2e_fid < min_fidelity:
+            continue
+        if cur_t + pga_duration > deadline_eps:
+            continue
+        if global_best_duration is None or pga_duration < global_best_duration:
+            global_best_duration = pga_duration
+        avail = cur_t
+        for lnk in links:
+            v = resources.get(lnk, 0.0)
+            if v > avail:
+                avail = v
+        finish = (avail if avail > cur_t else cur_t) + pga_duration
+        if finish > deadline_eps:
+            continue
+        if avail > cur_t_eps:
+            if next_avail is None or avail < next_avail:
+                next_avail = avail
+            continue
+        if pga_duration < best_dur:
+            best_dur = pga_duration
+            best_path = [(path, links, e2e_fid)]
+        elif pga_duration == best_dur:
+            best_path.append((path, links, e2e_fid))
+
+    if not best_path:
+        return None, next_avail
+
+    if mode == "non-work-conserving":
+        if best_dur != global_best_duration:
+            return None, next_avail
+        path, links, e2e_fid = best_path[0]
+        return (path, links, cur_t, best_dur, e2e_fid), next_avail
+
+    n = len(best_path)
+    idx = 0 if rng is None or n == 1 else int(rng.integers(n))
+    path, links, e2e_fid = best_path[idx]
+    return (path, links, cur_t, best_dur, e2e_fid), next_avail
+
+
+def static_routing(
+    app_requests: Dict[str, Dict[str, Any]],
+    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    rng: np.random.Generator,
+) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
+    ret = {}
+    e2e_fids = {}
+    path_cache = {}
+    for app, req in app_requests.items():
+        src, dst = req["src"], req["dst"]
+        if (src, dst) in path_cache:
+            chosen_path, best_fid = path_cache[(src, dst)]
+            min_fid = req.get("min_fidelity", 0.0)
+            if not chosen_path or best_fid < min_fid:
+                ret[app] = []
+                e2e_fids[app] = float("nan")
+            else:
+                ret[app] = [chosen_path]
+                e2e_fids[app] = best_fid
+            continue
+        best_fid = float("-inf")
+        chosen_path = []
+        for path in all_simple_paths(simple_paths, src, dst):
+            e2e_fid, path_nodes = path[0], path[1]
+            if e2e_fid > best_fid:
+                best_fid = e2e_fid
+                chosen_path = list(path_nodes)
+        min_fid = req.get("min_fidelity", 0.0)
+        if not chosen_path:
+            path_cache[(src, dst)] = ([], float("nan"))
+            ret[app] = []
+            e2e_fids[app] = float("nan")
+        else:
+            chosen_fid = best_fid
+            if chosen_fid < min_fid:
+                path_cache[(src, dst)] = ([], chosen_fid)
+                ret[app] = []
+                e2e_fids[app] = float("nan")
+            else:
+                path_cache[(src, dst)] = (chosen_path, chosen_fid)
+                ret[app] = [chosen_path]
+                e2e_fids[app] = chosen_fid
     return ret, e2e_fids

@@ -50,16 +50,20 @@ Run the script from the command line with appropriate arguments:
 """
 
 import argparse
+import json
 import os
 import re
 import time
 
 import numpy as np
-import pandas as pd
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
-from scheduling.routing import find_feasible_path, shortest_paths
+from scheduling.routing import (
+    find_feasible_path,
+    shortest_paths,
+    static_routing
+)
 from scheduling.simulation import simulate_dynamic, simulate_static
 from scheduling.static import edf_parallel_static
 from utils.graph_generator import fat_tree, generate_waxman_graph
@@ -76,7 +80,7 @@ from utils.helper import (
 def run_simulation(
     config: str,
     n_apps: int,
-    inst_range: tuple[int, int],
+    inst_range: int,
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
     hyperperiod_cycles: int,
@@ -90,12 +94,16 @@ def run_simulation(
     output_dir: str,
     scheduler: str = "static",
     arrival_rate: float | None = None,
+    instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     capacity_threshold: float = 0.8,
     save_csv: bool = True,
     verbose: bool = True,
     graph: str | None = None,
     provisioning: bool = True,
+    full_dynamic: bool = True,
+    static_routing_mode: bool = False,
+    windows: tuple[float, float] | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -121,13 +129,21 @@ def run_simulation(
         scheduler (str): Either "static" or "dynamic".
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
+        windows (tuple[float, float] | None): Post-warm-up observation
+            window as (min_time, max_time). In dynamic mode, max_time is used
+            as the simulation horizon.
     Returns:
         tuple[bool, dict]:
             A tuple containing:
             - bool: whether the schedule is feasible
             - dict: summary metrics dictionary
     """
-    rng = np.random.default_rng(seed)
+    ss = np.random.SeedSequence(seed)
+    child_seeds = ss.spawn(4)
+    rng, rng_arrivals, rng_routing = (
+        np.random.default_rng(s) for s in child_seeds[:3]
+    )
+    ss_app_arrivals = child_seeds[3]
 
     # Generate network data and applications based on the configuration file
     fidelities = {}
@@ -147,18 +163,9 @@ def run_simulation(
     elif graph == "gml":
         nodes, edges, distances, fidelities, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
-        nodes, fidelities, diameter + 1
+        nodes, fidelities, diameter + 2
     )
-    app_specs = generate_n_apps(
-        nodes,
-        bounds,
-        n_apps=n_apps,
-        inst_range=inst_range,
-        epr_range=epr_range,
-        period_range=period_range,
-        list_policies=["deadline"],
-        rng=rng,
-    )
+    all_links = {tuple(sorted((u, v))) for u, v in edges}
 
     # Arrival times for each application
     poisson_enabled = (
@@ -167,13 +174,54 @@ def run_simulation(
         and float(arrival_rate) > 0.0
     )
     if poisson_enabled:
+        windows_max = windows[1] if windows is not None else float("inf")
         mean_interarrival = 1.0 / float(arrival_rate)
+        arrival_times = []
+        t = 0.0
+        while True:
+            t += float(rng_arrivals.exponential(mean_interarrival))
+            if t > windows_max:
+                break
+            arrival_times.append(t)
+        n_generated = len(arrival_times)
+        app_specs = generate_n_apps(
+            nodes,
+            bounds,
+            n_apps=n_generated,
+            inst_range=inst_range,
+            epr_range=epr_range,
+            period_range=period_range,
+            list_policies=["deadline"],
+            rng=rng,
+        )
         pga_rel_times = {
-            app: float(rng.exponential(mean_interarrival))
-            for app in app_specs.keys()
+            app: arrival_times[i]
+            for i, app in enumerate(app_specs.keys())
         }
     else:
-        pga_rel_times = {app: 0.0 for app in app_specs.keys()}
+        app_specs = generate_n_apps(
+            nodes,
+            bounds,
+            n_apps=n_apps,
+            inst_range=inst_range,
+            epr_range=epr_range,
+            period_range=period_range,
+            list_policies=["deadline"],
+            rng=rng,
+        )
+        pga_rel_times = {
+            app: float(rng.uniform(0.0, spec["period"]))
+            for app, spec in app_specs.items()
+        }
+
+    rng_arrivals_per_app = {
+        app: np.random.default_rng(s)
+        for app, s in zip(
+            app_specs.keys(),
+            ss_app_arrivals.spawn(len(app_specs)),
+            strict=True,
+        )
+    }
 
     # Find feasible paths for each application based on fidelity/routing mode
     app_requests = {
@@ -181,6 +229,7 @@ def run_simulation(
             "src": spec["src"],
             "dst": spec["dst"],
             "min_fidelity": spec.get("min_fidelity", 0.0),
+            "instances": spec.get("instances", 0),
             "epr": spec.get("epr", 0),
             "period": spec.get("period", 0.0),
             "arrival_time": pga_rel_times[name],
@@ -191,11 +240,27 @@ def run_simulation(
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
+    static_routing_time = 0.0
 
-    if not fidelity_enabled:
+    if static_routing_mode:
+        _t0 = time.perf_counter()
+        paths, app_e2e_fidelities = static_routing(
+            app_requests, simple_paths, rng_routing
+        )
+        static_routing_time = time.perf_counter() - _t0
+    elif full_dynamic:
+        paths = {
+            app: [[req["src"], req["dst"]]]
+            for app, req in app_requests.items()
+        }
+        app_e2e_fidelities = {app: float("nan") for app in app_requests}
+        static_routing_time = 0.0
+    elif not fidelity_enabled:
         paths = shortest_paths(edges, app_requests)
         app_e2e_fidelities = {app: float("nan") for app in paths}
+        static_routing_time = 0.0
     else:
+        _t0 = time.perf_counter()
         paths, app_e2e_fidelities = find_feasible_path(
             edges,
             simple_paths,
@@ -209,9 +274,10 @@ def run_simulation(
             p_swap=p_swap,
             p_gen=p_gen,
             time_slot_duration=time_slot_duration,
-            rng=rng,
+            rng=rng_routing,
             provisioning=provisioning,
         )
+        static_routing_time = time.perf_counter() - _t0
 
     admitted_paths = {
         app: path_list for app, path_list in paths.items() if path_list
@@ -247,18 +313,23 @@ def run_simulation(
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
     initial_paths = {app: path_list[0] for app, path_list in paths.items()}
-    parallel_map = parallelizable_tasks(initial_paths)
+    if scheduler == "static":
+        parallel_map = parallelizable_tasks(initial_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
-    durations = compute_durations(
-        initial_paths,
-        epr_pairs,
-        p_packet,
-        memory,
-        p_swap,
-        p_gen,
-        time_slot_duration,
+    durations = (
+        {}
+        if full_dynamic
+        else compute_durations(
+            initial_paths,
+            epr_pairs,
+            p_packet,
+            memory,
+            p_swap,
+            p_gen,
+            time_slot_duration,
+        )
     )
 
     pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
@@ -279,35 +350,9 @@ def run_simulation(
     if save_csv:
         os.makedirs(output_dir, exist_ok=True)
 
-    app_req_df = (
-        pd.DataFrame.from_dict(app_requests, orient="index")
-        .reset_index()
-        .rename(columns={"index": "app"})
-    )
-    hops_map = {
-        app: (len(path_list[0]) - 1)
-        for app, path_list in paths.items()
-    }
-    initial_path_map = {
-        app: path_list[0]
-        for app, path_list in paths.items()
-        if path_list
-    }
-    other_paths_map = {
-        app: path_list[1:]
-        for app, path_list in paths.items()
-        if len(path_list) > 1
-    }
-    app_req_df["hops"] = app_req_df["app"].map(hops_map)
-    app_req_df["initial_path"] = app_req_df["app"].map(initial_path_map)
-    app_req_df["other_paths"] = app_req_df["app"].map(other_paths_map)
-    app_req_df["e2e_fidelity"] = app_req_df["app"].map(app_e2e_fidelities)
-    app_req_df["admitted"] = app_req_df["app"].isin(app_specs)
-    if save_csv:
-        app_req_df.to_csv(
-            os.path.join(output_dir, "app_requests.csv"), index=False
-        )
-
+    routing_decision_cpt = None
+    routing_decision_runtime = None
+    defer_counts = None
     if scheduler == "dynamic":
         (
             df,
@@ -315,6 +360,9 @@ def run_simulation(
             pga_release_times,
             link_utilization,
             link_waiting,
+            routing_decision_cpt,
+            routing_decision_runtime,
+            defer_counts,
         ) = simulate_dynamic(
             app_specs,
             durations,
@@ -322,9 +370,23 @@ def run_simulation(
             pga_rel_times,
             paths,
             rng,
-            arrival_rate,
+            full_dynamic,
+            provisioning,
+            all_links,
+            simple_paths,
+            static_routing_mode,
+            horizon_time=windows[1] if windows is not None else None,
+            warmup_time=windows[0] if windows is not None else 0.0,
+            rng_routing=rng_routing,
+            rng_arrivals=rng_arrivals_per_app,
+            instance_arrival_rate=instance_arrival_rate,
         )
         feasible = True
+        if not full_dynamic:
+            if static_routing_mode:
+                routing_decision_cpt += 1
+            else:
+                routing_decision_cpt += len(app_specs)
     else:
         feasible, schedule = edf_parallel_static(
             pga_rel_times,
@@ -360,16 +422,16 @@ def run_simulation(
         )
 
     # Save results
-    all_network_links = {
-        tuple(sorted((u, v))) for u, v in edges
-    }
+    routing_decision_runtime = (
+        routing_decision_runtime or 0.0
+    ) + static_routing_time
 
     if link_utilization is None:
         link_utilization = {}
     if link_waiting is None:
         link_waiting = {}
 
-    for link in all_network_links:
+    for link in all_links:
         link_utilization.setdefault(
             link,
             {
@@ -404,7 +466,13 @@ def run_simulation(
         output_dir=output_dir,
         save_csv=save_csv,
         verbose=verbose,
+        routing_decision_cpt=routing_decision_cpt,
+        routing_decision_runtime=routing_decision_runtime,
+        warmup=windows[0] if windows is not None else None,
+        end_time=windows[1] if windows is not None else None,
+        defer_counts=defer_counts if scheduler == "dynamic" else None,
     )
+    del df
     return feasible, summary
 
 
@@ -424,18 +492,15 @@ def main():
         "--apps",
         "-a",
         type=int,
-        default=2,
+        default=100,
         help="Number of applications to generate",
     )
     parser.add_argument(
         "--inst",
         "-i",
         type=int,
-        nargs=2,
-        metavar=("MIN", "MAX"),
-        default=[2, 2],
-        help="Number of entanglement packets to generate per application"
-        "(e.g., --inst 1 5)",
+        default=100,
+        help="Number of instances to generate per application",
     )
     parser.add_argument(
         "--epr",
@@ -550,11 +615,14 @@ def main():
         help="Graph generator (e.g., 'waxman', 'fat', 'gml')",
     )
     parser.add_argument(
-        "--provisioning",
-        "-pv",
-        action="store_true",
-        default=True,
-        help="Enable provisioning for routing",
+        "--routing-strategy",
+        "-rs",
+        type=str,
+        choices=["static", "hybrid", "rerouting", "dynamic"],
+        default=None,
+        help="Routing strategy: 'static' (fixed static paths), 'hybrid' ("
+        "static no rerouting), 'rerouting' (static rerouting),"
+        "or 'dynamic' (dynamic routing)",
     )
     parser.add_argument(
         "--seed",
@@ -571,6 +639,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    max_observation_window = 3 * args.inst * 10 * (1.0 / 10.0)
+    warmup = 0.15 * max_observation_window
+    windows = (warmup, max_observation_window)
+
     seed_dir = os.path.join(args.output, f"seed_{args.seed}")
 
     run_number = 1
@@ -590,6 +663,7 @@ def main():
         inst_range=args.inst,
         epr_range=args.epr,
         period_range=args.period,
+        windows=windows,
         hyperperiod_cycles=args.hyperperiod,
         p_packet=args.ppacket,
         memory=args.memory,
@@ -604,7 +678,9 @@ def main():
         routing=args.routing,
         capacity_threshold=args.capacity_threshold,
         graph=args.graph,
-        provisioning=args.provisioning,
+        provisioning=args.routing_strategy == "rerouting",
+        full_dynamic=args.routing_strategy == "dynamic",
+        static_routing_mode=args.routing_strategy == "static",
     )
     t1 = time.perf_counter()
 
@@ -617,12 +693,13 @@ def main():
     params = {
         "config": args.config,
         "n_apps": args.apps,
-        "inst_min": args.inst[0],
-        "inst_max": args.inst[1],
+        "inst_range": args.inst,
         "epr_min": args.epr[0],
         "epr_max": args.epr[1],
         "period_min": args.period[0],
         "period_max": args.period[1],
+        "windows_min": windows[0],
+        "windows_max": windows[1],
         "hyperperiod_cycles": args.hyperperiod,
         "p_packet": args.ppacket,
         "memory": args.memory,
@@ -635,11 +712,13 @@ def main():
         "run_number": run_number,
         "routing": args.routing,
         "capacity_threshold": args.capacity_threshold,
+        "routing_strategy": args.routing_strategy,
     }
-    pd.DataFrame([params]).to_csv(os.path.join(run_dir, "params.csv"))
+    with open(os.path.join(run_dir, "params.json"), "w") as f:
+        json.dump(params, f, indent=2)
 
     path_results = os.path.join(run_dir, "pga_results.csv")
-    path_params = os.path.join(run_dir, "params.csv")
+    path_params = os.path.join(run_dir, "params.json")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     path_link_wait = os.path.join(run_dir, "link_waiting.csv")
     print(f"Saved results to: {path_results}")

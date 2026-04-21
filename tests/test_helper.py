@@ -86,7 +86,7 @@ def test_shared_node_but_distinct_links():
 
 def test_build_default_sim_args_no_overrides():
     result = build_default_sim_args("config", None)
-    assert result["inst_range"] == (100, 100)
+    assert result["inst_range"] == 100
     assert result["epr_range"] == (2, 2)
     assert result["period_range"] == (1, 1)
 
@@ -151,8 +151,9 @@ def test_save_results_basic(tmp_path):
             output_dir=tmpdir,
             verbose=False,
         )
-        csv_files = {f for f in os.listdir(tmpdir) if f.endswith(".csv")}
-        assert "pga_results.csv" in csv_files
+        all_files = set(os.listdir(tmpdir))
+        csv_files = {f for f in all_files if f.endswith(".csv")}
+        assert "pga_results.parquet" in all_files
         assert "link_utilization.csv" in csv_files
         assert "link_waiting.csv" in csv_files
 
@@ -179,7 +180,7 @@ def test_generate_n_apps():
     rng = np.random.default_rng(seed=42)
     nodes = ["Alice", "David"]
     n_apps = 3
-    inst_range = (1, 5)
+    inst_range = 3
     epr_range = (1, 3)
     period_range = (10.0, 20.0)
     list_policies = ["policy1", "policy2"]
@@ -189,7 +190,7 @@ def test_generate_n_apps():
     }
 
     apps = generate_n_apps(
-        nodes=nodes,
+        end_nodes=nodes,
         bounds=bounds,
         n_apps=n_apps,
         inst_range=inst_range,

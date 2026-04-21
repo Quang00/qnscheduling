@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import PercentFormatter
 
 
 def set_plot_theme(dpi: int) -> None:
@@ -31,32 +31,21 @@ def build_metric_specs(
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
-            "key": "admission_rate",
-            "ylabel": "Admission rate (%)",
-            "percentage": True,
-        },
-        {
-            "key": "makespan",
-            "ylabel": "Completion time (s)",
-            "yscale": "log",
-        },
-        {
             "key": "throughput",
             "ylabel": "Throughput (completed PGAs/s)",
         },
         {
+            "key": "app_throughput",
+            "ylabel": "Application Throughput (served apps/s)",
+        },
+        {
+            "key": "service_ratio",
+            "ylabel": "Service ratio (%)",
+            "percentage": True,
+        },
+        {
             "key": "completed_ratio",
             "ylabel": "Completion ratio (%)",
-            "percentage": True,
-        },
-        {
-            "key": "top5_busy_share",
-            "ylabel": "Share of non-idle time in top 5% links (%)",
-            "percentage": True,
-        },
-        {
-            "key": "top10_busy_share",
-            "ylabel": "Share of non-idle time in top 10% links (%)",
             "percentage": True,
         },
         {
@@ -91,12 +80,17 @@ def build_metric_specs(
             "ylabel": "Average queue length",
         },
         {
-            "key": "p90_avg_queue_length",
-            "ylabel": "90th percentile average queue length",
+            "key": "avg_turnaround_time",
+            "ylabel": "Average turnaround time (s)",
         },
         {
-            "key": "p95_avg_queue_length",
-            "ylabel": "95th percentile average queue length",
+            "key": "avg_service_time",
+            "ylabel": "Average service time (s)",
+        },
+        {
+            "key": "failed_ratio",
+            "ylabel": "Failed ratio (%)",
+            "percentage": True,
         },
         {
             "key": "drop_ratio",
@@ -108,10 +102,6 @@ def build_metric_specs(
             "ylabel": "Average number of hops",
         },
         {
-            "key": "avg_min_fidelity",
-            "ylabel": "Average minimum fidelity",
-        },
-        {
             "key": "avg_e2e_fidelity",
             "ylabel": "Average E2E fidelity",
         },
@@ -120,31 +110,23 @@ def build_metric_specs(
             "ylabel": "Average PGA duration (s)",
         },
         {
-            "key": "avg_defer_per_pga",
-            "ylabel": "Average deferrals per PGA",
-        },
-        {
-            "key": "avg_retry_per_pga",
-            "ylabel": "Average retries per PGA",
-        },
-        {
-            "key": "single_path_share_pct",
-            "ylabel": "Requests with exactly 1 candidate path (%)",
-            "percentage": True,
-        },
-        {
-            "key": "two_path_share_pct",
-            "ylabel": "Requests with $\\leq$ 2 candidate paths (%)",
-            "percentage": True,
-        },
-        {
-            "key": "avg_deg",
-            "ylabel": "Average node degree",
+            "key": "avg_routing_efficiency",
+            "ylabel": "Routing efficiency",
         },
         {
             "key": "fairness",
             "ylabel": "Fairness",
         },
+        {
+            "key": "routing_decision_count",
+            "ylabel": "Routing decisions",
+            "yscale": "log",
+        },
+        {
+            "key": "routing_decision_runtime",
+            "ylabel": "Routing computation time (s)",
+            "yscale": "log",
+        }
     ]
 
     specs = []
@@ -171,8 +153,10 @@ def build_metric_specs(
                 file = f"{i['key']}_vs_{x}_value_{v}_{sch_suffix}.png"
                 i["plot_path"] = os.path.join(run_dir, file)
                 i["x_var"] = x
-                i["filter_column"] = "p_packet" if x == "n_apps" else "n_apps"
-                i["filter_value"] = float(v) if x == "n_apps" else int(v)
+                i["filter_column"] = (
+                    "p_packet" if x == "arrival_rate" else "arrival_rate"
+                )
+                i["filter_value"] = float(v)
                 i["color_override"] = group_palette_map.get(str(v))
                 specs.append(i)
     return specs
@@ -218,7 +202,7 @@ def render_plot(
     summary_df["upper"] = summary_df["mean"] + ci95
     x_values = sorted(summary_df[x_var].unique())
 
-    use_categorical = x_var == "n_apps"
+    use_categorical = x_var not in ("p_packet", "load", "arrival_rate")
     if use_categorical:
         x_map = {val: idx for idx, val in enumerate(x_values)}
         summary_df["x_plot"] = summary_df[x_var].map(x_map)
@@ -288,15 +272,18 @@ def render_plot(
     if ymin is not None or ymax is not None:
         ax.set_ylim(ymin, ymax)
     if spec.get("percentage"):
-        fmt = spec.get("percentage_format", "{:.1f}%")
         ax.yaxis.set_major_formatter(
-            FuncFormatter(lambda v, _: fmt.format(v * 100.0))
+            PercentFormatter(xmax=1.0, decimals=2)
         )
 
     xlabel_map = {
         "p_packet": r"$p_{\mathrm{packet}}$",
         "load": "Load",
         "n_apps": "Number of applications",
+        "arrival_rate": r"Arrival rate $\lambda$",
+        "inst_range": (
+            "Average number of instances per application"
+        ),
     }
     ax.set_xlabel(xlabel_map.get(x_var, x_var))
     ax.set_ylabel(spec["ylabel"])
@@ -397,6 +384,7 @@ def plot_metrics_vs_load(
     scheduler: str | None = None,
     create_individual: bool = False,
     multi: bool = False,
+    x_var: str = "arrival_rate",
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
@@ -405,17 +393,13 @@ def plot_metrics_vs_load(
             "2.csv",
             "3.csv",
             "4.csv",
-            "5.csv",
-            "6.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Shortest path",
-            "2": "Highest fidelity",
-            "3": "Capacity 0.8",
-            "4": "Capacity 1.0",
-            "5": "Least capacity",
-            "6": "Smallest bottleneck",
+            "1": "Precomputed",
+            "2": "Proactive",
+            "3": "Hybrid",
+            "4": "Reactive",
         },
     )
     """
@@ -438,15 +422,26 @@ def plot_metrics_vs_load(
     else:
         results_df = pd.read_csv(path)
         run_dir = os.path.dirname(path) or "."
-        if p_packet_values is None:
-            val_list = results_df["p_packet"].dropna().unique().tolist()
+        if x_var == "inst_range":
+            val_list = (
+                results_df["inst_range"].dropna().astype(int).unique().tolist()
+            )
             val_list.sort()
+            def_gp = "arrival_rate"
+            file_prefix = "inst_range"
+            dft_labels = {v: fr"$\lambda={v}$" for v in val_list}
         else:
-            val_list = [float(v) for v in p_packet_values]
+            if p_packet_values is None:
+                val_list = results_df["p_packet"].dropna().unique().tolist()
+                val_list.sort()
+            else:
+                val_list = [float(v) for v in p_packet_values]
+            def_gp = "p_packet"
+            file_prefix = "p_packet"
+            dft_labels = {
+                v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in val_list
+            }
         value_label = str(val_list[0]) if len(val_list) == 1 else "varied"
-        def_gp = "p_packet"
-        file_prefix = "p_packet"
-        dft_labels = {v: f"$p_{{\\mathrm{{packet}}}}={v}$" for v in val_list}
 
     scheduler_value = scheduler or "dynamic"
     sch_suffix = scheduler_value.title()
@@ -476,7 +471,7 @@ def plot_metrics_vs_load(
         save_path=save_path,
         run_dir=run_dir,
         sch_suffix=sch_suffix,
-        x="n_apps",
+        x=x_var,
         group_column=group_column,
         group_labels=gp_labels,
         group_palette=group_palette,

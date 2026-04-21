@@ -12,12 +12,17 @@ metrics, link utilizations, and other relevant data. While the function
 
 import heapq
 import re
+import time
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 
-from scheduling.pga import duration_pga
+from scheduling.routing import (
+    compute_path_durations,
+    dynamic_routing,
+    rerouting,
+)
 from utils.helper import compute_link_utilization, track_link_waiting
 
 INIT_PGA_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -160,7 +165,8 @@ class PGA:
 
         for link in self.links:
             lk_b_t = self.resources.get(link, 0.0)
-            wait_until = max(wait_until, lk_b_t)
+            if lk_b_t > wait_until:
+                wait_until = lk_b_t
 
         for link in self.links:
             lk_b_t = self.resources.get(link, 0.0)
@@ -168,7 +174,8 @@ class PGA:
                 blocking_links.append(link)
 
         current_time = self.start
-        t_budget = max(0.0, self.end - self.start)
+        diff = self.end - self.start
+        t_budget = diff if diff > 0.0 else 0.0
         status = "failed"
 
         if t_budget > EPS and self.policy == "deadline":
@@ -194,7 +201,9 @@ class PGA:
                 pairs_generated = int(csum[-1]) if len(csum) else 0
 
             current_time = self.start + attempts_run * self.slot_duration
-            completion = min(self.end, current_time)
+            completion = (
+                current_time if current_time < self.end else self.end
+            )
             self._update_resources_and_links(completion, attempts_run)
         else:
             completion = self.start
@@ -311,7 +320,8 @@ def simulate_static(
         r0 = float(pga_rel_times.get(app, 0.0))
         T = float(pga_periods.get(app, 0.0))
         arrival = r0 + idx * T
-        min_arrival = min(min_arrival, arrival)
+        if arrival < min_arrival:
+            min_arrival = arrival
 
         pga = PGA(
             name=pga_name,
@@ -360,49 +370,6 @@ def simulate_static(
     return df, pga_names, pga_release_times, link_utilization, link_waiting
 
 
-def rerouting(
-    app: str,
-    pga_network_paths: Dict[str, List[List[str]]],
-    resources: Dict[Tuple[str, str], float],
-    pga_params: Dict[str, float],
-    deadline: float,
-    delays: Dict[Tuple[str, str], float] | None = None,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float] | None:
-    """Find an alternative path for a PGA before dropping or deferring."""
-    candidates = pga_network_paths.get(app, [])
-    best = None
-    best_avail = float("inf")
-
-    for path in candidates:
-        links = [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
-        avail = max(
-            (
-                resources.get(lnk, 0.0)
-                + (delays.get(lnk, 0.0) if delays else 0.0)
-                for lnk in links
-            ),
-            default=0.0,
-        )
-        n_swap = max(0, len(path) - 2)
-        path_duration = duration_pga(
-            p_packet=pga_params["p_packet"],
-            epr_pairs=int(pga_params["epr_pairs"]),
-            n_swap=n_swap,
-            memory=pga_params["memory"],
-            p_swap=pga_params["p_swap"],
-            p_gen=pga_params["p_gen"],
-            time_slot_duration=pga_params["slot_duration"],
-        )
-        if avail + path_duration <= deadline + EPS and avail < best_avail:
-            best_avail = avail
-            best = (path, links, avail, path_duration)
-
-    return best
-
-
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
     durations: Dict[str, float],
@@ -410,133 +377,153 @@ def simulate_dynamic(
     pga_rel_times: Dict[str, float],
     pga_network_paths: Dict[str, List[List[str]]],
     rng: np.random.Generator,
-    arrival_rate: float | None = None,
-) -> Tuple[
-    pd.DataFrame,
-    List[str],
-    Dict[str, float],
-    Dict[Tuple[str, str], Dict[str, float]],
-    Dict[Tuple[str, str], Dict[str, float | int]],
-]:
-    """Simulate online dynamic PGA scheduling. PGAs arrive either periodically
-    or according to a Poisson process, attempting to generate EPR pairs over a
-    specified route within a defined time window, considering resource
-    availability and link busy times. The dynamic scheduler processes PGAs
-    as they arrive, making real-time decisions based on current network
-    conditions.
-
-        The scheduler made the following decisions for each PGA:
-
-        - If a PGA cannot start by its deadline due to busy links, it
-            is marked as "drop".
-        - If a PGA cannot be completed due to its duration exceeding
-            the deadline, it is marked as "drop".
-        - If a PGA does not generate the required E2E EPR pairs within its time
-            window, it may be retried if there is time before the deadline.
-        - If a PGA cannot start immediately due to busy links but can still
-            complete within its deadline, it is marked as "defer" and
-            rescheduled to start when resources become available.
-        - If a PGA successfully generates the required E2E EPR pairs within its
-            time window, it is marked as "completed".
-
-    Args:
-        app_specs (Dict[str, Dict[str, Any]]): Application specifications.
-        durations (Dict[str, float]): Duration of each application.
-        pga_parameters (Dict[str, Dict[str, float]]): Parameters for each PGA.
-        pga_rel_times (Dict[str, float]): Release times for each PGA.
-        pga_network_paths (Dict[str, List[str]]): Network paths for each PGA.
-        rng (np.random.Generator): Random number generator.
-        arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
-            When None, arrivals remain periodic.
-
-    Returns:
-        Tuple[
-            pd.DataFrame,
-            List[str],
-            Dict[str, float],
-            Dict[Tuple[str, str], Dict[str, float]],
-        ]: Contains:
-            - DataFrame with PGA performance metrics.
-            - List of PGA names.
-            - Dictionary mapping PGA names to their release times.
-            - Dictionary mapping undirected links to busy time and utilization.
-            - Dictionary mapping undirected links to waiting metrics.
-    """
+    full_dynamic: bool = True,
+    rerouting_mode: bool = False,
+    all_links: List[Tuple[str, str]] | None = None,
+    simple_paths: Dict[str, List[List[str]]] | None = None,
+    static_routing_mode: bool = False,
+    horizon_time: float | None = None,
+    warmup_time: float = 0.0,
+    rng_routing: np.random.Generator | None = None,
+    rng_arrivals: Dict[str, np.random.Generator] | None = None,
+    instance_arrival_rate: float = 10.0,
+):
     log = []
+    defer_counts = {}
     pga_release_times = {}
     pga_names = []
     seen_pgas = set()
-    drop_logged = set()
 
     pga_route_links = {
         app: [
             tuple(sorted((u, v)))
-            for u, v in zip(path[0][:-1], path[0][1:], strict=False)
+            for u, v in zip(paths[0][:-1], paths[0][1:], strict=False)
         ]
-        for app, path in pga_network_paths.items()
-    }
-    all_links = {
-        tuple(sorted((u, v)))
-        for paths in pga_network_paths.values()
-        for path in paths
-        for u, v in zip(path[:-1], path[1:], strict=False)
+        for app, paths in pga_network_paths.items()
     }
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
+    link_busy_record = dict.fromkeys(all_links, 0.0)
+    link_waiting_routing = (
+        {
+            link: {"total_waiting_time": 0.0, "pga_waited": 0}
+            for link in all_links
+        }
+        if full_dynamic and simple_paths is not None
+        else None
+    )
     link_waiting = {
         link: {"total_waiting_time": 0.0, "pga_waited": 0}
         for link in all_links
     }
     min_arrival = float("inf")
     max_completion = 0.0
+    routing_decision_cpt = 0
+    routing_decision_runtime = 0.0
 
     periods = {app: app_specs[app].get("period") for app in app_specs}
-    inst_req = {app: app_specs[app].get("instances") for app in app_specs}
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
-    completed_instances = {app: 0 for app in app_specs}
+    max_instances = {
+        app: max(0, int(app_specs[app].get("instances", 0)))
+        for app in app_specs
+    }
     release_indices = {app: 0 for app in app_specs}
-    poisson_enabled = arrival_rate is not None and arrival_rate > 0.0
-    poisson = (1.0 / arrival_rate) if poisson_enabled else None
+    instance_poisson_enabled = instance_arrival_rate > 0.0
     poisson_next_release = (
         {app: float(base_release.get(app, 0.0)) for app in app_specs}
-        if poisson_enabled
+        if instance_poisson_enabled
         else {}
     )
 
     events_queue = []
     ready_queue = []
 
+    routing_metadata = {}
+    pga_best = {}
+    rerouting_candidates = {}
+    if full_dynamic and simple_paths is not None:
+        for app in app_specs:
+            _t0 = time.perf_counter()
+            routing_metadata[app] = compute_path_durations(
+                pga_parameters[app],
+                simple_paths=simple_paths,
+                src=app_specs[app]["src"],
+                dst=app_specs[app]["dst"],
+            )
+            routing_decision_runtime += time.perf_counter() - _t0
+            min_fid = app_specs[app].get("min_fidelity", 0.0)
+            feasible_durs = [
+                dur
+                for fid, _, _, dur in routing_metadata[app]
+                if fid >= min_fid
+            ]
+            pga_best[app] = (
+                min(feasible_durs) if feasible_durs else float("nan")
+            )
+    elif rerouting_mode:
+        for app, app_paths in pga_network_paths.items():
+            _t0 = time.perf_counter()
+            rerouting_candidates[app] = compute_path_durations(
+                pga_parameters[app], provisioned_paths=app_paths
+            )
+            routing_decision_runtime += time.perf_counter() - _t0
+
     def enqueue_release(app: str) -> None:
-        if inst_req[app] <= completed_instances[app]:
-            return
         idx = release_indices[app]
         period = periods[app]
 
-        if poisson_enabled:
+        if max_instances[app] > 0 and idx >= max_instances[app]:
+            return
+
+        if instance_poisson_enabled:
             release = poisson_next_release.get(app, base_release[app])
-            poisson_next_release[app] = release + rng.exponential(poisson)
+            _rng_arr = (
+                rng_arrivals.get(app) if rng_arrivals is not None else None
+            ) or rng
+            poisson_next_release[app] = release + _rng_arr.exponential(
+                1.0 / instance_arrival_rate
+            )
         else:
             release = base_release[app] + period * idx
 
+        if release >= horizon_time:
+            return
+
         deadline = release + period
         heapq.heappush(
-            events_queue, (release, deadline, release, app, idx, release)
+            events_queue,
+            (release, deadline, release, app, idx, release, "release"),
         )
         release_indices[app] += 1
 
     for app in app_specs:
         enqueue_release(app)
 
-    t = 0.0
+    cur_t = 0.0
 
     while events_queue or ready_queue:
         if not ready_queue:
-            t = events_queue[0][0]
+            cur_t = events_queue[0][0]
 
-        while events_queue and events_queue[0][0] <= t + EPS:
-            event_time, deadline, arrival_time, app, i, ready_time = (
-                heapq.heappop(events_queue)
-            )
+        if cur_t >= horizon_time:
+            break
+
+        while events_queue and events_queue[0][0] <= cur_t + EPS:
+            (
+                event_time,
+                deadline,
+                arrival_time,
+                app,
+                i,
+                ready_time,
+                event_type,
+            ) = heapq.heappop(events_queue)
+            if event_type == "release":
+                enqueue_release(app)
+
+            if event_time >= horizon_time:
+                continue
+
             heapq.heappush(
                 ready_queue,
                 (deadline, ready_time, arrival_time, app, i, event_time),
@@ -549,7 +536,9 @@ def simulate_dynamic(
             deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
-            min_arrival = min(min_arrival, float(arrival_time))
+            at = float(arrival_time)
+            if at < min_arrival:
+                min_arrival = at
 
             pga_name = f"{app}{i}"
             if pga_name not in seen_pgas:
@@ -557,82 +546,125 @@ def simulate_dynamic(
                 pga_names.append(pga_name)
                 pga_release_times[pga_name] = arrival_time
 
-            route_links = pga_route_links.get(app, [])
-            selected_path = pga_network_paths[app][0]
-            duration = durations.get(app, 0.0)
-
-            last_available = 0.0
-            for link in route_links:
+            routed_fid = np.nan
+            if static_routing_mode:
+                route_links = pga_route_links.get(app, [])
+                selected_path = pga_network_paths[app][0]
+                duration = durations.get(app, 0.0)
                 last_available = max(
-                    last_available,
-                    resources.get(link, 0.0),
+                    (resources.get(lk, 0.0) for lk in route_links),
+                    default=0.0,
                 )
-
-            if last_available > t + EPS:
-                alt_path = rerouting(
-                    app,
-                    pga_network_paths,
-                    resources,
-                    pga_parameters[app],
+            elif full_dynamic and simple_paths is not None:
+                routing_decision_cpt += 1
+                _t0 = time.perf_counter()
+                routed, next_avail = dynamic_routing(
+                    routing_metadata[app],
+                    app_specs[app]["min_fidelity"],
                     deadline,
+                    cur_t,
+                    resources,
+                    rng_routing if rng_routing is not None else rng,
                 )
-                if alt_path is not None:
-                    (
-                        selected_path,
-                        route_links,
-                        last_available,
-                        duration,
-                    ) = alt_path
-
-            if last_available > t + EPS:
-                if last_available + duration > deadline + EPS:
-                    if (app, i) not in drop_logged:
-                        drop_logged.add((app, i))
-
-                        turnaround = max(0.0, t - arrival_time)
-                        burst = 0.0
-                        wait = max(0.0, t - rdy_t)
-                        result = {
+                routing_decision_runtime += time.perf_counter() - _t0
+                if routed is None:
+                    if next_avail is not None:
+                        defer_counts[pga_name] = (
+                            defer_counts.get(pga_name, 0) + 1
+                        )
+                        heapq.heappush(
+                            events_queue,
+                            (
+                                next_avail,
+                                deadline,
+                                arrival_time,
+                                app,
+                                i,
+                                rdy_t,
+                                "resume"
+                            ),
+                        )
+                    else:
+                        log.append({
                             "pga": pga_name,
                             "arrival_time": arrival_time,
                             "ready_time": rdy_t,
                             "start_time": np.nan,
-                            "burst_time": burst,
-                            "completion_time": t,
-                            "turnaround_time": turnaround,
-                            "waiting_time": wait,
+                            "burst_time": 0.0,
+                            "completion_time": cur_t,
+                            "turnaround_time": max(0.0, cur_t - arrival_time),
+                            "waiting_time": max(0.0, cur_t - rdy_t),
                             "pairs_generated": 0,
                             "status": "drop",
                             "deadline": deadline,
-                        }
-                        log.append(result)
+                        })
+                    continue
+                (
+                    selected_path,
+                    route_links,
+                    last_available,
+                    duration,
+                    routed_fid,
+                ) = routed
+            else:
+                route_links = pga_route_links.get(app, [])
+                selected_path = pga_network_paths[app][0]
+                duration = durations.get(app, 0.0)
 
-                        track_link_waiting(
-                            wait,
-                            link_waiting,
-                            blocking_links=None
-                        )
+                last_available = 0.0
+                for link in route_links:
+                    last_available = max(
+                        last_available, resources.get(link, 0.0)
+                    )
 
-                    if inst_req[app] > completed_instances[app]:
-                        enqueue_release(app)
-                else:
-                    turnaround = max(0.0, t - arrival_time)
-                    burst = 0.0
-                    wait = max(0.0, t - rdy_t)
-                    result = {
-                        "pga": pga_name,
-                        "arrival_time": arrival_time,
-                        "ready_time": rdy_t,
-                        "start_time": np.nan,
-                        "burst_time": burst,
-                        "completion_time": t,
-                        "turnaround_time": turnaround,
-                        "waiting_time": wait,
-                        "pairs_generated": 0,
-                        "status": "defer",
-                        "deadline": deadline,
-                    }
-                    log.append(result)
+                would_drop = last_available + duration > deadline + EPS
+                if (
+                    last_available > cur_t + EPS
+                    and rerouting_mode
+                    and would_drop
+                ):
+                    routing_decision_cpt += 1
+                    _t0 = time.perf_counter()
+                    alt_path = rerouting(
+                        rerouting_candidates,
+                        deadline,
+                        cur_t,
+                        app,
+                        resources,
+                    )
+                    routing_decision_runtime += time.perf_counter() - _t0
+                    if alt_path is not None:
+                        (
+                            selected_path,
+                            route_links,
+                            last_available,
+                            duration,
+                            routed_fid,
+                        ) = alt_path
+
+            _stamp = (
+                {
+                    "e2e_fidelity": routed_fid,
+                    "pga_duration": duration,
+                    "hops": len(selected_path) - 1,
+                }
+                if (full_dynamic and simple_paths is not None)
+                or rerouting_mode
+                else {}
+            )
+            if full_dynamic and simple_paths is not None:
+                best = pga_best.get(app, float("nan"))
+                _stamp["routing_efficiency"] = (
+                    best / duration
+                    if duration > 0 and not np.isnan(best)
+                    else float("nan")
+                )
+
+            if last_available > cur_t + EPS:
+                if last_available + duration <= deadline + EPS:
+                    defer_counts[pga_name] = (
+                        defer_counts.get(pga_name, 0) + 1
+                    )
                     heapq.heappush(
                         events_queue,
                         (
@@ -642,42 +674,51 @@ def simulate_dynamic(
                             app,
                             i,
                             rdy_t,
+                            "resume",
                         ),
                     )
+                else:
+                    log.append({
+                        "pga": pga_name,
+                        "arrival_time": arrival_time,
+                        "ready_time": rdy_t,
+                        "start_time": np.nan,
+                        "burst_time": 0.0,
+                        "completion_time": cur_t,
+                        "turnaround_time": max(0.0, cur_t - arrival_time),
+                        "waiting_time": max(0.0, cur_t - rdy_t),
+                        "pairs_generated": 0,
+                        "status": "drop",
+                        "deadline": deadline,
+                        **_stamp,
+                    })
                 continue
 
-            start_time = t
-            period = periods[app]
+            start_time = cur_t
             completion = start_time + duration
 
-            if completion > deadline + EPS or duration > period + EPS:
-                turnaround = max(0.0, start_time - arrival_time)
-                wait = max(0.0, start_time - rdy_t)
-                result = {
+            if (
+                app_specs[app].get("policy") == "deadline"
+                and deadline is not None
+                and start_time + duration > deadline + EPS
+            ):
+                log.append({
                     "pga": pga_name,
                     "arrival_time": arrival_time,
-                    "ready_time": float(rdy_t),
-                    "start_time": start_time,
+                    "ready_time": rdy_t,
+                    "start_time": np.nan,
                     "burst_time": 0.0,
-                    "completion_time": start_time,
-                    "turnaround_time": turnaround,
-                    "waiting_time": wait,
+                    "completion_time": cur_t,
+                    "turnaround_time": max(0.0, cur_t - arrival_time),
+                    "waiting_time": max(0.0, cur_t - rdy_t),
                     "pairs_generated": 0,
                     "status": "drop",
                     "deadline": deadline,
-                }
-                log.append(result)
-                track_link_waiting(
-                    result["waiting_time"], link_waiting, blocking_links=None
-                )
-
-                if duration > period + EPS:
-                    completed_instances[app] += 1
-
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
+                    **_stamp,
+                })
                 continue
 
+            recording = start_time >= warmup_time
             pga = PGA(
                 name=pga_name,
                 arrival=arrival_time,
@@ -685,7 +726,7 @@ def simulate_dynamic(
                 end=completion,
                 route=selected_path,
                 resources=resources,
-                link_busy=link_busy,
+                link_busy=link_busy_record if recording else link_busy,
                 p_gen=pga_parameters[app]["p_gen"],
                 epr_pairs=int(pga_parameters[app]["epr_pairs"]),
                 slot_duration=pga_parameters[app]["slot_duration"],
@@ -700,49 +741,48 @@ def simulate_dynamic(
             result = pga.run()
             result["ready_time"] = float(rdy_t)
             result["waiting_time"] = max(0.0, start_time - rdy_t)
+            result.update(_stamp)
 
-            track_link_waiting(
-                result.get("waiting_time", 0.0),
-                link_waiting,
-                blocking_links=result.get("blocking_links"),
-            )
+            if link_waiting_routing is not None:
+                track_link_waiting(
+                    result.get("waiting_time", 0.0),
+                    link_waiting_routing,
+                    blocking_links=result.get("blocking_links"),
+                )
+
+            if recording:
+                track_link_waiting(
+                    result.get("waiting_time", 0.0),
+                    link_waiting,
+                    blocking_links=result.get("blocking_links"),
+                )
+                if result["completion_time"] > horizon_time:
+                    excess = result["completion_time"] - horizon_time
+                    for lk in route_links:
+                        if lk in link_busy_record:
+                            link_busy_record[lk] = max(
+                                0.0, link_busy_record[lk] - excess
+                            )
 
             max_completion = max(max_completion, result["completion_time"])
 
             status = result.get("status", "")
             if status == "completed":
-                completed_instances[app] += 1
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
                 continue
 
-            next_ready_time = result["completion_time"] + EPS
-            if next_ready_time + duration <= deadline + EPS:
-                if status == "failed":
-                    result["status"] = "retry"
-                heapq.heappush(
-                    events_queue,
-                    (
-                        next_ready_time,
-                        deadline,
-                        arrival_time,
-                        app,
-                        i,
-                        next_ready_time,
-                    ),
-                )
-            else:
-                if inst_req[app] > completed_instances[app]:
-                    enqueue_release(app)
-
     df = pd.DataFrame(log)
+    del log
     link_utilization = compute_link_utilization(
-        link_busy, min_arrival, max_completion
+        link_busy_record, warmup_time, horizon_time,
     )
 
-    for link in all_links:
-        link_waiting.setdefault(
-            link, {"total_waiting_time": 0.0, "pga_waited": 0}
-        )
-
-    return df, pga_names, pga_release_times, link_utilization, link_waiting
+    return (
+        df,
+        pga_names,
+        pga_release_times,
+        link_utilization,
+        link_waiting,
+        routing_decision_cpt,
+        routing_decision_runtime,
+        defer_counts,
+    )
