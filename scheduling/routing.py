@@ -655,7 +655,6 @@ def dynamic_routing(
 def static_routing(
     app_requests: Dict[str, Dict[str, Any]],
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    rng: np.random.Generator,
 ) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
     ret = {}
     e2e_fids = {}

@@ -245,7 +245,7 @@ def run_simulation(
     if static_routing_mode:
         _t0 = time.perf_counter()
         paths, app_e2e_fidelities = static_routing(
-            app_requests, simple_paths, rng_routing
+            app_requests, simple_paths
         )
         static_routing_time = time.perf_counter() - _t0
     elif full_dynamic:
