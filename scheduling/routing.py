@@ -655,6 +655,7 @@ def dynamic_routing(
 def static_routing(
     app_requests: Dict[str, Dict[str, Any]],
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    mode: str = "highest",
 ) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
     ret = {}
     e2e_fids = {}
@@ -675,9 +676,15 @@ def static_routing(
         chosen_path = []
         for path in all_simple_paths(simple_paths, src, dst):
             e2e_fid, path_nodes = path[0], path[1]
-            if e2e_fid > best_fid:
-                best_fid = e2e_fid
-                chosen_path = list(path_nodes)
+            path_nodes_list = list(path_nodes)
+            if mode == "shortest":
+                if not chosen_path or len(path_nodes_list) < len(chosen_path):
+                    best_fid = e2e_fid
+                    chosen_path = path_nodes_list
+            else:
+                if e2e_fid > best_fid:
+                    best_fid = e2e_fid
+                    chosen_path = path_nodes_list
         min_fid = req.get("min_fidelity", 0.0)
         if not chosen_path:
             path_cache[(src, dst)] = ([], float("nan"))
