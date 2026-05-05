@@ -561,29 +561,18 @@ def save_results(
     )
     avg_path_efficiency = float("nan")
     if has_per_row_routing:
-        avg_hops = df["hops"].mean() if "hops" in df.columns else float("nan")
-        _empty = pd.Series([], dtype=float)
-        _fid_col = (
-            df["e2e_fidelity"].dropna()
-            if "e2e_fidelity" in df.columns
-            else _empty
-        )
-        avg_e2e_fidelity = (
-            float(_fid_col.mean()) if not _fid_col.empty else float("nan")
-        )
-        _dur_col = (
-            df["pga_duration"].dropna()
-            if "pga_duration" in df.columns
-            else _empty
-        )
-        pga_d = float(_dur_col.mean()) if not _dur_col.empty else float("nan")
-        _eff_col = (
-            df["routing_efficiency"].dropna()
-            if "routing_efficiency" in df.columns
-            else _empty
-        )
-        avg_path_efficiency = (
-            float(_eff_col.mean()) if not _eff_col.empty else float("nan")
+        cols = [
+            c for c in (
+                "hops", "e2e_fidelity", "pga_duration", "routing_efficiency",
+            )
+            if c in df.columns
+        ]
+        per_app = df.groupby("task")[cols].mean().mean()
+        avg_hops = float(per_app.get("hops", float("nan")))
+        avg_e2e_fidelity = float(per_app.get("e2e_fidelity", float("nan")))
+        pga_d = float(per_app.get("pga_duration", float("nan")))
+        avg_path_efficiency = float(
+            per_app.get("routing_efficiency", float("nan"))
         )
     else:
         avg_hops = params["hops"].mean() if not params.empty else float("nan")
