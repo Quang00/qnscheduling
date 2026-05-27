@@ -14,7 +14,7 @@ from scipy.stats import binom
 
 
 def probability_e2e(
-    n_swap: int, memory: int = 1, p_gen: float = 0.001, p_swap: float = 0.95
+    n_swap: int, memory: int = 1, p_gen: float = 0.001, p_swap: float = 0.6
 ) -> float:
     """Calculate the end-to-end probability of generating EPR pairs in a given
     path.
@@ -62,7 +62,7 @@ def duration_pga(
     epr_pairs: int,
     n_swap: int,
     memory: int = 1,
-    p_swap: float = 0.95,
+    p_swap: float = 0.6,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
 ) -> float:
