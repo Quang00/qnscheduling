@@ -166,12 +166,13 @@ def test_save_results_basic(tmp_path):
 
 def test_gml_data():
     gml_file = "configurations/network/basic/Dumbbell.gml"
-    nodes, edges, distances, fidelities, diameter = gml_data(gml_file)
+    nodes, edges, distances, fidelities, rates, diameter = gml_data(gml_file)
 
     assert len(nodes) > 0
     assert len(edges) > 0
     assert len(distances) > 0
     assert len(fidelities) > 0
+    assert len(rates) > 0
     assert len(fidelities) == len(edges)
     assert diameter > 0
 

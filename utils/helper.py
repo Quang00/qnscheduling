@@ -802,6 +802,28 @@ def compute_edge_fidelities(
     return fidelities
 
 
+def compute_edge_rates(
+    G: nx.Graph,
+    distances: Dict[Tuple, float],
+    rate_min: float = 0.001,
+) -> Dict[Tuple, float]:
+    rates = {}
+    L_max = max(distances.values(), default=0.0)
+    L_dep = (
+        -L_max / np.log(rate_min)
+        if L_max > 0.0
+        else float("inf")
+    )
+
+    for u, v, data in G.edges(data=True):
+        L = float(data.get("dist", 0.0))
+        r = np.exp(-L / L_dep)
+        data["rate"] = r
+        rates[(u, v)] = r
+
+    return rates
+
+
 def gml_data(
     gml_file: str,
 ) -> Tuple[list, list, dict[tuple, float], dict, float]:
@@ -818,6 +840,8 @@ def gml_data(
         distances.
         fidelities (dict[tuple, float]): Dict mapping directed edges to
         fidelities.
+        rates (dict[tuple, float]): Dict mapping directed edges to
+        rates.
         diameter (float): Diameter of the graph.
     """
     G = nx.read_gml(gml_file)
@@ -829,9 +853,10 @@ def gml_data(
         for u, v, data in G.edges(data=True)
     }
     fidelities = compute_edge_fidelities(G, distances)
+    rates = compute_edge_rates(G, distances)
     diameter = float(nx.diameter(G))
 
-    return nodes, edges, distances, fidelities, diameter
+    return nodes, edges, distances, fidelities, rates, diameter
 
 
 def generate_n_apps(
