@@ -466,13 +466,6 @@ def main():
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(
-        "--hyperperiod",
-        "-hp",
-        type=float,
-        default=1000,
-        help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
-    )
-    parser.add_argument(
         "--ppacket",
         "-pp",
         type=float,
