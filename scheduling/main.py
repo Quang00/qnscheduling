@@ -92,7 +92,6 @@ def run_simulation(
     arrival_rate: float | None = None,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
-    capacity_threshold: float = 0.8,
     save_csv: bool = True,
     verbose: bool = True,
     graph: str | None = None,
@@ -261,7 +260,6 @@ def run_simulation(
             fidelities if fidelity_enabled else None,
             pga_rel_times=pga_rel_times,
             routing_mode=routing_mode,
-            threshold=capacity_threshold,
             p_packet=p_packet,
             memory=memory,
             p_swap=p_swap,
@@ -535,20 +533,13 @@ def main():
         "--routing",
         "-r",
         type=str,
-        choices=["shortest", "capacity", "smallest", "least", "highest"],
+        choices=["shortest", "smallest", "least", "highest"],
         default="shortest",
         help=(
-            "Routing: 'shortest' (Dijkstra), 'capacity' (capacity-aware),"
-            "'smallest' (smallest bottleneck), 'least' (least total capacity),"
-            "or 'highest' (highest E2E fidelity)."
+            "Routing: 'shortest' (Dijkstra),'smallest' (smallest bottleneck),"
+            "'least' (least total capacity), or 'highest' (highest "
+            "E2E fidelity)."
         ),
-    )
-    parser.add_argument(
-        "--capacity-threshold",
-        "-ct",
-        type=float,
-        default=0.8,
-        help="Capacity threshold for routing capacity (sum(PGA/T) per link)",
     )
     parser.add_argument(
         "--graph",
@@ -618,7 +609,6 @@ def main():
         output_dir=run_dir,
         arrival_rate=args.arrival_rate,
         routing=args.routing,
-        capacity_threshold=args.capacity_threshold,
         graph=args.graph,
         provisioning=args.routing_strategy == "rerouting",
         full_dynamic=args.routing_strategy == "dynamic",
@@ -652,7 +642,6 @@ def main():
         "runtime_seconds": runtime,
         "run_number": run_number,
         "routing": args.routing,
-        "capacity_threshold": args.capacity_threshold,
         "routing_strategy": args.routing_strategy,
     }
     with open(os.path.join(run_dir, "params.json"), "w") as f:

@@ -6,7 +6,6 @@ import pytest
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.routing import (
-    capacity_threshold,
     fidelity_shortest,
     find_feasible_path,
     highest_fidelity,
@@ -196,24 +195,6 @@ def test_low_fidelity_path_skipped_least_capacity(def_req, pga_params):
     assert e2e_fid == pytest.approx(0.8)
 
 
-def test_capacity_threshold_low_fidelity_skipped(def_req, pga_params):
-    simple_paths = {
-        ("A", "C"): [(0.3, ("A", "B", "C")), (0.8, ("A", "D", "C"))]
-    }
-    paths, delta, e2e_fid = capacity_threshold(
-        simple_paths=simple_paths,
-        src="A",
-        dst="C",
-        req=def_req,
-        cap=defaultdict(float),
-        threshold=0.99,
-        **pga_params,
-    )
-    assert paths[0] == ["A", "D", "C"]
-    assert delta > 0.0
-    assert e2e_fid == pytest.approx(0.8)
-
-
 def test_smallest_bottleneck_selects_min_max_cap(def_req, pga_params):
     edges = [("A", "B"), ("B", "E"), ("A", "C"), ("C", "D"), ("D", "E")]
     _, simple_paths = fidelity_bounds_and_paths(
@@ -266,29 +247,6 @@ def test_least_capacity_selects_min_sum_cap(def_req, pga_params):
     )
     assert paths[0] == ["A", "B", "E"]
     assert delta > 0.0
-
-
-def test_capacity_threshold_exceeded(def_req):
-    edges = [("A", "B"), ("B", "C")]
-    _, simple_paths = fidelity_bounds_and_paths(
-        ["A", "B", "C"], _uniform_fidelities(edges)
-    )
-    cap = defaultdict(float, {("A", "B"): 0.95, ("B", "C"): 0.95})
-    paths, delta, _ = capacity_threshold(
-        simple_paths=simple_paths,
-        src="A",
-        dst="C",
-        req=def_req,
-        cap=cap,
-        threshold=0.99,
-        p_packet=0.6,
-        memory=1,
-        p_swap=0.6,
-        p_gen=0.001,
-        time_slot_duration=1e-4,
-    )
-    assert paths == []
-    assert delta == 0.0
 
 
 def test_fidelity_shortest_no_valid_path():
@@ -359,54 +317,6 @@ def test_find_feasible_path_cap_modes_no_valid_path(routing_mode, pga_params):
         routing_mode=routing_mode,
         **pga_params,
         rng=np.random.default_rng(0),
-    )
-    assert result["app"] == []
-    assert math.isnan(e2e_fids["app"])
-
-
-def test_find_feasible_path_capacity_routing_success(linear_abc, pga_params):
-    edges, fidelities, simple_paths = linear_abc
-    app_requests = {
-        "app": {
-            "src": "A", "dst": "C", "min_fidelity": 0.6, "epr": 1, "period": 1
-        }
-    }
-    result, e2e_fids = find_feasible_path(
-        edges=edges,
-        simple_paths=simple_paths,
-        app_requests=app_requests,
-        fidelities=fidelities,
-        routing_mode="capacity",
-        threshold=0.99,
-        **pga_params,
-    )
-    assert result["app"]
-    assert e2e_fids["app"] >= 0.6
-
-
-def test_find_feasible_path_capacity_routing_no_path(linear_abc):
-    edges, fidelities, simple_paths = linear_abc
-    app_requests = {
-        "app": {
-            "src": "A",
-            "dst": "C",
-            "min_fidelity": 0.6,
-            "epr": 100,
-            "period": 0.001,
-        }
-    }
-    result, e2e_fids = find_feasible_path(
-        edges=edges,
-        simple_paths=simple_paths,
-        app_requests=app_requests,
-        fidelities=fidelities,
-        routing_mode="capacity",
-        threshold=0.99,
-        p_packet=0.6,
-        memory=1,
-        p_swap=0.6,
-        p_gen=0.001,
-        time_slot_duration=1e-4,
     )
     assert result["app"] == []
     assert math.isnan(e2e_fids["app"])

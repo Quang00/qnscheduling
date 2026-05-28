@@ -44,25 +44,6 @@ def shortest_paths(
     }
 
 
-def _build_graph(
-    routing_mode: str,
-    edges: List[Tuple[str, str]],
-    base_graph: nx.Graph,
-    cap: Dict[Tuple[str, str], float],
-    capacity_threshold: float,
-) -> nx.Graph:
-    if routing_mode == "capacity":
-        usable_edges = [
-            (u, v)
-            for (u, v) in edges
-            if cap[tuple(sorted((u, v)))] < capacity_threshold
-        ]
-        G = nx.Graph()
-        G.add_edges_from(usable_edges)
-        return G
-    return base_graph
-
-
 def _compute_delta_and_links(
     path: List[str],
     req: Dict[str, Any],
@@ -188,62 +169,6 @@ def least_capacity(
     return result, selected_delta, selected_e2e_fid
 
 
-def capacity_threshold(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    src: str,
-    dst: str,
-    req: Dict[str, Any],
-    cap: Dict[Tuple[str, str], float],
-    threshold: float,
-    p_packet: float | None,
-    memory: int,
-    p_swap: float,
-    p_gen: float,
-    time_slot_duration: float,
-    rng: np.random.Generator | None = None,
-    provisioning: bool = True,
-) -> Tuple[List[List[str]], float, float]:
-    candidate_paths = []
-    shortest_length = None
-    selected_delta = 0.0
-    selected_e2e_fid = float("nan")
-    all_paths = all_simple_paths(simple_paths, src, dst)
-
-    for path in all_paths:
-        e2e_fid, path = path[0], path[1]
-        if e2e_fid < req["min_fidelity"]:
-            continue
-        delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
-        )
-        if any(cap[lk] + delta > threshold for lk in links):
-            continue
-        path_len = len(path)
-        if shortest_length is None:
-            shortest_length = path_len
-            selected_delta = delta
-            selected_e2e_fid = e2e_fid
-        elif path_len > shortest_length:
-            break
-        candidate_paths.append(list(path))
-
-    if not candidate_paths:
-        return [], 0.0, float("nan")
-
-    initial_idx = (
-        0
-        if rng is None or len(candidate_paths) == 1
-        else int(rng.integers(len(candidate_paths)))
-    )
-    if provisioning:
-        result = [candidate_paths[initial_idx]] + [
-            p for i, p in enumerate(candidate_paths) if i != initial_idx
-        ]
-    else:
-        result = [candidate_paths[initial_idx]]
-    return result, selected_delta, selected_e2e_fid
-
-
 def fidelity_shortest(
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
     src: str,
@@ -350,7 +275,6 @@ def find_feasible_path(
     fidelities: Dict[Tuple[str, str], float] | None,
     pga_rel_times: Dict[str, float] | None = None,
     routing_mode: str = "shortest",
-    threshold: float = 0.8,
     p_packet: float | None = None,
     memory: int = 1,
     p_swap: float = 0.6,
@@ -379,9 +303,6 @@ def find_feasible_path(
             that meet the fidelity requirement. In "degree" mode, the path with
             the lowest maximum degree of internal nodes is selected among all
             shortest paths that meet the fidelity requirement.
-        capacity_threshold (float, optional): Capacity threshold for edges in
-            "capacity" routing mode. Edges with utilization above this
-            threshold are excluded from path selection.
         p_packet (float, optional): Probability of a packet being generated.
         memory (int, optional): Number of independent link-generation trials
             per slot.
@@ -410,8 +331,8 @@ def find_feasible_path(
             {app: float("nan") for app in app_requests.keys()},
         )
 
-    base_graph = nx.Graph()
-    base_graph.add_edges_from(edges)
+    G = nx.Graph()
+    G.add_edges_from(edges)
     ret = {}
     e2e_fids = {}
     cap = defaultdict(float)
@@ -433,8 +354,6 @@ def find_feasible_path(
             e2e_fids[app] = float("nan")
             continue
 
-        G = _build_graph(routing_mode, edges, base_graph, cap, threshold)
-
         if not nx.has_path(G, src, dst):
             ret[app] = []
             e2e_fids[app] = float("nan")
@@ -453,30 +372,6 @@ def find_feasible_path(
                 p_gen,
                 time_slot_duration,
                 k=None if provisioning else 1,
-            )
-            if not path_list:
-                ret[app] = []
-                e2e_fids[app] = float("nan")
-                continue
-            _update_capacity(path_list[0], selected_delta, cap)
-            ret[app] = path_list
-            e2e_fids[app] = selected_e2e_fid
-            continue
-        elif routing_mode == "capacity":
-            path_list, selected_delta, selected_e2e_fid = capacity_threshold(
-                simple_paths,
-                src,
-                dst,
-                req,
-                cap,
-                threshold,
-                p_packet,
-                memory,
-                p_swap,
-                p_gen,
-                time_slot_duration,
-                rng,
-                provisioning,
             )
             if not path_list:
                 ret[app] = []

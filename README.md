@@ -95,8 +95,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
 - `--fidelity`, `-f`: Boolean to enabled or not the fidelity ($F$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
-- `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `capacity` (capacity-aware, use `-ct`), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
-- `--capacity-threshold`, `-ct`: Capacity threshold for routing capacity per link (**capacity**)
+- `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
 - `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
