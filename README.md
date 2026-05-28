@@ -57,8 +57,8 @@ pytest
 
 ## Scheduling modes and statuses
 
-> [!NOTE]  
-> Static scheduler is no longer supported. To reproduce the results from our paper "*Dynamic Entanglement Packet Scheduling for Quantum Networks*", please checkout to the commit ab9d3f057023a4494182af8b50f8d5bc2eeba6da.
+> [!IMPORTANT]
+> Static scheduler is no longer supported. To reproduce the results from our paper "_Dynamic Entanglement Packet Scheduling for Quantum Networks_", please checkout to the commit ab9d3f057023a4494182af8b50f8d5bc2eeba6da.
 
 ### Static scheduler (deprecated)
 
