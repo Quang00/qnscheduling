@@ -59,10 +59,7 @@ import numpy as np
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
-from scheduling.routing import (
-    find_feasible_path,
-    static_routing
-)
+from scheduling.routing import find_feasible_path, static_routing
 from scheduling.simulation import simulate_dynamic
 from utils.graph_generator import fat_tree, generate_waxman_graph
 from utils.helper import (
@@ -114,7 +111,6 @@ def run_simulation(
             per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         p_gen (float): Probability of generating an EPR pair in a single trial.
-        fidelity_enabled (bool): Whether to enable fidelity.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
@@ -159,10 +155,7 @@ def run_simulation(
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
     # Arrival times for each application
-    poisson_enabled = (
-        arrival_rate is not None
-        and float(arrival_rate) > 0.0
-    )
+    poisson_enabled = arrival_rate is not None and float(arrival_rate) > 0.0
     if poisson_enabled:
         windows_max = windows[1] if windows is not None else float("inf")
         mean_interarrival = 1.0 / float(arrival_rate)
@@ -185,8 +178,7 @@ def run_simulation(
             rng=rng,
         )
         pga_rel_times = {
-            app: arrival_times[i]
-            for i, app in enumerate(app_specs.keys())
+            app: arrival_times[i] for i, app in enumerate(app_specs.keys())
         }
     else:
         app_specs = generate_n_apps(
@@ -233,9 +225,7 @@ def run_simulation(
 
     if static_routing_mode:
         _t0 = time.perf_counter()
-        paths, app_e2e_fidelities = static_routing(
-            app_requests, simple_paths
-        )
+        paths, app_e2e_fidelities = static_routing(app_requests, simple_paths)
         static_routing_time = time.perf_counter() - _t0
     elif full_dynamic:
         paths = {
