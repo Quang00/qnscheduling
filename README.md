@@ -19,7 +19,7 @@ The simulator can:
 - Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** (deprecated) or **dynamic online EDF-like**
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
-- Exports results and summary metrics as CSVs/parquet
+- Exports results and summary metrics as CSVs/parquet files
 
 A high-level workflow of the dynamic scheduler of entanglement packets:
 
@@ -93,7 +93,6 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
-- `--fidelity`, `-f`: Boolean to enabled or not the fidelity ($F$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
 - `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)

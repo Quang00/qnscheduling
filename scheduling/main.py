@@ -61,7 +61,6 @@ from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
 from scheduling.routing import (
     find_feasible_path,
-    shortest_paths,
     static_routing
 )
 from scheduling.simulation import simulate_dynamic
@@ -85,7 +84,6 @@ def run_simulation(
     memory: float,
     p_swap: float,
     p_gen: float,
-    fidelity_enabled: bool,
     time_slot_duration: float,
     seed: int,
     output_dir: str,
@@ -228,7 +226,6 @@ def run_simulation(
         }
         for name, spec in app_specs.items()
     }
-    fidelity_enabled = bool(fidelity_enabled)
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
@@ -247,17 +244,13 @@ def run_simulation(
         }
         app_e2e_fidelities = {app: float("nan") for app in app_requests}
         static_routing_time = 0.0
-    elif not fidelity_enabled:
-        paths = shortest_paths(edges, app_requests)
-        app_e2e_fidelities = {app: float("nan") for app in paths}
-        static_routing_time = 0.0
     else:
         _t0 = time.perf_counter()
         paths, app_e2e_fidelities = find_feasible_path(
             edges,
             simple_paths,
             app_requests,
-            fidelities if fidelity_enabled else None,
+            fidelities,
             pga_rel_times=pga_rel_times,
             routing_mode=routing_mode,
             p_packet=p_packet,
@@ -509,13 +502,6 @@ def main():
         help="Probability of generating an EPR pair in a single trial",
     )
     parser.add_argument(
-        "--fidelity",
-        "-f",
-        action="store_true",
-        default=True,
-        help="Enable fidelity",
-    )
-    parser.add_argument(
         "--slot-duration",
         "-sd",
         type=float,
@@ -603,7 +589,6 @@ def main():
         memory=args.memory,
         p_swap=args.pswap,
         p_gen=args.pgen,
-        fidelity_enabled=args.fidelity,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
@@ -636,7 +621,6 @@ def main():
         "memory": args.memory,
         "p_swap": args.pswap,
         "p_gen": args.pgen,
-        "fidelity_enabled": args.fidelity,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,
