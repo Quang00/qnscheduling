@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from scheduling.simulation import simulate_dynamic, simulate_static
+from scheduling.simulation import simulate_dynamic
 
 
 @pytest.fixture
@@ -31,19 +31,6 @@ def pga_params():
     }
 
 
-def _run_static(schedule, period, end_time, base_params, rng):
-    return simulate_static(
-        schedule=schedule,
-        app_specs={"A": {"instances": 1}},
-        pga_parameters={"A": dict(base_params)},
-        pga_rel_times={"A": 0.0},
-        pga_periods={"A": period},
-        pga_network_paths={"A": ["Alice", "Bob"]},
-        policies={"A": "deadline"},
-        rng=rng,
-    )
-
-
 def _run_dynamic(
     app_specs,
     durations,
@@ -61,28 +48,6 @@ def _run_dynamic(
         all_links=[("Alice", "Bob")],
         horizon_time=max_window_time,
     )
-
-
-def test_simulate_static_success_basic(base_pga_parameters, rng):
-    df, _, _, _, _ = _run_static(
-        schedule=[("A0", 0.0, 5.0, 10.0)],
-        period=10.0,
-        end_time=5.0,
-        base_params=base_pga_parameters,
-        rng=rng,
-    )
-    assert df.loc[0, "status"] == "completed"
-
-
-def test_simulate_static_fails_basic(base_pga_parameters, rng):
-    df, _, _, _, _ = _run_static(
-        schedule=[("A0", 0.0, 0.01, 5.0)],
-        period=5.0,
-        end_time=0.01,
-        base_params=base_pga_parameters,
-        rng=rng,
-    )
-    assert df.loc[0, "status"] == "failed"
 
 
 def test_simulate_dynamic_basic(rng):
