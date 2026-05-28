@@ -67,7 +67,7 @@ pytest
 
 If infeasible, the run exits early (no result CSVs are written for that run).
 
-### Dynamic scheduler (`--scheduler dynamic`)
+### Dynamic scheduler
 
 - Online EDF-like with dynamic arrival.
 - Arrivals are periodic by default; if `--arrival-rate` is provided, arrivals follow a Poisson process.
@@ -148,31 +148,26 @@ Then enter the path to the GML file (e.g., `configurations/network/basic/Star.gm
 | -------------------------------- | ----------------------------------- |
 | ![Basic topology](docs/star.png) | ![Advanced topology](docs/garr.png) |
 
-## Quick Start
-
-```bash
-python -m scheduling.main
-```
-
 ## Example commands
 
 ### Dynamic scheduler (online)
 
 ```bash
 python -m scheduling.main \
-  --config configurations/network/basic/Dumbbell.gml \
-  --apps 2 \
-  --inst 2 2 \
-  --epr 2 2 \
-  --period 10.0 10.0 \
-  --ppacket 0.1 \
-  --memory 50 \
-  --pswap 0.95 \
-  --pgen 0.001 \
-  --slot-duration 0.0001 \
-  --seed 42 \
-  --arrival-rate 1.0 \
-  --output results
+  -g gml \
+  -c configurations/network/basic/2_equal_paths.gml \
+  -i 100 \
+  -e 2 2 \
+  -p 2 2 \
+  -pp 0.9 \
+  -m 200 \
+  -ps 0.6 \
+  -pg 0.001 \
+  -sd 0.0001 \
+  -s 42 \
+  -ar 1.0 \
+  -rs static \
+  -r shortest
 ```
 
 ## Acknowledgements

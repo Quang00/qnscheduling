@@ -419,7 +419,7 @@ def main():
         "--config",
         "-c",
         type=str,
-        default="configurations/network/basic/Dumbbell.gml",
+        default="configurations/network/basic/2_equal_paths.gml",
         help="Path to YAML or GML config",
     )
     parser.add_argument(
@@ -614,7 +614,7 @@ def main():
     with open(os.path.join(run_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
-    path_results = os.path.join(run_dir, "pga_results.csv")
+    path_results = os.path.join(run_dir, "pga_results.parquet")
     path_params = os.path.join(run_dir, "params.json")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     path_link_wait = os.path.join(run_dir, "link_waiting.csv")
