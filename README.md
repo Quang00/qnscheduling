@@ -11,7 +11,7 @@
 
 </div>
 
-This repository simulates on-demand entanglement packet scheduling using Packet Generation Attempts (PGAs) from the paper [[1]](#1).
+This repository implements on-demand entanglement packet scheduling using Packet Generation Attempts (PGAs) as described in [[1]](#1).
 
 The simulator can:
 
@@ -56,6 +56,9 @@ pytest
 ```
 
 ## Scheduling modes and statuses
+
+> [!NOTE]  
+> Static scheduler is no longer supported. To reproduce the results from our paper "*Dynamic Entanglement Packet Scheduling for Quantum Networks*", please checkout to the commit ab9d3f057023a4494182af8b50f8d5bc2eeba6da.
 
 ### Static scheduler (deprecated)
 
