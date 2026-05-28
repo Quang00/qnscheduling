@@ -11,13 +11,12 @@ def main():
     simulations_per_point = 20
 
     base_kwargs = {
-        "epr_range": (4, 4),
+        "epr_range": (2, 2),
         "period_range": (2, 2),
         "memory": 1000,
         "p_swap": 0.6,
         "p_gen": 1e-3,
         "time_slot_duration": 1e-4,
-        "scheduler": "dynamic",
         "n_apps": 100,
         "graph": "gml",
     }

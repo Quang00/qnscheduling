@@ -17,9 +17,9 @@ The simulator can:
 
 - Generates a batch of applications (source/destination nodes, periods, number of packets, number of required EPR pairs)
 - Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
-- Schedules PGAs with either a **static EDF timetable** or **dynamic online EDF-like**
+- Schedules PGAs with either a **static EDF timetable** (deprecated) or **dynamic online EDF-like**
 - Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
-- Exports results and summary metrics as CSVs
+- Exports results and summary metrics as CSVs/parquet
 
 A high-level workflow of the dynamic scheduler of entanglement packets:
 
@@ -57,7 +57,7 @@ pytest
 
 ## Scheduling modes and statuses
 
-### Static scheduler (`--scheduler static`)
+### Static scheduler (deprecated)
 
 - Builds a precomputed EDF schedule over a horizon.
 - Uses a conflict graph for concurrency: applications that share at least one link cannot overlap.
@@ -73,12 +73,11 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 - Arrivals are periodic by default; if `--arrival-rate` is provided, arrivals follow a Poisson process.
 - Can admit/schedule/defer/retry/drop.
 
-### Status values (in `pga_results.csv`)
+### Status values (in `pga_results.parquet`)
 
 - `completed`: generated required E2E EPR pairs within its budget time (PGA)
 - `failed`: ran but didn’t generate enough pairs by the end of its PGA
 - `retry`: failed attempt that is rescheduled again (dynamic)
-- `defer`: could not start due to busy links, rescheduled to later (dynamic)
 - `drop`: cannot start/finish by deadline constraints (dynamic)
 
 ## CLI options
@@ -90,7 +89,6 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--inst MIN MAX`, `-i MIN MAX`: Range of number of releases per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
 - `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
-- `--hyperperiod`, `-hp`: Number of hyperperiod ($H_i$) cycles to schedule/simulate (**static**)
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
@@ -100,7 +98,6 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `capacity` (capacity-aware, use `-ct`), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
 - `--capacity-threshold`, `-ct`: Capacity threshold for routing capacity per link (**capacity**)
 - `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)
-- `--scheduler`, `-sch`: Scheduling strategy: `static` or `dynamic`
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
 - `--output`, `-o`: Output directory root (default: `results`)
@@ -113,13 +110,11 @@ Each run creates a new folder:
 
 Files written into the run folder:
 
-- `app_requests.csv`: per-application request (source node, destination node, minimum fidelity, etc...)
 - `link_utilization.csv`: per-link busy time and utilization over the observed makespan
 - `link_waiting.csv`: per-link waiting totals, average waiting time, average queue length
-- `params.csv`: parameters used for the run, plus runtime and run number
-- `pga_results.csv`: per-attempt (PGA) logs (arrival/start/burst/completion/waiting/status, etc...)
+- `pga_results.parquet`: per-attempt (PGA) logs (arrival/start/burst/completion/waiting/status, etc...)
 - `summary.csv`: makespan, throughput, ratios, waiting stats, utilization stats, etc.
-- `summary_per_app.csv`: per-application breakdown (counts of statuses + PGA duration)
+- `params.json`: parameters used for the run, plus runtime and run number
 
 ## Network topologies
 
@@ -178,49 +173,6 @@ python -m scheduling.main \
   --pgen 0.001 \
   --slot-duration 0.0001 \
   --seed 42 \
-  --scheduler dynamic \
-  --arrival-rate 1.0 \
-  --output results
-```
-
-### Static scheduler (offline)
-
-```bash
-python -m scheduling.main \
-  --config configurations/network/basic/Dumbbell.gml \
-  --apps 2 \
-  --inst 2 2 \
-  --epr 2 2 \
-  --period 10.0 10.0 \
-  --hyperperiod 2 \
-  --ppacket 0.1 \
-  --memory 50 \
-  --pswap 0.95 \
-  --pgen 0.001 \
-  --slot-duration 0.0001 \
-  --seed 42 \
-  --scheduler static \
-  --output results
-```
-
-### Dynamic scheduler + routing capacity-aware
-
-```bash
-python -m scheduling.main \
-  --config configurations/network/basic/Dumbbell.gml \
-  --apps 2 \
-  --inst 2 2 \
-  --epr 2 2 \
-  --period 10.0 10.0 \
-  --ppacket 0.1 \
-  --memory 50 \
-  --pswap 0.95 \
-  --pgen 0.001 \
-  --slot-duration 0.0001 \
-  --seed 42 \
-  --routing capacity \
-  --capacity-threshold 0.8 \
-  --scheduler dynamic \
   --arrival-rate 1.0 \
   --output results
 ```
