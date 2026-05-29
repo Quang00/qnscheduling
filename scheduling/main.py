@@ -137,14 +137,14 @@ def run_simulation(
     diameter = float("nan")
     rates = None
     if graph == "waxman":
-        nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
-            rng=rng
+        nodes, edges, fidelities, rates, avg_deg, diameter = (
+            generate_waxman_graph(rng=rng)
         )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, qpus, diameter = fat_tree()
+        nodes, edges, fidelities, rates, qpus, diameter = fat_tree()
         nodes = qpus
     elif graph == "gml":
         nodes, edges, distances, fidelities, rates, diameter = gml_data(config)
