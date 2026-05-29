@@ -15,10 +15,10 @@ This repository implements on-demand entanglement packet scheduling using Packet
 
 The simulator can:
 
-- Generates a batch of applications (source/destination nodes, periods, number of packets, number of required EPR pairs)
+- Generates a batch of applications (source/destination nodes, relative deadline budgets, number of packets per app, number of required EPR pairs per packets)
 - Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** (deprecated) or **dynamic online EDF-like**
-- Runs a stochastic simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
+- Runs a discrete-event simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
 - Exports results and summary metrics as CSVs/parquet files
 
 A high-level workflow of the dynamic scheduler of entanglement packets:
@@ -73,7 +73,7 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 ### Dynamic scheduler
 
 - Online EDF-like with dynamic arrival.
-- Arrivals are periodic by default; if `--arrival-rate` is provided, arrivals follow a Poisson process.
+- Application releases are drawn from a Poisson process with rate `--arrival-rate` over the observation horizon [warmup, horizon].
 - Can admit/schedule/defer/retry/drop.
 
 ### Status values (in `pga_results.parquet`)
@@ -88,17 +88,16 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 Run `python -m scheduling.main --help` for the full list. Common flags:
 
 - `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/basic/Dumbbell.gml`)
-- `--apps`, `-a`: Number of applications to generate ($a$)
+- `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for the Poisson process that releases applications. The number of applications is drawn from this rate over the observation horizon.
 - `--inst MIN MAX`, `-i MIN MAX`: Range of number of releases per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
-- `--period MIN MAX`, `-p MIN MAX`: Range for application periods (seconds) ($T_a$)
+- `--deadline MIN MAX`, `-d MIN MAX`: Range for the per-application relative deadline budget (seconds); each instance's absolute deadline is `release + budget` ($D_a$)
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
 - `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)
-- `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for Poisson arrivals (**dynamic**). If omitted, arrivals are periodic.
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
 - `--output`, `-o`: Output directory root (default: `results`)
 
@@ -160,7 +159,7 @@ python -m scheduling.main \
   -c configurations/network/basic/2_equal_paths.gml \
   -i 100 \
   -e 2 2 \
-  -p 2 2 \
+  -d 2 2 \
   -pp 0.9 \
   -m 200 \
   -ps 0.6 \
