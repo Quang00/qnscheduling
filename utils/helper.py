@@ -110,7 +110,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "config": config,
         "inst_range": 100,
         "epr_range": (2, 2),
-        "period_range": (1, 1),
+        "deadline_range": (1, 1),
         "memory": 1000,
         "p_swap": 0.6,
         "routing": "shortest",
@@ -123,28 +123,6 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
     if args:
         default_args.update(args)
     return default_args
-
-
-def build_tasks(
-    ppacket_values: Iterable[float],
-    sim_per_point: int,
-    seed_start: int,
-    n_apps_values: Iterable[int],
-    keep_seed_outputs: bool = True,
-) -> list[tuple[Any, ...]]:
-    tasks = []
-    seed_pool = [seed_start + offset for offset in range(sim_per_point)]
-    n_apps_list = list(n_apps_values)
-    if not n_apps_list:
-        raise ValueError("n_apps_values must contain at least one value")
-    for n_apps in n_apps_list:
-        n_apps_int = int(n_apps)
-        for p_packet in ppacket_values:
-            for run_seed in seed_pool:
-                tasks.append(
-                    (p_packet, run_seed, n_apps_int, keep_seed_outputs)
-                )
-    return tasks
 
 
 # =============================================================================
@@ -269,7 +247,7 @@ def save_results(
         pga_release_times (Dict): Dictionary mapping PGA names to their
             relative release times, used to fill in missing PGAs.
         app_specs (Dict): Metadata for each application including endpoints,
-            instances, requested EPR pairs, period, and policy.
+            instances, requested EPR pairs, deadline budget, and policy.
         n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
             durations per application.
@@ -858,7 +836,7 @@ def generate_n_apps(
     n_apps: int,
     inst_range: int,
     epr_range: tuple[int, int],
-    period_range: tuple[float, float],
+    deadline_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
 ) -> Dict[str, Dict[str, Any]]:
@@ -871,8 +849,8 @@ def generate_n_apps(
         per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
         pairs for each application.
-        period_range (tuple[float, float]): Range (min, max) for the period
-        of each application.
+        deadline_range (tuple[float, float]): Range (min, max) for the relative
+        deadline budget of each application (deadline = release + budget).
         fidelity_range (tuple[float, float]): Range (min, max) for the minimum
         fidelity of each application.
         list_policies (list[str], optional): List of policies to assign to
@@ -881,8 +859,8 @@ def generate_n_apps(
 
     Returns:
         Dict[str, Dict[str, Any]]: Mapping of application name to its metadata,
-        including endpoints, number of instances, requested EPR pairs, period,
-        and policy.
+        including endpoints, number of instances, requested EPR pairs,
+        deadline budget, and policy.
     """
     apps = {}
     feasible = []
@@ -908,7 +886,9 @@ def generate_n_apps(
                 1, min(3 * inst_range, int(rng.poisson(lam=inst_range)))
             ),
             "epr": int(rng.integers(epr_range[0], epr_range[1] + 1)),
-            "period": float(rng.uniform(period_range[0], period_range[1])),
+            "deadline_budget": float(
+                rng.uniform(deadline_range[0], deadline_range[1])
+            ),
             "min_fidelity": min_fidelity_threshold,
             "policy": rng.choice(list_policies),
         }

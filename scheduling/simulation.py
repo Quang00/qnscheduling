@@ -283,19 +283,19 @@ def simulate_dynamic(
     routing_decision_cpt = 0
     routing_decision_runtime = 0.0
 
-    periods = {app: app_specs[app].get("period") for app in app_specs}
+    deadline_budgets = {
+        app: app_specs[app].get("deadline_budget") for app in app_specs
+    }
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     max_instances = {
         app: max(0, int(app_specs[app].get("instances", 0)))
         for app in app_specs
     }
     release_indices = {app: 0 for app in app_specs}
-    instance_poisson_enabled = instance_arrival_rate > 0.0
-    poisson_next_release = (
-        {app: float(base_release.get(app, 0.0)) for app in app_specs}
-        if instance_poisson_enabled
-        else {}
-    )
+    mean_instance_interarrival = 1.0 / instance_arrival_rate
+    poisson_next_release = {
+        app: float(base_release.get(app, 0.0)) for app in app_specs
+    }
 
     events_queue = []
     ready_queue = []
@@ -335,26 +335,23 @@ def simulate_dynamic(
 
     def enqueue_release(app: str) -> None:
         idx = release_indices[app]
-        period = periods[app]
+        deadline_budget = deadline_budgets[app]
 
         if max_instances[app] > 0 and idx >= max_instances[app]:
             return
 
-        if instance_poisson_enabled:
-            release = poisson_next_release.get(app, base_release[app])
-            _rng_arr = (
-                rng_arrivals.get(app) if rng_arrivals is not None else None
-            ) or rng
-            poisson_next_release[app] = release + _rng_arr.exponential(
-                1.0 / instance_arrival_rate
-            )
-        else:
-            release = base_release[app] + period * idx
+        release = poisson_next_release[app]
+        _rng_arr = (
+            rng_arrivals.get(app) if rng_arrivals is not None else None
+        ) or rng
+        poisson_next_release[app] = release + _rng_arr.exponential(
+            mean_instance_interarrival
+        )
 
         if release >= horizon_time:
             return
 
-        deadline = release + period
+        deadline = release + deadline_budget
         heapq.heappush(
             events_queue,
             (release, deadline, release, app, idx, release, "release"),

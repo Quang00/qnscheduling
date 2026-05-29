@@ -9,44 +9,11 @@ generates a set of applications based on a given network configuration,
 computes their durations using Packet Generation Attempt (PGA). There are two
 scheduling strategies: static scheduling (deprecated) using Earliest Deadline
 First (EDF) that precomputes a schedule, and dynamic scheduling that makes
-decisions online based on application arrivals. The simulation runs until all
-applications are processed, collecting performance metrics such as completion
-status, delays, and link utilization.
-
-Process:
---------
-1. Parse command-line arguments for configuration, application parameters,
-   scheduling parameters, and output settings.
-2. Generate network data and applications based on the provided configuration.
-3. Compute shortest paths for each application and identify parallelizable
-   tasks.
-4. Calculate the duration of each application using PGA parameters.
-5. Depending on the chosen scheduling strategy (static or dynamic):
-
-   - For static scheduling, compute a feasible schedule using EDF with
-      parallelization capabilities.
-   - For dynamic scheduling, prepare for online scheduling based on arrivals.
-6. Run a probabilistic simulation of the scheduled PGAs over the defined
-   hyperperiod cycles.
-7. Save the simulation results, including PGA performance metrics and link
-   utilization, to the specified output directory.
-
-Usage:
-------
-Run the script from the command line with appropriate arguments:
-    --config: Path to the network configuration file (YAML or GML).
-    --apps: Number of applications to generate.
-    --inst: Range for the number of instances per application.
-    --epr: Range for the number of EPR pairs per application.
-    --period: Range for the period of each application.
-    --hyperperiod: Number of hyperperiod cycles to simulate.
-    --ppacket: Probability of a packet being generated.
-    --memory: Memory: number of independent link-generation trials per slot.
-    --pswap: Probability of swapping an EPR pair in a single trial.
-    --pgen: Probability of generating an EPR pair in a single trial.
-    --slot-duration: Duration of a time slot in seconds.
-    --seed: Random seed for reproducibility.
-    --output: Directory to save the simulation results.
+decisions online based on application arrivals. Application releases are drawn
+from a Poisson process with rate ``--arrival-rate`` over the observation
+horizon. The simulation runs for a fixed time horizon; any pending releases
+past the horizon are dropped. Metrics collected over the window [warmup,
+horizon].
 """
 
 import argparse
@@ -73,17 +40,16 @@ from utils.helper import (
 
 def run_simulation(
     config: str,
-    n_apps: int,
+    arrival_rate: float,
     inst_range: int,
     epr_range: tuple[int, int],
-    period_range: tuple[float, float],
+    deadline_range: tuple[float, float],
     p_packet: float,
     memory: float,
     p_swap: float,
     time_slot_duration: float,
     seed: int,
     output_dir: str,
-    arrival_rate: float | None = None,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     save_csv: bool = True,
@@ -98,13 +64,16 @@ def run_simulation(
 
     Args:
         config (yaml or gml): Configuration file path in YAML or GML format.
-        n_apps (int): Number of applications to generate.
+        arrival_rate (float): Mean rate lambda for the Poisson arrival
+            process. The number of applications is drawn from this rate over
+            the observation horizon.
         inst_range (tuple[int, int]): Range (min, max) for the number of
             instances per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
             pairs to generate per application.
-        period_range (tuple[float, float]): Range (min, max) for the period of
-            each application.
+        deadline_range (tuple[float, float]): Range (min, max) for the relative
+            deadline budget of each application (deadline = release +
+            deadline_budget).
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
             per slot.
@@ -112,8 +81,6 @@ def run_simulation(
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
-        arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
-            When None, releases remain periodic.
         windows (tuple[float, float] | None): Post-warm-up observation
             window as (min_time, max_time). In dynamic mode, max_time is used
             as the simulation horizon.
@@ -153,47 +120,31 @@ def run_simulation(
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
-    # Arrival times for each application
-    poisson_enabled = arrival_rate is not None and float(arrival_rate) > 0.0
-    if poisson_enabled:
-        windows_max = windows[1] if windows is not None else float("inf")
-        mean_interarrival = 1.0 / float(arrival_rate)
-        arrival_times = []
-        t = 0.0
-        while True:
-            t += float(rng_arrivals.exponential(mean_interarrival))
-            if t > windows_max:
-                break
-            arrival_times.append(t)
-        n_generated = len(arrival_times)
-        app_specs = generate_n_apps(
-            nodes,
-            bounds,
-            n_apps=n_generated,
-            inst_range=inst_range,
-            epr_range=epr_range,
-            period_range=period_range,
-            list_policies=["deadline"],
-            rng=rng,
-        )
-        pga_rel_times = {
-            app: arrival_times[i] for i, app in enumerate(app_specs.keys())
-        }
-    else:
-        app_specs = generate_n_apps(
-            nodes,
-            bounds,
-            n_apps=n_apps,
-            inst_range=inst_range,
-            epr_range=epr_range,
-            period_range=period_range,
-            list_policies=["deadline"],
-            rng=rng,
-        )
-        pga_rel_times = {
-            app: float(rng.uniform(0.0, spec["period"]))
-            for app, spec in app_specs.items()
-        }
+    # Poisson arrival times for each application over the observation horizon
+    if float(arrival_rate) <= 0.0:
+        raise ValueError("arrival_rate must be positive")
+    windows_max = windows[1] if windows is not None else float("inf")
+    mean_interarrival = 1.0 / float(arrival_rate)
+    arrival_times = []
+    t = 0.0
+    while True:
+        t += float(rng_arrivals.exponential(mean_interarrival))
+        if t > windows_max:
+            break
+        arrival_times.append(t)
+    app_specs = generate_n_apps(
+        nodes,
+        bounds,
+        n_apps=len(arrival_times),
+        inst_range=inst_range,
+        epr_range=epr_range,
+        deadline_range=deadline_range,
+        list_policies=["deadline"],
+        rng=rng,
+    )
+    pga_rel_times = {
+        app: arrival_times[i] for i, app in enumerate(app_specs.keys())
+    }
 
     rng_arrivals_per_app = {
         app: np.random.default_rng(s)
@@ -212,7 +163,7 @@ def run_simulation(
             "min_fidelity": spec.get("min_fidelity", 0.0),
             "instances": spec.get("instances", 0),
             "epr": spec.get("epr", 0),
-            "period": spec.get("period", 0.0),
+            "deadline_budget": spec.get("deadline_budget", 0.0),
             "arrival_time": pga_rel_times[name],
         }
         for name, spec in app_specs.items()
@@ -422,13 +373,6 @@ def main():
         help="Path to YAML or GML config",
     )
     parser.add_argument(
-        "--apps",
-        "-a",
-        type=int,
-        default=100,
-        help="Number of applications to generate",
-    )
-    parser.add_argument(
         "--inst",
         "-i",
         type=int,
@@ -446,13 +390,14 @@ def main():
         "(e.g., --epr 1 5)",
     )
     parser.add_argument(
-        "--period",
-        "-p",
+        "--deadline",
+        "-d",
         type=float,
         nargs=2,
         metavar=("MIN", "MAX"),
         default=[1.0, 1.0],
-        help="Period of the application (e.g., --period 1.0 5.0)",
+        help="Relative deadline budget per application: deadline = release"
+        " + budget (e.g., --deadline 1.0 5.0)",
     )
     parser.add_argument(
         "--ppacket",
@@ -487,8 +432,8 @@ def main():
         "--arrival-rate",
         "-ar",
         type=float,
-        default=None,
-        help="Mean arrival rate (lambda) for Poisson process",
+        default=1.0,
+        help="Mean arrival rate (lambda) for the Poisson arrival process",
     )
     parser.add_argument(
         "--routing",
@@ -555,10 +500,10 @@ def main():
     t0 = time.perf_counter()
     feasible, _ = run_simulation(
         config=args.config,
-        n_apps=args.apps,
+        arrival_rate=args.arrival_rate,
         inst_range=args.inst,
         epr_range=args.epr,
-        period_range=args.period,
+        deadline_range=args.deadline,
         windows=windows,
         p_packet=args.ppacket,
         memory=args.memory,
@@ -566,7 +511,6 @@ def main():
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
-        arrival_rate=args.arrival_rate,
         routing=args.routing,
         graph=args.graph,
         provisioning=args.routing_strategy == "rerouting",
@@ -583,12 +527,12 @@ def main():
 
     params = {
         "config": args.config,
-        "n_apps": args.apps,
+        "arrival_rate": args.arrival_rate,
         "inst_range": args.inst,
         "epr_min": args.epr[0],
         "epr_max": args.epr[1],
-        "period_min": args.period[0],
-        "period_max": args.period[1],
+        "deadline_min": args.deadline[0],
+        "deadline_max": args.deadline[1],
         "windows_min": windows[0],
         "windows_max": windows[1],
         "p_packet": args.ppacket,

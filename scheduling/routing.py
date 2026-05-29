@@ -68,7 +68,7 @@ def _compute_delta_and_links(
         p_gen=effective_p_gen,
         time_slot_duration=time_slot_duration,
     )
-    delta = float(pga_duration) / float(req["period"])
+    delta = float(pga_duration) / float(req["deadline_budget"])
     return delta, links
 
 
