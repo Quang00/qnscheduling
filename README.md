@@ -164,7 +164,6 @@ python -m scheduling.main \
   -pp 0.9 \
   -m 200 \
   -ps 0.6 \
-  -pg 0.001 \
   -sd 0.0001 \
   -s 42 \
   -ar 1.0 \
