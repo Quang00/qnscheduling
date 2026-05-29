@@ -7,7 +7,7 @@ Overview:
 This script simulates the scheduling of quantum network applications. It
 generates a set of applications based on a given network configuration,
 computes their durations using Packet Generation Attempt (PGA). There are two
-scheduling strategies available: static scheduling using Earliest Deadline
+scheduling strategies: static scheduling (deprecated) using Earliest Deadline
 First (EDF) that precomputes a schedule, and dynamic scheduling that makes
 decisions online based on application arrivals. The simulation runs until all
 applications are processed, collecting performance metrics such as completion
@@ -59,20 +59,14 @@ import numpy as np
 
 from scheduling.fidelity import fidelity_bounds_and_paths
 from scheduling.pga import compute_durations
-from scheduling.routing import (
-    find_feasible_path,
-    shortest_paths,
-    static_routing
-)
-from scheduling.simulation import simulate_dynamic, simulate_static
-from scheduling.static import edf_parallel_static
+from scheduling.routing import find_feasible_path, static_routing
+from scheduling.simulation import simulate_dynamic
 from utils.graph_generator import fat_tree, generate_waxman_graph
 from utils.helper import (
     all_simple_paths,
     app_params_sim,
     generate_n_apps,
     gml_data,
-    parallelizable_tasks,
     save_results,
 )
 
@@ -83,20 +77,15 @@ def run_simulation(
     inst_range: int,
     epr_range: tuple[int, int],
     period_range: tuple[float, float],
-    hyperperiod_cycles: int,
     p_packet: float,
     memory: float,
     p_swap: float,
-    p_gen: float,
-    fidelity_enabled: bool,
     time_slot_duration: float,
     seed: int,
     output_dir: str,
-    scheduler: str = "static",
     arrival_rate: float | None = None,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
-    capacity_threshold: float = 0.8,
     save_csv: bool = True,
     verbose: bool = True,
     graph: str | None = None,
@@ -116,17 +105,13 @@ def run_simulation(
             pairs to generate per application.
         period_range (tuple[float, float]): Range (min, max) for the period of
             each application.
-        hyperperiod_cycles (int): Number of hyperperiod cycles to simulate.
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
             per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
-        p_gen (float): Probability of generating an EPR pair in a single trial.
-        fidelity_enabled (bool): Whether to enable fidelity.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
-        scheduler (str): Either "static" or "dynamic".
         arrival_rate (float | None): Mean rate lambda for Poisson arrivals.
             When None, releases remain periodic.
         windows (tuple[float, float] | None): Post-warm-up observation
@@ -150,29 +135,26 @@ def run_simulation(
     simple_paths = {}
     avg_deg = float("nan")
     diameter = float("nan")
+    rates = None
     if graph == "waxman":
-        nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
-            rng=rng
+        nodes, edges, fidelities, rates, avg_deg, diameter = (
+            generate_waxman_graph(rng=rng)
         )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, qpus, diameter = fat_tree()
+        nodes, edges, fidelities, rates, qpus, diameter = fat_tree()
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, distances, fidelities, diameter = gml_data(config)
+        nodes, edges, distances, fidelities, rates, diameter = gml_data(config)
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 2
     )
     all_links = {tuple(sorted((u, v))) for u, v in edges}
 
     # Arrival times for each application
-    poisson_enabled = (
-        scheduler == "dynamic"
-        and arrival_rate is not None
-        and float(arrival_rate) > 0.0
-    )
+    poisson_enabled = arrival_rate is not None and float(arrival_rate) > 0.0
     if poisson_enabled:
         windows_max = windows[1] if windows is not None else float("inf")
         mean_interarrival = 1.0 / float(arrival_rate)
@@ -195,8 +177,7 @@ def run_simulation(
             rng=rng,
         )
         pga_rel_times = {
-            app: arrival_times[i]
-            for i, app in enumerate(app_specs.keys())
+            app: arrival_times[i] for i, app in enumerate(app_specs.keys())
         }
     else:
         app_specs = generate_n_apps(
@@ -236,7 +217,6 @@ def run_simulation(
         }
         for name, spec in app_specs.items()
     }
-    fidelity_enabled = bool(fidelity_enabled)
     total_apps = len(app_specs)
     routing_mode = str(routing)
     admitted_specs = {}
@@ -244,9 +224,7 @@ def run_simulation(
 
     if static_routing_mode:
         _t0 = time.perf_counter()
-        paths, app_e2e_fidelities = static_routing(
-            app_requests, simple_paths
-        )
+        paths, app_e2e_fidelities = static_routing(app_requests, simple_paths)
         static_routing_time = time.perf_counter() - _t0
     elif full_dynamic:
         paths = {
@@ -255,24 +233,19 @@ def run_simulation(
         }
         app_e2e_fidelities = {app: float("nan") for app in app_requests}
         static_routing_time = 0.0
-    elif not fidelity_enabled:
-        paths = shortest_paths(edges, app_requests)
-        app_e2e_fidelities = {app: float("nan") for app in paths}
-        static_routing_time = 0.0
     else:
         _t0 = time.perf_counter()
         paths, app_e2e_fidelities = find_feasible_path(
             edges,
             simple_paths,
             app_requests,
-            fidelities if fidelity_enabled else None,
+            fidelities,
             pga_rel_times=pga_rel_times,
             routing_mode=routing_mode,
-            threshold=capacity_threshold,
             p_packet=p_packet,
             memory=memory,
             p_swap=p_swap,
-            p_gen=p_gen,
+            rates=rates,
             time_slot_duration=time_slot_duration,
             rng=rng_routing,
             provisioning=provisioning,
@@ -313,8 +286,6 @@ def run_simulation(
     two_path_share = two_path_cpt / total_apps if total_apps > 0 else 0.0
 
     initial_paths = {app: path_list[0] for app, path_list in paths.items()}
-    if scheduler == "static":
-        parallel_map = parallelizable_tasks(initial_paths)
     epr_pairs = {name: spec["epr"] for name, spec in app_specs.items()}
 
     # Compute durations for each application
@@ -327,12 +298,10 @@ def run_simulation(
             p_packet,
             memory,
             p_swap,
-            p_gen,
             time_slot_duration,
+            rates=rates,
         )
     )
-
-    pga_periods = {name: spec["period"] for name, spec in app_specs.items()}
 
     pga_parameters = app_params_sim(
         initial_paths,
@@ -340,11 +309,8 @@ def run_simulation(
         p_packet,
         memory,
         p_swap,
-        p_gen,
         time_slot_duration,
     )
-
-    policies = {name: spec["policy"] for name, spec in app_specs.items()}
 
     # Run simulation
     if save_csv:
@@ -353,73 +319,40 @@ def run_simulation(
     routing_decision_cpt = None
     routing_decision_runtime = None
     defer_counts = None
-    if scheduler == "dynamic":
-        (
-            df,
-            pga_names,
-            pga_release_times,
-            link_utilization,
-            link_waiting,
-            routing_decision_cpt,
-            routing_decision_runtime,
-            defer_counts,
-        ) = simulate_dynamic(
-            app_specs,
-            durations,
-            pga_parameters,
-            pga_rel_times,
-            paths,
-            rng,
-            full_dynamic,
-            provisioning,
-            all_links,
-            simple_paths,
-            static_routing_mode,
-            horizon_time=windows[1] if windows is not None else None,
-            warmup_time=windows[0] if windows is not None else 0.0,
-            rng_routing=rng_routing,
-            rng_arrivals=rng_arrivals_per_app,
-            instance_arrival_rate=instance_arrival_rate,
-        )
-        feasible = True
-        if not full_dynamic:
-            if static_routing_mode:
-                routing_decision_cpt += 1
-            else:
-                routing_decision_cpt += len(app_specs)
-    else:
-        feasible, schedule = edf_parallel_static(
-            pga_rel_times,
-            pga_periods,
-            durations,
-            parallel_map,
-            hyperperiod_cycles,
-        )
-
-        if not feasible:
-            if verbose:
-                print("Schedule", schedule)
-            return False, {}
-
-        if verbose:
-            print("Preview Schedule:", schedule[: n_apps * 2])
-
-        (
-            df,
-            pga_names,
-            pga_release_times,
-            link_utilization,
-            link_waiting,
-        ) = simulate_static(
-            schedule=schedule,
-            app_specs=app_specs,
-            pga_parameters=pga_parameters,
-            pga_rel_times=pga_rel_times,
-            pga_periods=pga_periods,
-            policies=policies,
-            pga_network_paths=initial_paths,
-            rng=rng,
-        )
+    (
+        df,
+        pga_names,
+        pga_release_times,
+        link_utilization,
+        link_waiting,
+        routing_decision_cpt,
+        routing_decision_runtime,
+        defer_counts,
+    ) = simulate_dynamic(
+        app_specs,
+        durations,
+        pga_parameters,
+        pga_rel_times,
+        paths,
+        rng,
+        full_dynamic,
+        provisioning,
+        all_links,
+        simple_paths,
+        static_routing_mode,
+        horizon_time=windows[1] if windows is not None else None,
+        warmup_time=windows[0] if windows is not None else 0.0,
+        rng_routing=rng_routing,
+        rng_arrivals=rng_arrivals_per_app,
+        instance_arrival_rate=instance_arrival_rate,
+        rates=rates,
+    )
+    feasible = True
+    if not full_dynamic:
+        if static_routing_mode:
+            routing_decision_cpt += 1
+        else:
+            routing_decision_cpt += len(app_specs)
 
     # Save results
     routing_decision_runtime = (
@@ -470,7 +403,7 @@ def run_simulation(
         routing_decision_runtime=routing_decision_runtime,
         warmup=windows[0] if windows is not None else None,
         end_time=windows[1] if windows is not None else None,
-        defer_counts=defer_counts if scheduler == "dynamic" else None,
+        defer_counts=defer_counts,
     )
     del df
     return feasible, summary
@@ -485,7 +418,7 @@ def main():
         "--config",
         "-c",
         type=str,
-        default="configurations/network/basic/Dumbbell.gml",
+        default="configurations/network/basic/2_equal_paths.gml",
         help="Path to YAML or GML config",
     )
     parser.add_argument(
@@ -522,13 +455,6 @@ def main():
         help="Period of the application (e.g., --period 1.0 5.0)",
     )
     parser.add_argument(
-        "--hyperperiod",
-        "-hp",
-        type=float,
-        default=1000,
-        help="Number of hyperperiods cycle: horizon (e.g., --hyperperiod 2)",
-    )
-    parser.add_argument(
         "--ppacket",
         "-pp",
         type=float,
@@ -551,34 +477,11 @@ def main():
         help="Probability of swapping an EPR pair in a single trial",
     )
     parser.add_argument(
-        "--pgen",
-        "-pg",
-        type=float,
-        default=1e-3,
-        help="Probability of generating an EPR pair in a single trial",
-    )
-    parser.add_argument(
-        "--fidelity",
-        "-f",
-        action="store_true",
-        default=True,
-        help="Enable fidelity",
-    )
-    parser.add_argument(
         "--slot-duration",
         "-sd",
         type=float,
         default=1e-4,
         help="Duration of a time slot in seconds",
-    )
-    parser.add_argument(
-        "--scheduler",
-        "-sch",
-        type=str,
-        choices=["static", "dynamic"],
-        default="dynamic",
-        help="Scheduling strategy: 'static' uses the precomputed EDF table,"
-        " 'dynamic' schedules online",
     )
     parser.add_argument(
         "--arrival-rate",
@@ -591,20 +494,13 @@ def main():
         "--routing",
         "-r",
         type=str,
-        choices=["shortest", "capacity", "smallest", "least", "highest"],
+        choices=["shortest", "smallest", "least", "highest"],
         default="shortest",
         help=(
-            "Routing: 'shortest' (Dijkstra), 'capacity' (capacity-aware),"
-            "'smallest' (smallest bottleneck), 'least' (least total capacity),"
-            "or 'highest' (highest E2E fidelity)."
+            "Routing: 'shortest' (Dijkstra),'smallest' (smallest bottleneck),"
+            "'least' (least total capacity), or 'highest' (highest "
+            "E2E fidelity)."
         ),
-    )
-    parser.add_argument(
-        "--capacity-threshold",
-        "-ct",
-        type=float,
-        default=0.8,
-        help="Capacity threshold for routing capacity (sum(PGA/T) per link)",
     )
     parser.add_argument(
         "--graph",
@@ -664,19 +560,14 @@ def main():
         epr_range=args.epr,
         period_range=args.period,
         windows=windows,
-        hyperperiod_cycles=args.hyperperiod,
         p_packet=args.ppacket,
         memory=args.memory,
         p_swap=args.pswap,
-        p_gen=args.pgen,
-        fidelity_enabled=args.fidelity,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
-        scheduler=args.scheduler,
         arrival_rate=args.arrival_rate,
         routing=args.routing,
-        capacity_threshold=args.capacity_threshold,
         graph=args.graph,
         provisioning=args.routing_strategy == "rerouting",
         full_dynamic=args.routing_strategy == "dynamic",
@@ -700,24 +591,20 @@ def main():
         "period_max": args.period[1],
         "windows_min": windows[0],
         "windows_max": windows[1],
-        "hyperperiod_cycles": args.hyperperiod,
         "p_packet": args.ppacket,
         "memory": args.memory,
         "p_swap": args.pswap,
-        "p_gen": args.pgen,
-        "fidelity_enabled": args.fidelity,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,
         "run_number": run_number,
         "routing": args.routing,
-        "capacity_threshold": args.capacity_threshold,
         "routing_strategy": args.routing_strategy,
     }
     with open(os.path.join(run_dir, "params.json"), "w") as f:
         json.dump(params, f, indent=2)
 
-    path_results = os.path.join(run_dir, "pga_results.csv")
+    path_results = os.path.join(run_dir, "pga_results.parquet")
     path_params = os.path.join(run_dir, "params.json")
     path_link_util = os.path.join(run_dir, "link_utilization.csv")
     path_link_wait = os.path.join(run_dir, "link_waiting.csv")

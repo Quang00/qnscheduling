@@ -44,49 +44,31 @@ def shortest_paths(
     }
 
 
-def _build_graph(
-    routing_mode: str,
-    edges: List[Tuple[str, str]],
-    base_graph: nx.Graph,
-    cap: Dict[Tuple[str, str], float],
-    capacity_threshold: float,
-) -> nx.Graph:
-    if routing_mode == "capacity":
-        usable_edges = [
-            (u, v)
-            for (u, v) in edges
-            if cap[tuple(sorted((u, v)))] < capacity_threshold
-        ]
-        G = nx.Graph()
-        G.add_edges_from(usable_edges)
-        return G
-    return base_graph
-
-
 def _compute_delta_and_links(
     path: List[str],
     req: Dict[str, Any],
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
 ) -> Tuple[float, List[Tuple[str, str]]]:
     n_swaps = max(0, len(path) - 2)
+    links = [
+        (min(u, v), max(u, v))
+        for u, v in zip(path[:-1], path[1:], strict=False)
+    ]
+    effective_p_gen = min(rates[lk] for lk in links)
     pga_duration = duration_pga(
         p_packet=p_packet,
         epr_pairs=req["epr"],
         n_swap=n_swaps,
         memory=memory,
         p_swap=p_swap,
-        p_gen=p_gen,
+        p_gen=effective_p_gen,
         time_slot_duration=time_slot_duration,
     )
     delta = float(pga_duration) / float(req["period"])
-    links = [
-        tuple(sorted((u, v)))
-        for u, v in zip(path[:-1], path[1:], strict=False)
-    ]
     return delta, links
 
 
@@ -99,7 +81,7 @@ def smallest_bottleneck(
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
     k: int | None = None,
 ) -> Tuple[List[List[str]], float, float]:
@@ -108,7 +90,7 @@ def smallest_bottleneck(
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration
         )
         post_loads = [cap[lk] + delta for lk in links]
         bottleneck = max(post_loads)
@@ -135,7 +117,7 @@ def least_capacity(
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
@@ -155,7 +137,7 @@ def least_capacity(
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration
         )
 
         sum_cap = sum(cap[lk] + delta for lk in links)
@@ -185,62 +167,6 @@ def least_capacity(
         ]
     else:
         result = [list(selected_path)]
-    return result, selected_delta, selected_e2e_fid
-
-
-def capacity_threshold(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    src: str,
-    dst: str,
-    req: Dict[str, Any],
-    cap: Dict[Tuple[str, str], float],
-    threshold: float,
-    p_packet: float | None,
-    memory: int,
-    p_swap: float,
-    p_gen: float,
-    time_slot_duration: float,
-    rng: np.random.Generator | None = None,
-    provisioning: bool = True,
-) -> Tuple[List[List[str]], float, float]:
-    candidate_paths = []
-    shortest_length = None
-    selected_delta = 0.0
-    selected_e2e_fid = float("nan")
-    all_paths = all_simple_paths(simple_paths, src, dst)
-
-    for path in all_paths:
-        e2e_fid, path = path[0], path[1]
-        if e2e_fid < req["min_fidelity"]:
-            continue
-        delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
-        )
-        if any(cap[lk] + delta > threshold for lk in links):
-            continue
-        path_len = len(path)
-        if shortest_length is None:
-            shortest_length = path_len
-            selected_delta = delta
-            selected_e2e_fid = e2e_fid
-        elif path_len > shortest_length:
-            break
-        candidate_paths.append(list(path))
-
-    if not candidate_paths:
-        return [], 0.0, float("nan")
-
-    initial_idx = (
-        0
-        if rng is None or len(candidate_paths) == 1
-        else int(rng.integers(len(candidate_paths)))
-    )
-    if provisioning:
-        result = [candidate_paths[initial_idx]] + [
-            p for i, p in enumerate(candidate_paths) if i != initial_idx
-        ]
-    else:
-        result = [candidate_paths[initial_idx]]
     return result, selected_delta, selected_e2e_fid
 
 
@@ -350,11 +276,10 @@ def find_feasible_path(
     fidelities: Dict[Tuple[str, str], float] | None,
     pga_rel_times: Dict[str, float] | None = None,
     routing_mode: str = "shortest",
-    threshold: float = 0.8,
     p_packet: float | None = None,
     memory: int = 1,
     p_swap: float = 0.6,
-    p_gen: float = 0.001,
+    rates: Dict[Tuple[str, str], float] | None = None,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
@@ -379,16 +304,12 @@ def find_feasible_path(
             that meet the fidelity requirement. In "degree" mode, the path with
             the lowest maximum degree of internal nodes is selected among all
             shortest paths that meet the fidelity requirement.
-        capacity_threshold (float, optional): Capacity threshold for edges in
-            "capacity" routing mode. Edges with utilization above this
-            threshold are excluded from path selection.
         p_packet (float, optional): Probability of a packet being generated.
         memory (int, optional): Number of independent link-generation trials
             per slot.
         p_swap (float, optional): Probability of swapping an EPR pair in a
             single trial.
-        p_gen (float, optional): Probability of generating an EPR pair in a
-            single trial.
+        rates (Dict[Tuple[str, str], float], optional): Per-link p_gen.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
         provisioning (bool, optional): Whether to enable provisioning for
@@ -410,8 +331,8 @@ def find_feasible_path(
             {app: float("nan") for app in app_requests.keys()},
         )
 
-    base_graph = nx.Graph()
-    base_graph.add_edges_from(edges)
+    G = nx.Graph()
+    G.add_edges_from(edges)
     ret = {}
     e2e_fids = {}
     cap = defaultdict(float)
@@ -433,8 +354,6 @@ def find_feasible_path(
             e2e_fids[app] = float("nan")
             continue
 
-        G = _build_graph(routing_mode, edges, base_graph, cap, threshold)
-
         if not nx.has_path(G, src, dst):
             ret[app] = []
             e2e_fids[app] = float("nan")
@@ -450,33 +369,9 @@ def find_feasible_path(
                 p_packet,
                 memory,
                 p_swap,
-                p_gen,
+                rates,
                 time_slot_duration,
                 k=None if provisioning else 1,
-            )
-            if not path_list:
-                ret[app] = []
-                e2e_fids[app] = float("nan")
-                continue
-            _update_capacity(path_list[0], selected_delta, cap)
-            ret[app] = path_list
-            e2e_fids[app] = selected_e2e_fid
-            continue
-        elif routing_mode == "capacity":
-            path_list, selected_delta, selected_e2e_fid = capacity_threshold(
-                simple_paths,
-                src,
-                dst,
-                req,
-                cap,
-                threshold,
-                p_packet,
-                memory,
-                p_swap,
-                p_gen,
-                time_slot_duration,
-                rng,
-                provisioning,
             )
             if not path_list:
                 ret[app] = []
@@ -496,7 +391,7 @@ def find_feasible_path(
                 p_packet,
                 memory,
                 p_swap,
-                p_gen,
+                rates,
                 time_slot_duration,
                 rng,
                 provisioning,
@@ -563,12 +458,13 @@ def rerouting(
 
 def compute_path_durations(
     pga_params: Dict[str, float],
+    rates: Dict[Tuple[str, str], float],
     simple_paths: Dict[Tuple[str, str], List] | None = None,
     provisioned_paths: List[List[str]] | None = None,
     src: str | None = None,
     dst: str | None = None,
 ) -> List[Tuple]:
-    duration_by_nswap = {}
+    duration_cache = {}
     result = []
     if provisioned_paths is not None:
         items = ((None, p) for p in provisioned_paths)
@@ -583,17 +479,19 @@ def compute_path_durations(
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
         n_swap = max(0, len(path) - 2)
-        if n_swap not in duration_by_nswap:
-            duration_by_nswap[n_swap] = duration_pga(
+        effective_p_gen = min(rates[lk] for lk in links)
+        key = (n_swap, effective_p_gen)
+        if key not in duration_cache:
+            duration_cache[key] = duration_pga(
                 p_packet=pga_params["p_packet"],
                 epr_pairs=int(pga_params["epr_pairs"]),
                 n_swap=n_swap,
                 memory=pga_params["memory"],
                 p_swap=pga_params["p_swap"],
-                p_gen=pga_params["p_gen"],
+                p_gen=effective_p_gen,
                 time_slot_duration=pga_params["slot_duration"],
             )
-        result.append((e2e_fid, path, links, duration_by_nswap[n_swap]))
+        result.append((e2e_fid, path, links, duration_cache[key]))
     return result
 
 

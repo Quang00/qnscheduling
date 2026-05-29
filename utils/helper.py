@@ -74,7 +74,6 @@ def app_params_sim(
     p_packet: float,
     memory: int,
     p_swap: float,
-    p_gen: float,
     time_slot_duration: float,
 ) -> dict[str, dict[str, float | int]]:
     """Prepare application parameters for simulation.
@@ -87,7 +86,6 @@ def app_params_sim(
         p_packet (float): Probability of a packet being generated.
         memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
-        p_gen (float): Probability of generating an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
 
     Returns:
@@ -101,7 +99,6 @@ def app_params_sim(
             "p_packet": p_packet,
             "memory": memory,
             "p_swap": p_swap,
-            "p_gen": p_gen,
             "epr_pairs": int(spec["epr"]),
             "slot_duration": time_slot_duration,
         }
@@ -114,13 +111,9 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "inst_range": 100,
         "epr_range": (2, 2),
         "period_range": (1, 1),
-        "hyperperiod_cycles": 1000,
         "memory": 1000,
         "p_swap": 0.6,
-        "p_gen": 1e-3,
-        "fidelity_enabled": True,
-        "routing": "capacity",
-        "capacity_threshold": 0.8,
+        "routing": "shortest",
         "time_slot_duration": 1e-4,
         "graph": "gml",
         "provisioning": False,
@@ -802,6 +795,28 @@ def compute_edge_fidelities(
     return fidelities
 
 
+def compute_edge_rates(
+    G: nx.Graph,
+    distances: Dict[Tuple, float],
+    rate_min: float = 0.001,
+) -> Dict[Tuple, float]:
+    rates = {}
+    L_max = max(distances.values(), default=0.0)
+    L_dep = (
+        -L_max / np.log(rate_min)
+        if L_max > 0.0
+        else float("inf")
+    )
+
+    for u, v, data in G.edges(data=True):
+        L = float(data.get("dist", 0.0))
+        r = np.exp(-L / L_dep)
+        data["rate"] = r
+        rates[(min(u, v), max(u, v))] = r
+
+    return rates
+
+
 def gml_data(
     gml_file: str,
 ) -> Tuple[list, list, dict[tuple, float], dict, float]:
@@ -818,6 +833,8 @@ def gml_data(
         distances.
         fidelities (dict[tuple, float]): Dict mapping directed edges to
         fidelities.
+        rates (dict[tuple, float]): Dict mapping directed edges to
+        rates.
         diameter (float): Diameter of the graph.
     """
     G = nx.read_gml(gml_file)
@@ -829,9 +846,10 @@ def gml_data(
         for u, v, data in G.edges(data=True)
     }
     fidelities = compute_edge_fidelities(G, distances)
+    rates = compute_edge_rates(G, distances)
     diameter = float(nx.diameter(G))
 
-    return nodes, edges, distances, fidelities, diameter
+    return nodes, edges, distances, fidelities, rates, diameter
 
 
 def generate_n_apps(

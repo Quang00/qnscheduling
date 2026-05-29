@@ -39,7 +39,7 @@ class PGA:
         route: List[str],
         resources: Dict[Tuple[str, str], float],
         link_busy: Dict[Tuple[str, str], float],
-        p_gen: float,
+        link_p_gens: List[float] | np.ndarray,
         epr_pairs: int,
         slot_duration: float,
         rng: np.random.Generator,
@@ -81,8 +81,8 @@ class PGA:
             when undirected links become free.
             link_busy (Dict[Tuple[str, str], float]): Dictionary to track busy
             time of links.
-            p_gen (float): Probability of generating an EPR pair in a single
-            trial.
+            link_p_gens (List[float] | np.ndarray): Per-link probabilities of
+            generating an EPR pair in a single trial, in route_links order.
             epr_pairs (int): Number of EPR pairs to generate for this PGA.
             slot_duration (float): Duration of a time slot for EPR generation.
             rng (np.random.Generator): Random number generator for
@@ -104,7 +104,6 @@ class PGA:
         self.route = route
         self.resources = resources
         self.link_busy = link_busy
-        self.p_gen = float(p_gen)
         self.epr_pairs = int(epr_pairs)
         self.slot_duration = float(slot_duration)
         self.rng = rng
@@ -115,17 +114,20 @@ class PGA:
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
         self.memory = max(0, int(memory))
+        self.link_p_gens = np.asarray(link_p_gens, dtype=float)
 
     def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
         """Single end-to-end entanglement for a batch of attempts."""
-        if self.memory <= 0 or self.p_gen <= 0.0 or max_attempts <= 0:
+        if self.memory <= 0 or max_attempts <= 0:
             return np.zeros(max_attempts, dtype=bool)
 
         n_links = self.n_swap + 1
         t_mem = self.memory
         size = (max_attempts, n_links)
 
-        starts = self.rng.geometric(self.p_gen, size=size) - 1
+        if np.any(self.link_p_gens <= 0.0):
+            return np.zeros(max_attempts, dtype=bool)
+        starts = self.rng.geometric(self.link_p_gens, size=size) - 1
         ends = starts + (t_mem - 1)
 
         candidate = starts.max(axis=1)
@@ -229,147 +231,6 @@ class PGA:
         return result
 
 
-def simulate_static(
-    schedule: List[Tuple[str, float, float, float]],
-    app_specs: Dict[str, Dict[str, Any]],
-    pga_parameters: Dict[str, Dict[str, float]],
-    pga_rel_times: Dict[str, float],
-    pga_periods: Dict[str, float],
-    pga_network_paths: Dict[str, List[str]],
-    policies: Dict[str, str],
-    rng: np.random.Generator,
-) -> Tuple[
-    pd.DataFrame,
-    List[str],
-    Dict[str, float],
-    Dict[Tuple[str, str], Dict[str, float]],
-    Dict[Tuple[str, str], Dict[str, float | int]],
-]:
-    """Simulate periodic PGA scheduling. The scheduler computes a static
-    schedule of PGAs that attempt to generate EPR pairs over a specified route
-    within a defined time window, considering resource availability and link
-    busy times.
-
-    Args:
-        schedule (List[Tuple[str, float, float, float]]): List of tuples where
-        each contains the PGA name, start time, end time, and deadline of the
-        scheduled PGA.
-        pga_parameters (Dict[str, Dict[str, float]]): Parameters for each PGA,
-        including the probability of generating an EPR pair, number of
-        required successes, and slot duration.
-        pga_rel_times (Dict[str, float]): Relative release times for each PGA.
-        pga_periods (Dict[str, float]): Periods for each PGA, indicating the
-        time interval between successive releases of the PGA.
-        pga_network_paths (Dict[str, list[str]]): List of nodes for each PGA's
-        path in the network.
-        policies (Dict[str, str]): Scheduling policy for each PGA. This can be
-        "best_effort" or "deadline".
-        rng (np.random.Generator): Random number generator for probabilistic
-        events.
-
-    Returns:
-        Tuple[
-            pd.DataFrame,
-            List[str],
-            Dict[str, float],
-            Dict[Tuple[str, str], Dict[str, float]],
-        ]: Contains:
-            - DataFrame with PGA performance metrics.
-            - List of PGA names.
-            - Dictionary mapping PGA names to their release times.
-            - Dictionary mapping undirected links to busy time and utilization.
-            - Dictionary mapping undirected links to waiting metrics.
-    """
-    log = []
-    pga_release_times = {}
-    pga_names = []
-
-    instances_required = {
-        app: max(0, int(app_specs.get(app, {}).get("instances", 0)))
-        for app in pga_network_paths
-    }
-    total_required = sum(instances_required.values())
-    completed_instances = {app: 0 for app in instances_required}
-    completed_total = 0
-
-    pga_route_links = {
-        app: [
-            tuple(sorted((u, v)))
-            for u, v in zip(path[:-1], path[1:], strict=False)
-        ]
-        for app, path in pga_network_paths.items()
-    }
-    all_links = {link for links in pga_route_links.values() for link in links}
-    resources = {link: 0.0 for link in all_links}
-    link_busy = dict.fromkeys(all_links, 0.0)
-    link_waiting = {
-        link: {"total_waiting_time": 0.0, "pga_waited": 0}
-        for link in all_links
-    }
-    min_arrival = float("inf")
-    max_completion = 0.0
-
-    for pga_name, sched_start, sched_end, sched_deadline in schedule:
-        m = INIT_PGA_RE.match(pga_name)
-        app, idx = (m.group(1), int(m.group(2))) if m else (pga_name, 0)
-
-        required = instances_required.get(app, 0)
-        if required > 0 and completed_instances[app] >= required:
-            continue
-
-        r0 = float(pga_rel_times.get(app, 0.0))
-        T = float(pga_periods.get(app, 0.0))
-        arrival = r0 + idx * T
-        if arrival < min_arrival:
-            min_arrival = arrival
-
-        pga = PGA(
-            name=pga_name,
-            arrival=arrival,
-            start=sched_start,
-            end=sched_end,
-            route=pga_network_paths[app],
-            resources=resources,
-            link_busy=link_busy,
-            p_gen=pga_parameters[app]["p_gen"],
-            epr_pairs=int(pga_parameters[app]["epr_pairs"]),
-            slot_duration=pga_parameters[app]["slot_duration"],
-            rng=rng,
-            log=log,
-            policy=policies[app],
-            p_swap=pga_parameters[app]["p_swap"],
-            memory=pga_parameters[app]["memory"],
-            deadline=sched_deadline,
-            route_links=pga_route_links.get(app),
-        )
-        result = pga.run()
-        waiting_time = max(0.0, float(result.get("waiting_time", 0.0)))
-        track_link_waiting(
-            waiting_time,
-            link_waiting,
-            blocking_links=result.get("blocking_links"),
-        )
-
-        pga_names.append(pga_name)
-        pga_release_times[pga_name] = sched_start
-        max_completion = max(max_completion, result["completion_time"])
-
-        if result.get("status") == "completed":
-            completed_instances[app] += 1
-            completed_total += 1
-            if completed_total == total_required:
-                break
-
-    df = pd.DataFrame(log)
-    link_utilization = compute_link_utilization(
-        link_busy,
-        min_arrival,
-        max_completion,
-    )
-
-    return df, pga_names, pga_release_times, link_utilization, link_waiting
-
-
 def simulate_dynamic(
     app_specs: Dict[str, Dict[str, Any]],
     durations: Dict[str, float],
@@ -387,6 +248,7 @@ def simulate_dynamic(
     rng_routing: np.random.Generator | None = None,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
+    rates: Dict[Tuple[str, str], float] = None,
 ):
     log = []
     defer_counts = {}
@@ -449,6 +311,7 @@ def simulate_dynamic(
                 simple_paths=simple_paths,
                 src=app_specs[app]["src"],
                 dst=app_specs[app]["dst"],
+                rates=rates,
             )
             routing_decision_runtime += time.perf_counter() - _t0
             min_fid = app_specs[app].get("min_fidelity", 0.0)
@@ -464,7 +327,9 @@ def simulate_dynamic(
         for app, app_paths in pga_network_paths.items():
             _t0 = time.perf_counter()
             rerouting_candidates[app] = compute_path_durations(
-                pga_parameters[app], provisioned_paths=app_paths
+                pga_parameters[app],
+                provisioned_paths=app_paths,
+                rates=rates,
             )
             routing_decision_runtime += time.perf_counter() - _t0
 
@@ -719,6 +584,7 @@ def simulate_dynamic(
                 continue
 
             recording = start_time >= warmup_time
+            link_p_gens = [rates[lk] for lk in route_links]
             pga = PGA(
                 name=pga_name,
                 arrival=arrival_time,
@@ -727,7 +593,7 @@ def simulate_dynamic(
                 route=selected_path,
                 resources=resources,
                 link_busy=link_busy_record if recording else link_busy,
-                p_gen=pga_parameters[app]["p_gen"],
+                link_p_gens=link_p_gens,
                 epr_pairs=int(pga_parameters[app]["epr_pairs"]),
                 slot_duration=pga_parameters[app]["slot_duration"],
                 rng=rng,
