@@ -53,7 +53,9 @@ def _run_dynamic(
 
 
 def test_simulate_dynamic_basic(rng):
-    app_specs = {"A": {"instances": 1, "period": 10.0, "policy": "deadline"}}
+    app_specs = {
+        "A": {"instances": 1, "deadline_budget": 10.0, "policy": "deadline"}
+    }
     pga_params = {
         "p_swap": 1.0,
         "memory": 2,
@@ -89,9 +91,15 @@ def test_simulate_dynamic_drop_and_defer(rng):
 
     df = simulate_dynamic(
         app_specs={
-            "A": {"instances": 1, "period": 100.0, "policy": "deadline"},
-            "B": {"instances": 1, "period": 6.0, "policy": "deadline"},
-            "C": {"instances": 1, "period": 10.0, "policy": "deadline"},
+            "A": {
+                "instances": 1, "deadline_budget": 100.0, "policy": "deadline"
+            },
+            "B": {
+                "instances": 1, "deadline_budget": 6.0, "policy": "deadline"
+            },
+            "C": {
+                "instances": 1, "deadline_budget": 10.0, "policy": "deadline"
+            },
         },
         durations={"A": 20.0, "B": 3.0, "C": 3.0},
         pga_parameters={"A": blocker, "B": shared, "C": shared},
@@ -106,14 +114,18 @@ def test_simulate_dynamic_drop_and_defer(rng):
     assert "drop" in statuses
 
 
-def test_simulate_dynamic_drop_exceeds_period(pga_params, rng):
-    app_specs = {"A": {"instances": 2, "period": 1.0, "policy": "deadline"}}
+def test_simulate_dynamic_drop_exceeds_deadline(pga_params, rng):
+    app_specs = {
+        "A": {"instances": 2, "deadline_budget": 1.0, "policy": "deadline"}
+    }
     df = _run_dynamic(app_specs, {"A": 5.0}, pga_params, rng)[0]
     assert "drop" in set(df["status"])
 
 
 def test_simulate_dynamic_retry(pga_params, rng):
-    app_specs = {"A": {"instances": 20, "period": 1.0, "policy": "deadline"}}
+    app_specs = {
+        "A": {"instances": 20, "deadline_budget": 1.0, "policy": "deadline"}
+    }
     df = _run_dynamic(
         app_specs,
         {"A": 0.1},

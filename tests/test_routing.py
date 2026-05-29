@@ -31,7 +31,7 @@ def basic_graph():
 
 @pytest.fixture
 def def_req():
-    return {"epr": 1, "period": 1.0, "min_fidelity": 0.6}
+    return {"epr": 1, "deadline_budget": 1.0, "min_fidelity": 0.6}
 
 
 @pytest.fixture
@@ -113,14 +113,14 @@ def test_find_feasible_path_basic():
             "dst": "Charlie",
             "min_fidelity": 0.8,
             "epr": 2,
-            "period": 10.0,
+            "deadline_budget": 10.0,
         },
         "B": {
             "src": "Bob",
             "dst": "David",
             "min_fidelity": 0.8,
             "epr": 1,
-            "period": 15.0,
+            "deadline_budget": 15.0,
         },
     }
     _, simple_paths = fidelity_bounds_and_paths(
@@ -142,7 +142,7 @@ def test_find_feasible_path_min_fidelity_too_low(linear_abc):
     edges, fidelities, simple_paths = linear_abc
     app_requests = {
         "app": {
-            "src": "A", "dst": "B", "min_fidelity": 0.4, "epr": 1, "period": 1
+            "src": "A", "dst": "B", "min_fidelity": 0.4, "epr": 1, "deadline_budget": 1
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -283,7 +283,7 @@ def test_find_feasible_path_cap_modes_success(
     edges, fidelities, simple_paths = diamond_abcde
     app_requests = {
         "app": {
-            "src": "A", "dst": "E", "min_fidelity": 0.6, "epr": 1, "period": 1
+            "src": "A", "dst": "E", "min_fidelity": 0.6, "epr": 1, "deadline_budget": 1
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -306,7 +306,7 @@ def test_find_feasible_path_cap_modes_no_valid_path(routing_mode, pga_params):
     _, simple_paths = fidelity_bounds_and_paths(["A", "B", "C"], fidelities)
     app_requests = {
         "app": {
-            "src": "A", "dst": "C", "min_fidelity": 0.99, "epr": 1, "period": 1
+            "src": "A", "dst": "C", "min_fidelity": 0.99, "epr": 1, "deadline_budget": 1
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -326,7 +326,7 @@ def test_find_feasible_path_highest(linear_abc):
     edges, fidelities, simple_paths = linear_abc
     app_requests = {
         "app": {
-            "src": "A", "dst": "C", "min_fidelity": 0.6, "epr": 1, "period": 1
+            "src": "A", "dst": "C", "min_fidelity": 0.6, "epr": 1, "deadline_budget": 1
         }
     }
     result, e2e_fids = find_feasible_path(

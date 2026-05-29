@@ -88,7 +88,7 @@ def test_build_default_sim_args_no_overrides():
     result = build_default_sim_args("config", None)
     assert result["inst_range"] == 100
     assert result["epr_range"] == (2, 2)
-    assert result["period_range"] == (1, 1)
+    assert result["deadline_range"] == (1, 1)
 
 
 def test_save_results_basic(tmp_path):
@@ -116,7 +116,7 @@ def test_save_results_basic(tmp_path):
             "dst": "dstA",
             "instances": 2,
             "epr": 3,
-            "period": 10.0,
+            "deadline_budget": 10.0,
             "policy": "deadline",
         },
         "B": {
@@ -124,7 +124,7 @@ def test_save_results_basic(tmp_path):
             "dst": "dstB",
             "instances": 1,
             "epr": 1,
-            "period": 12.0,
+            "deadline_budget": 12.0,
             "policy": "deadline",
         },
     }
@@ -183,7 +183,7 @@ def test_generate_n_apps():
     n_apps = 3
     inst_range = 3
     epr_range = (1, 3)
-    period_range = (10.0, 20.0)
+    deadline_range = (10.0, 20.0)
     list_policies = ["policy1", "policy2"]
     bounds = {
         ("Alice", "David"): (0.8, 1.0),
@@ -196,7 +196,7 @@ def test_generate_n_apps():
         n_apps=n_apps,
         inst_range=inst_range,
         epr_range=epr_range,
-        period_range=period_range,
+        deadline_range=deadline_range,
         list_policies=list_policies,
         rng=rng,
     )
@@ -224,7 +224,7 @@ def test_save_results():
             "dst": "Bob",
             "instances": 1,
             "epr": 1,
-            "period": 10.0,
+            "deadline_budget": 10.0,
             "policy": "deadline",
         },
     }
