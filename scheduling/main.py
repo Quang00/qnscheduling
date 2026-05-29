@@ -80,7 +80,6 @@ def run_simulation(
     p_packet: float,
     memory: float,
     p_swap: float,
-    p_gen: float,
     time_slot_duration: float,
     seed: int,
     output_dir: str,
@@ -110,7 +109,6 @@ def run_simulation(
         memory (float): Memory: number of independent link-generation trials
             per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
-        p_gen (float): Probability of generating an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
@@ -137,6 +135,7 @@ def run_simulation(
     simple_paths = {}
     avg_deg = float("nan")
     diameter = float("nan")
+    rates = None
     if graph == "waxman":
         nodes, edges, fidelities, avg_deg, diameter = generate_waxman_graph(
             rng=rng
@@ -246,7 +245,7 @@ def run_simulation(
             p_packet=p_packet,
             memory=memory,
             p_swap=p_swap,
-            p_gen=p_gen,
+            rates=rates,
             time_slot_duration=time_slot_duration,
             rng=rng_routing,
             provisioning=provisioning,
@@ -299,8 +298,8 @@ def run_simulation(
             p_packet,
             memory,
             p_swap,
-            p_gen,
             time_slot_duration,
+            rates=rates,
         )
     )
 
@@ -310,7 +309,6 @@ def run_simulation(
         p_packet,
         memory,
         p_swap,
-        p_gen,
         time_slot_duration,
     )
 
@@ -347,6 +345,7 @@ def run_simulation(
         rng_routing=rng_routing,
         rng_arrivals=rng_arrivals_per_app,
         instance_arrival_rate=instance_arrival_rate,
+        rates=rates,
     )
     feasible = True
     if not full_dynamic:
@@ -478,13 +477,6 @@ def main():
         help="Probability of swapping an EPR pair in a single trial",
     )
     parser.add_argument(
-        "--pgen",
-        "-pg",
-        type=float,
-        default=1e-3,
-        help="Probability of generating an EPR pair in a single trial",
-    )
-    parser.add_argument(
         "--slot-duration",
         "-sd",
         type=float,
@@ -571,7 +563,6 @@ def main():
         p_packet=args.ppacket,
         memory=args.memory,
         p_swap=args.pswap,
-        p_gen=args.pgen,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
         output_dir=run_dir,
@@ -603,7 +594,6 @@ def main():
         "p_packet": args.ppacket,
         "memory": args.memory,
         "p_swap": args.pswap,
-        "p_gen": args.pgen,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,
         "runtime_seconds": runtime,

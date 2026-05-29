@@ -111,8 +111,8 @@ def compute_durations(
     p_packet: float,
     memory: int,
     p_swap: float,
-    p_gen: float,
     time_slot_duration: float,
+    rates: dict[tuple, float],
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -126,10 +126,11 @@ def compute_durations(
         memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a
         single trial.
-        p_gen (float): Probability of generating an EPR pair in a
-        single trial.
         time_slot_duration (float): Duration of a time slot in
         seconds.
+        rates (dict[tuple, float]): Per-link p_gen, keyed by sorted-tuple
+        edges. The effective p_gen for a route is the minimum across its
+        edges.
 
     Returns:
         dict[str, float]: A dictionary mapping each application to its total
@@ -144,13 +145,17 @@ def compute_durations(
         n_swaps = length_route - 2
         if length_route <= 2:
             n_swaps = 0
+        effective_p_gen = min(
+            rates[(min(u, v), max(u, v))]
+            for u, v in zip(route[:-1], route[1:], strict=False)
+        )
         pga_time = duration_pga(
             p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
             memory=memory,
             p_swap=p_swap,
-            p_gen=p_gen,
+            p_gen=effective_p_gen,
             time_slot_duration=time_slot_duration,
         )
         durations[app] = pga_time

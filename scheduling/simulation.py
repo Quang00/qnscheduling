@@ -39,7 +39,7 @@ class PGA:
         route: List[str],
         resources: Dict[Tuple[str, str], float],
         link_busy: Dict[Tuple[str, str], float],
-        p_gen: float,
+        link_p_gens: List[float] | np.ndarray,
         epr_pairs: int,
         slot_duration: float,
         rng: np.random.Generator,
@@ -81,8 +81,8 @@ class PGA:
             when undirected links become free.
             link_busy (Dict[Tuple[str, str], float]): Dictionary to track busy
             time of links.
-            p_gen (float): Probability of generating an EPR pair in a single
-            trial.
+            link_p_gens (List[float] | np.ndarray): Per-link probabilities of
+            generating an EPR pair in a single trial, in route_links order.
             epr_pairs (int): Number of EPR pairs to generate for this PGA.
             slot_duration (float): Duration of a time slot for EPR generation.
             rng (np.random.Generator): Random number generator for
@@ -104,7 +104,6 @@ class PGA:
         self.route = route
         self.resources = resources
         self.link_busy = link_busy
-        self.p_gen = float(p_gen)
         self.epr_pairs = int(epr_pairs)
         self.slot_duration = float(slot_duration)
         self.rng = rng
@@ -115,17 +114,20 @@ class PGA:
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
         self.memory = max(0, int(memory))
+        self.link_p_gens = np.asarray(link_p_gens, dtype=float)
 
     def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
         """Single end-to-end entanglement for a batch of attempts."""
-        if self.memory <= 0 or self.p_gen <= 0.0 or max_attempts <= 0:
+        if self.memory <= 0 or max_attempts <= 0:
             return np.zeros(max_attempts, dtype=bool)
 
         n_links = self.n_swap + 1
         t_mem = self.memory
         size = (max_attempts, n_links)
 
-        starts = self.rng.geometric(self.p_gen, size=size) - 1
+        if np.any(self.link_p_gens <= 0.0):
+            return np.zeros(max_attempts, dtype=bool)
+        starts = self.rng.geometric(self.link_p_gens, size=size) - 1
         ends = starts + (t_mem - 1)
 
         candidate = starts.max(axis=1)
@@ -246,6 +248,7 @@ def simulate_dynamic(
     rng_routing: np.random.Generator | None = None,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
+    rates: Dict[Tuple[str, str], float] = None,
 ):
     log = []
     defer_counts = {}
@@ -308,6 +311,7 @@ def simulate_dynamic(
                 simple_paths=simple_paths,
                 src=app_specs[app]["src"],
                 dst=app_specs[app]["dst"],
+                rates=rates,
             )
             routing_decision_runtime += time.perf_counter() - _t0
             min_fid = app_specs[app].get("min_fidelity", 0.0)
@@ -323,7 +327,9 @@ def simulate_dynamic(
         for app, app_paths in pga_network_paths.items():
             _t0 = time.perf_counter()
             rerouting_candidates[app] = compute_path_durations(
-                pga_parameters[app], provisioned_paths=app_paths
+                pga_parameters[app],
+                provisioned_paths=app_paths,
+                rates=rates,
             )
             routing_decision_runtime += time.perf_counter() - _t0
 
@@ -578,6 +584,7 @@ def simulate_dynamic(
                 continue
 
             recording = start_time >= warmup_time
+            link_p_gens = [rates[lk] for lk in route_links]
             pga = PGA(
                 name=pga_name,
                 arrival=arrival_time,
@@ -586,7 +593,7 @@ def simulate_dynamic(
                 route=selected_path,
                 resources=resources,
                 link_busy=link_busy_record if recording else link_busy,
-                p_gen=pga_parameters[app]["p_gen"],
+                link_p_gens=link_p_gens,
                 epr_pairs=int(pga_parameters[app]["epr_pairs"]),
                 slot_duration=pga_parameters[app]["slot_duration"],
                 rng=rng,

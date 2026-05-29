@@ -95,7 +95,6 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--ppacket`, `-pp`: Target probability to compute PGA duration ($p_{packet}$)
 - `--memory`, `-m`: Memory multiplexing number of independent link-generation trials per slot ($m$)
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
-- `--pgen`, `-pg`: EPR generation success probability per trial ($p_{gen}$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
 - `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)

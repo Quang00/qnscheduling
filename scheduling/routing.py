@@ -50,24 +50,25 @@ def _compute_delta_and_links(
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
 ) -> Tuple[float, List[Tuple[str, str]]]:
     n_swaps = max(0, len(path) - 2)
+    links = [
+        (min(u, v), max(u, v))
+        for u, v in zip(path[:-1], path[1:], strict=False)
+    ]
+    effective_p_gen = min(rates[lk] for lk in links)
     pga_duration = duration_pga(
         p_packet=p_packet,
         epr_pairs=req["epr"],
         n_swap=n_swaps,
         memory=memory,
         p_swap=p_swap,
-        p_gen=p_gen,
+        p_gen=effective_p_gen,
         time_slot_duration=time_slot_duration,
     )
     delta = float(pga_duration) / float(req["period"])
-    links = [
-        tuple(sorted((u, v)))
-        for u, v in zip(path[:-1], path[1:], strict=False)
-    ]
     return delta, links
 
 
@@ -80,7 +81,7 @@ def smallest_bottleneck(
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
     k: int | None = None,
 ) -> Tuple[List[List[str]], float, float]:
@@ -89,7 +90,7 @@ def smallest_bottleneck(
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration
         )
         post_loads = [cap[lk] + delta for lk in links]
         bottleneck = max(post_loads)
@@ -116,7 +117,7 @@ def least_capacity(
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    p_gen: float,
+    rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
@@ -136,7 +137,7 @@ def least_capacity(
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, p_gen, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration
         )
 
         sum_cap = sum(cap[lk] + delta for lk in links)
@@ -278,7 +279,7 @@ def find_feasible_path(
     p_packet: float | None = None,
     memory: int = 1,
     p_swap: float = 0.6,
-    p_gen: float = 0.001,
+    rates: Dict[Tuple[str, str], float] | None = None,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
@@ -308,8 +309,7 @@ def find_feasible_path(
             per slot.
         p_swap (float, optional): Probability of swapping an EPR pair in a
             single trial.
-        p_gen (float, optional): Probability of generating an EPR pair in a
-            single trial.
+        rates (Dict[Tuple[str, str], float], optional): Per-link p_gen.
         time_slot_duration (float, optional): Duration of a time slot in
             seconds.
         provisioning (bool, optional): Whether to enable provisioning for
@@ -369,7 +369,7 @@ def find_feasible_path(
                 p_packet,
                 memory,
                 p_swap,
-                p_gen,
+                rates,
                 time_slot_duration,
                 k=None if provisioning else 1,
             )
@@ -391,7 +391,7 @@ def find_feasible_path(
                 p_packet,
                 memory,
                 p_swap,
-                p_gen,
+                rates,
                 time_slot_duration,
                 rng,
                 provisioning,
@@ -458,12 +458,13 @@ def rerouting(
 
 def compute_path_durations(
     pga_params: Dict[str, float],
+    rates: Dict[Tuple[str, str], float],
     simple_paths: Dict[Tuple[str, str], List] | None = None,
     provisioned_paths: List[List[str]] | None = None,
     src: str | None = None,
     dst: str | None = None,
 ) -> List[Tuple]:
-    duration_by_nswap = {}
+    duration_cache = {}
     result = []
     if provisioned_paths is not None:
         items = ((None, p) for p in provisioned_paths)
@@ -478,17 +479,19 @@ def compute_path_durations(
             for u, v in zip(path[:-1], path[1:], strict=False)
         ]
         n_swap = max(0, len(path) - 2)
-        if n_swap not in duration_by_nswap:
-            duration_by_nswap[n_swap] = duration_pga(
+        effective_p_gen = min(rates[lk] for lk in links)
+        key = (n_swap, effective_p_gen)
+        if key not in duration_cache:
+            duration_cache[key] = duration_pga(
                 p_packet=pga_params["p_packet"],
                 epr_pairs=int(pga_params["epr_pairs"]),
                 n_swap=n_swap,
                 memory=pga_params["memory"],
                 p_swap=pga_params["p_swap"],
-                p_gen=pga_params["p_gen"],
+                p_gen=effective_p_gen,
                 time_slot_duration=pga_params["slot_duration"],
             )
-        result.append((e2e_fid, path, links, duration_by_nswap[n_swap]))
+        result.append((e2e_fid, path, links, duration_cache[key]))
     return result
 
 

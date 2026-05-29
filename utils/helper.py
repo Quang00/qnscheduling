@@ -74,7 +74,6 @@ def app_params_sim(
     p_packet: float,
     memory: int,
     p_swap: float,
-    p_gen: float,
     time_slot_duration: float,
 ) -> dict[str, dict[str, float | int]]:
     """Prepare application parameters for simulation.
@@ -87,7 +86,6 @@ def app_params_sim(
         p_packet (float): Probability of a packet being generated.
         memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
-        p_gen (float): Probability of generating an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
 
     Returns:
@@ -101,7 +99,6 @@ def app_params_sim(
             "p_packet": p_packet,
             "memory": memory,
             "p_swap": p_swap,
-            "p_gen": p_gen,
             "epr_pairs": int(spec["epr"]),
             "slot_duration": time_slot_duration,
         }
@@ -116,7 +113,6 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "period_range": (1, 1),
         "memory": 1000,
         "p_swap": 0.6,
-        "p_gen": 1e-3,
         "routing": "shortest",
         "time_slot_duration": 1e-4,
         "graph": "gml",
@@ -816,7 +812,7 @@ def compute_edge_rates(
         L = float(data.get("dist", 0.0))
         r = np.exp(-L / L_dep)
         data["rate"] = r
-        rates[(u, v)] = r
+        rates[(min(u, v), max(u, v))] = r
 
     return rates
 
