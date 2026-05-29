@@ -15,8 +15,8 @@ This repository implements on-demand entanglement packet scheduling using Packet
 
 The simulator can:
 
-- Generates a batch of applications (source/destination nodes, relative deadline budgets, number of packets per app, number of required EPR pairs per packets)
-- Computes the budget time per-application PGA based on a network-layer model/entanglement swapping
+- Generates a batch of applications (source/destination nodes, relative deadline budgets, number of packets per app, number of required EPR pairs per packet)
+- Computes the budget time per-app PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** (deprecated) or **dynamic online EDF-like**
 - Runs a discrete-event simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
 - Exports results and summary metrics as CSVs/parquet files
@@ -87,7 +87,7 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 
 Run `python -m scheduling.main --help` for the full list. Common flags:
 
-- `--config`, `-c`: Path to a network topology `.gml` (default: `configurations/network/basic/Dumbbell.gml`)
+- `--config`, `-c`: Path to a network topology `.gml`.
 - `--arrival-rate`, `-ar`: Mean arrival rate $\lambda$ for the Poisson process that releases applications. The number of applications is drawn from this rate over the observation horizon.
 - `--inst MIN MAX`, `-i MIN MAX`: Range of number of releases per application ($I_a$)
 - `--epr MIN MAX`, `-e MIN MAX`: Range for EPR pairs requested per application ($q_a$)
@@ -97,7 +97,7 @@ Run `python -m scheduling.main --help` for the full list. Common flags:
 - `--pswap`, `-ps`: Bell State Measurement probability success ($p_{bsm}$)
 - `--slot-duration`, `-sd`: Slot duration in seconds ($\tau$)
 - `--routing`, `-r`: Routing scheme: `shortest` (Dijkstra), `smallest` (smallest bottleneck), `least` (least total capacity), `highest` (highest E2E fidelity)
-- `--graph`, `-g`: Graph source: `gml` (use config file) `fat` (Fat tree) or `waxman` (generate random Waxman graph)
+- `--graph`, `-g`: Graph source: `gml` (use config file), `fat` (Fat tree) or `waxman` (generate random Waxman graph)
 - `--seed`, `-s`: RNG seed for reproducibility (NumPy)
 - `--output`, `-o`: Output directory root (default: `results`)
 
