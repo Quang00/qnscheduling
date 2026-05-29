@@ -158,14 +158,20 @@ def test_compute_durations():
         "D": 3,
     }
 
+    rates = {
+        ("Alice", "Bob"): 0.001,
+        ("Bob", "Charlie"): 0.001,
+        ("Alice", "David"): 0.001,
+        ("Charlie", "David"): 0.001,
+    }
     durations = compute_durations(
         paths=paths,
         epr_pairs=epr_pairs,
         p_packet=0.6,
         memory=1,
         p_swap=0.6,
-        p_gen=0.001,
         time_slot_duration=1e-4,
+        rates=rates,
     )
 
     assert "A" in durations
@@ -193,8 +199,8 @@ def test_compute_durations_empty_paths():
         p_packet=0.6,
         memory=1,
         p_swap=0.6,
-        p_gen=0.001,
         time_slot_duration=1e-4,
+        rates={},
     )
 
     assert durations == {}

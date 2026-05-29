@@ -40,7 +40,7 @@ def pga_params():
         p_packet=0.9,
         memory=1000,
         p_swap=0.6,
-        p_gen=0.001,
+        rates=defaultdict(lambda: 0.001),
         time_slot_duration=1e-4
     )
 
