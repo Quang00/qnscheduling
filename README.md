@@ -19,7 +19,7 @@ The simulator can:
 - Computes the budget time per-app PGA based on a network-layer model/entanglement swapping
 - Schedules PGAs with either a **static EDF timetable** (deprecated) or **dynamic online EDF-like**
 - Runs a discrete-event simulation of entanglement generation/swapping with link contention, and deferrals/retries/drops
-- Exports results and summary metrics as CSVs/parquet files
+- Exports results and summary metrics as CSVs/parquet files over an observation window [warmup, horizon].
 
 A high-level workflow of the dynamic scheduler of entanglement packets:
 
@@ -73,7 +73,7 @@ If infeasible, the run exits early (no result CSVs are written for that run).
 ### Dynamic scheduler
 
 - Online EDF-like with dynamic arrival.
-- Application releases are drawn from a Poisson process with rate `--arrival-rate` over the observation horizon [warmup, horizon].
+- Application releases are drawn from a Poisson process with rate `--arrival-rate` over the observation horizon.
 - Can admit/schedule/defer/retry/drop.
 
 ### Status values (in `pga_results.parquet`)
