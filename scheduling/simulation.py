@@ -426,7 +426,6 @@ def simulate_dynamic(
                     deadline,
                     cur_t,
                     resources,
-                    rng_routing if rng_routing is not None else rng,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:

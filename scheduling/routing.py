@@ -501,13 +501,10 @@ def dynamic_routing(
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
-    rng: np.random.Generator | None = None,
-    mode: str = "work-conserving",
 ) -> Tuple[Tuple | None, float | None]:
     next_avail = None
-    global_best_duration = None
-    best_dur = float("inf")
-    best_path = []
+    best = None
+    best_finish = float("inf")
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
     for e2e_fid, path, links, pga_duration in candidate_paths:
@@ -515,45 +512,29 @@ def dynamic_routing(
             continue
         if cur_t + pga_duration > deadline_eps:
             continue
-        if global_best_duration is None or pga_duration < global_best_duration:
-            global_best_duration = pga_duration
         avail = cur_t
         for lnk in links:
             v = resources.get(lnk, 0.0)
             if v > avail:
                 avail = v
-        finish = (avail if avail > cur_t else cur_t) + pga_duration
+        finish = avail + pga_duration
         if finish > deadline_eps:
             continue
         if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
             continue
-        if pga_duration < best_dur:
-            best_dur = pga_duration
-            best_path = [(path, links, e2e_fid)]
-        elif pga_duration == best_dur:
-            best_path.append((path, links, e2e_fid))
 
-    if not best_path:
-        return None, next_avail
+        if finish < best_finish:
+            best_finish = finish
+            best = (path, links, cur_t, pga_duration, e2e_fid)
 
-    if mode == "non-work-conserving":
-        if best_dur != global_best_duration:
-            return None, next_avail
-        path, links, e2e_fid = best_path[0]
-        return (path, links, cur_t, best_dur, e2e_fid), next_avail
-
-    n = len(best_path)
-    idx = 0 if rng is None or n == 1 else int(rng.integers(n))
-    path, links, e2e_fid = best_path[idx]
-    return (path, links, cur_t, best_dur, e2e_fid), next_avail
+    return best, next_avail
 
 
 def static_routing(
     app_requests: Dict[str, Dict[str, Any]],
     simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    mode: str = "highest",
 ) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
     ret = {}
     e2e_fids = {}
@@ -575,14 +556,9 @@ def static_routing(
         for path in all_simple_paths(simple_paths, src, dst):
             e2e_fid, path_nodes = path[0], path[1]
             path_nodes_list = list(path_nodes)
-            if mode == "shortest":
-                if not chosen_path or len(path_nodes_list) < len(chosen_path):
-                    best_fid = e2e_fid
-                    chosen_path = path_nodes_list
-            else:
-                if e2e_fid > best_fid:
-                    best_fid = e2e_fid
-                    chosen_path = path_nodes_list
+            if e2e_fid > best_fid:
+                best_fid = e2e_fid
+                chosen_path = path_nodes_list
         min_fid = req.get("min_fidelity", 0.0)
         if not chosen_path:
             path_cache[(src, dst)] = ([], float("nan"))
