@@ -776,19 +776,14 @@ def compute_edge_fidelities(
 def compute_edge_rates(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    rate_min: float = 0.001,
+    attenuation: float = 0.2,
 ) -> Dict[Tuple, float]:
     rates = {}
-    L_max = max(distances.values(), default=0.0)
-    L_dep = (
-        -L_max / np.log(rate_min)
-        if L_max > 0.0
-        else float("inf")
-    )
+    L_attenuation = 10.0 / (attenuation * np.log(10.0))
 
     for u, v, data in G.edges(data=True):
-        L = float(data.get("dist", 0.0))
-        r = np.exp(-L / L_dep)
+        L = float(distances.get((u, v), data.get("dist", 0.0)))
+        r = np.exp(-L / L_attenuation)
         data["rate"] = r
         rates[(min(u, v), max(u, v))] = r
 
