@@ -28,7 +28,7 @@ omit = [
   "utils/parallel_simulations.py",
   "utils/__init__.py",
   "utils/run_scenarios.py",
-  "utils/predictors.py",
+  "utils/predictor.py",
 ]
 
 [tool.coverage.report]
