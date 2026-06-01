@@ -249,7 +249,9 @@ def test_compute_edge_fidelities():
     G.add_edge("B", "C", dist=100.0)
     distances = {("A", "B"): 50.0, ("B", "C"): 100.0}
 
-    fidelities = compute_edge_fidelities(G, distances, F_min=0.51)
+    fidelities = compute_edge_fidelities(G, distances, L_dep=50.0)
 
     assert len(fidelities) == 2
-    assert all(0.51 <= f <= 1.0 for f in fidelities.values())
+    assert all(0.25 <= f <= 1.0 for f in fidelities.values())
+    # Fidelity decreases with distance.
+    assert fidelities[("A", "B")] > fidelities[("B", "C")]

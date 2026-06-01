@@ -75,7 +75,7 @@ def fat_tree(
     qpu_edge_dist=1.0,
     edge_aggregate_dist=3.0,
     aggregate_core_dist=6.0,
-    F_min: float = 0.8,
+    L_dep: float = 50.0,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a fat-tree topology with k pods. Each pod contains k/2 edge
     switches and k/2 aggregate switches. The core layer has (k/2)^2 core
@@ -90,7 +90,8 @@ def fat_tree(
         aggregate switches.
         aggregate_core_dist (float, optional): Distance between aggregate and
         core switches.
-        F_min (float, optional): Minimum initial fidelity for edges.
+        L_dep (float, optional): Depolarization length in km for edge
+        fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -140,7 +141,7 @@ def fat_tree(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances, F_min=F_min)
+    fidelities = compute_edge_fidelities(G, distances, L_dep=L_dep)
     rates = compute_edge_rates(G, distances)
     diameter = float(nx.diameter(G))
 
