@@ -501,12 +501,53 @@ def dynamic_routing(
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
+    mode: str = "nwc",
+    nwc_tol: float = 0.0,
 ) -> Tuple[Tuple | None, float | None]:
+    non_work_conserving = mode == "nwc"
     next_avail = None
     best = None
     best_finish = float("inf")
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
+
+    if non_work_conserving:
+        best_duration = float("inf")
+        for e2e_fid, _, _, pga_duration in candidate_paths:
+            if e2e_fid < min_fidelity:
+                continue
+            if pga_duration < best_duration:
+                best_duration = pga_duration
+        if best_duration == float("inf"):
+            return None, None
+        dur_cap = best_duration * (1.0 + nwc_tol) + EPS
+
+        nwc_best = None
+        for e2e_fid, path, links, pga_duration in candidate_paths:
+            if e2e_fid < min_fidelity:
+                continue
+            if pga_duration > dur_cap:
+                continue
+            avail = cur_t
+            for lnk in links:
+                v = resources.get(lnk, 0.0)
+                if v > avail:
+                    avail = v
+            finish = avail + pga_duration
+            if finish > deadline_eps:
+                continue
+            if avail > cur_t_eps:
+                if next_avail is None or avail < next_avail:
+                    next_avail = avail
+                continue
+            if finish < best_finish:
+                best_finish = finish
+                nwc_best = (path, links, cur_t, pga_duration, e2e_fid)
+
+        if nwc_best is not None:
+            return nwc_best, None
+        return None, next_avail
+
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
