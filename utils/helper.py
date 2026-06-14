@@ -213,6 +213,7 @@ def save_results(
     app_e2e_fidelities: Dict[str, float] | None = None,
     single_path_share: float = float("nan"),
     two_path_share: float = float("nan"),
+    app_request_rows: List[Dict[str, Any]] | None = None,
     avg_deg: float = float("nan"),
     output_dir: str = "results",
     save_csv: bool = True,
@@ -379,6 +380,11 @@ def save_results(
         if verbose:
             print("\n=== Preview PGA Results ===")
             print(df.head(20).to_string(index=False))
+
+    if save_csv and verbose and app_request_rows:
+        app_request_df = pd.DataFrame(app_request_rows)
+        app_request_path = os.path.join(output_dir, "app_request.csv")
+        app_request_df.to_csv(app_request_path, index=False)
 
     avg_link_utilization = float("nan")
     p90_link_utilization = float("nan")
@@ -927,3 +933,19 @@ def all_simple_paths(
     dst: str,
 ) -> List[Tuple[float, Tuple[str, ...]]]:
     return paths.get((src, dst) if src < dst else (dst, src), [])
+
+
+def count_edge_disjoint_paths(
+    feasible_paths: List[Tuple[float, Tuple[str, ...]]],
+) -> int:
+    if not feasible_paths:
+        return 0
+    src, dst = feasible_paths[0][1][0], feasible_paths[0][1][-1]
+    edges = (
+        (u, v)
+        for _, path in feasible_paths
+        for u, v in zip(path[:-1], path[1:], strict=False)
+    )
+    graph = nx.Graph(edges)
+    n_disjoint = sum(1 for _ in nx.edge_disjoint_paths(graph, src, dst))
+    return n_disjoint

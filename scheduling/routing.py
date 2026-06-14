@@ -501,7 +501,7 @@ def dynamic_routing(
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
-    mode: str = "nwc",
+    mode: str = "wc",
     nwc_tol: float = 0.0,
 ) -> Tuple[Tuple | None, float | None]:
     non_work_conserving = mode == "nwc"
