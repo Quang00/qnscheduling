@@ -536,11 +536,11 @@ def save_results(
         if not df.empty
         else float("nan")
     )
-    avg_path_efficiency = float("nan")
+    fastest_path_rate = float("nan")
     if has_per_row_routing:
         cols = [
             c for c in (
-                "hops", "e2e_fidelity", "pga_duration", "routing_efficiency",
+                "hops", "e2e_fidelity", "pga_duration",
             )
             if c in df.columns
         ]
@@ -548,9 +548,12 @@ def save_results(
         avg_hops = float(per_app.get("hops", float("nan")))
         avg_e2e_fidelity = float(per_app.get("e2e_fidelity", float("nan")))
         pga_d = float(per_app.get("pga_duration", float("nan")))
-        avg_path_efficiency = float(
-            per_app.get("routing_efficiency", float("nan"))
-        )
+        if "routing_efficiency" in df.columns:
+            eff = pd.to_numeric(df["routing_efficiency"], errors="coerce")
+            chose_fastest = (eff >= 1.0 - 1e-9).astype(float)
+            chose_fastest[eff.isna()] = np.nan
+            per_app_fastest = chose_fastest.groupby(df["task"]).mean()
+            fastest_path_rate = float(per_app_fastest.mean())
     else:
         avg_hops = params["hops"].mean() if not params.empty else float("nan")
         e2e_fidelity_values = [
@@ -685,7 +688,7 @@ def save_results(
         print(f"Single-path share: {single_path_share:.2f}")
         print(f"Two-path share   : {two_path_share:.2f}")
         print(f"Avg PGA duration : {pga_d:.4f}")
-        print(f"Avg routing efficiency: {avg_path_efficiency:.4f}")
+        print(f"Fastest-path rate: {fastest_path_rate:.4f}")
         print(f"Total busy time  : {total_busy_time:.4f}")
         print(f"Avg link utilization : {avg_link_utilization:.4f}")
         print(f"P90 link utilization : {p90_link_utilization:.4f}")
@@ -720,7 +723,7 @@ def save_results(
         "single_path_share_pct": float(single_path_share),
         "two_path_share_pct": float(two_path_share),
         "avg_pga_duration": float(pga_d),
-        "avg_routing_efficiency": float(avg_path_efficiency),
+        "fastest_path_rate": float(fastest_path_rate),
         "total_busy_time": float(total_busy_time),
         "avg_link_utilization": float(avg_link_utilization),
         "p90_link_utilization": float(p90_link_utilization),
