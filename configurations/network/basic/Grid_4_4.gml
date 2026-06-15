@@ -1,5 +1,5 @@
 graph [
-    name "grid_5x5"
+    name "grid_4x4"
     directed 0
     stats [
         nodes 25

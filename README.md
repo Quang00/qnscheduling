@@ -125,7 +125,6 @@ The network topology configurations are stored as `.gml` files in `configuration
   - `Ring.gml`: Ring (7 nodes)
   - `Star.gml`: Star (7 nodes)
   - `Dumbbell.gml`: Dumbbell (8 nodes)
-  - `Grid.gml`: Grid 5x5
 
 - `configurations/network/advanced/`: Real-world network topologies from Internet Topology Zoo.
 
