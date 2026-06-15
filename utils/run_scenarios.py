@@ -12,9 +12,9 @@ def main():
 
     base_kwargs = {
         "epr_range": (2, 2),
-        "deadline_range": (2, 2),
-        "memory": 1000,
-        "p_swap": 0.6,
+        "deadline_range": (1, 1),
+        "memory": 1,
+        "p_swap": 0.5,
         "time_slot_duration": 1e-4,
         "graph": "gml",
     }
@@ -27,18 +27,6 @@ def main():
         },
         {
             "id": 2,
-            "name": "proactive",
-            "routing_strategy": "hybrid",
-            "routing": "least",
-        },
-        {
-            "id": 3,
-            "name": "hybrid",
-            "routing_strategy": "rerouting",
-            "routing": "least",
-        },
-        {
-            "id": 4,
             "name": "reactive",
             "routing_strategy": "dynamic",
         },

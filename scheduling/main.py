@@ -454,14 +454,14 @@ def main():
         "--ppacket",
         "-pp",
         type=float,
-        default=0.2,
+        default=0.9,
         help="Probability of a packet being generated",
     )
     parser.add_argument(
         "--memory",
         "-m",
         type=int,
-        default=1000,
+        default=1,
         help="Number of independent link-generation trials per slot in the"
         "multiplexed memory",
     )
@@ -469,7 +469,7 @@ def main():
         "--pswap",
         "-ps",
         type=float,
-        default=0.6,
+        default=0.5,
         help="Probability of swapping an EPR pair in a single trial",
     )
     parser.add_argument(
@@ -491,7 +491,7 @@ def main():
         "-r",
         type=str,
         choices=["shortest", "smallest", "least", "highest"],
-        default="shortest",
+        default="highest",
         help=(
             "Routing: 'shortest' (Dijkstra),'smallest' (smallest bottleneck),"
             "'least' (least total capacity), or 'highest' (highest "
