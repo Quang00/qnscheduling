@@ -242,13 +242,12 @@ def save_results(
             - dst_node: Destination node of the PGA
             - instances: Number of instances for the PGA
             - epr_pairs: Number of EPR pairs for the PGA
-            - policy: Scheduling policy used for the PGA
         pga_names (List): List of all PGA names that should be present in the
             results.
         pga_release_times (Dict): Dictionary mapping PGA names to their
             relative release times, used to fill in missing PGAs.
         app_specs (Dict): Metadata for each application including endpoints,
-            instances, requested EPR pairs, deadline budget, and policy.
+            instances, requested EPR pairs, and deadline budget.
         n_edges (int): Number of edges in the network graph.
         durations (Dict | None): Optional mapping of deterministic PGA
             durations per application.
@@ -325,7 +324,6 @@ def save_results(
             "dst_node": [app_specs[a]["dst"] for a in app_names],
             "instances": [int(app_specs[a]["instances"]) for a in app_names],
             "pairs_requested": [int(app_specs[a]["epr"]) for a in app_names],
-            "policy": [app_specs[a]["policy"] for a in app_names],
             "hops": [path_length.get(a, np.nan) for a in app_names],
             "pga_duration": [
                 float(durations[a]) if durations and a in durations else np.nan
@@ -849,7 +847,6 @@ def generate_n_apps(
     inst_range: int,
     epr_range: tuple[int, int],
     deadline_range: tuple[float, float],
-    list_policies: list[str],
     rng: np.random.Generator,
     manual_pairs: list[tuple[str, str]] | None = None,
 ) -> Dict[str, Dict[str, Any]]:
@@ -866,14 +863,12 @@ def generate_n_apps(
         deadline budget of each application (deadline = release + budget).
         fidelity_range (tuple[float, float]): Range (min, max) for the minimum
         fidelity of each application.
-        list_policies (list[str], optional): List of policies to assign to
-        each application.
         rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
         Dict[str, Dict[str, Any]]: Mapping of application name to its metadata,
-        including endpoints, number of instances, requested EPR pairs,
-        deadline budget, and policy.
+        including endpoints, number of instances, requested EPR pairs, and
+        deadline budget.
     """
     apps = {}
     feasible = []
@@ -906,7 +901,6 @@ def generate_n_apps(
                 rng.uniform(deadline_range[0], deadline_range[1])
             ),
             "min_fidelity": min_fidelity_threshold,
-            "policy": rng.choice(list_policies),
         }
 
     return apps

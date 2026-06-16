@@ -144,7 +144,6 @@ def run_simulation(
         inst_range=inst_range,
         epr_range=epr_range,
         deadline_range=deadline_range,
-        list_policies=["deadline"],
         rng=rng,
     )
     pga_rel_times = {

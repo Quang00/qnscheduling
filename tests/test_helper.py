@@ -117,7 +117,6 @@ def test_save_results_basic(tmp_path):
             "instances": 2,
             "epr": 3,
             "deadline_budget": 10.0,
-            "policy": "deadline",
         },
         "B": {
             "src": "srcB",
@@ -125,7 +124,6 @@ def test_save_results_basic(tmp_path):
             "instances": 1,
             "epr": 1,
             "deadline_budget": 12.0,
-            "policy": "deadline",
         },
     }
 
@@ -184,7 +182,6 @@ def test_generate_n_apps():
     inst_range = 3
     epr_range = (1, 3)
     deadline_range = (10.0, 20.0)
-    list_policies = ["policy1", "policy2"]
     bounds = {
         ("Alice", "David"): (0.8, 1.0),
         ("David", "Alice"): (0.8, 1.0),
@@ -197,7 +194,6 @@ def test_generate_n_apps():
         inst_range=inst_range,
         epr_range=epr_range,
         deadline_range=deadline_range,
-        list_policies=list_policies,
         rng=rng,
     )
     assert len(apps) == n_apps
@@ -225,7 +221,6 @@ def test_save_results():
             "instances": 1,
             "epr": 1,
             "deadline_budget": 10.0,
-            "policy": "deadline",
         },
     }
     n_edges = 3
