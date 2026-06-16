@@ -343,7 +343,6 @@ def run_simulation(
         static_routing_mode,
         horizon_time=windows[1] if windows is not None else None,
         warmup_time=windows[0] if windows is not None else 0.0,
-        rng_routing=rng_routing,
         rng_arrivals=rng_arrivals_per_app,
         instance_arrival_rate=instance_arrival_rate,
         rates=rates,

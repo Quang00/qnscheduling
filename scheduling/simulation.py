@@ -245,7 +245,6 @@ def simulate_dynamic(
     static_routing_mode: bool = False,
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
-    rng_routing: np.random.Generator | None = None,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
     rates: Dict[Tuple[str, str], float] = None,
