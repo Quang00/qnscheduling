@@ -554,16 +554,15 @@ def save_results(
             )
             if c in df.columns
         ]
-        per_app = df.groupby("task")[cols].mean().mean()
-        avg_hops = float(per_app.get("hops", float("nan")))
-        avg_e2e_fidelity = float(per_app.get("e2e_fidelity", float("nan")))
-        pga_d = float(per_app.get("pga_duration", float("nan")))
+        per_pga = df[cols].mean()
+        avg_hops = float(per_pga.get("hops", float("nan")))
+        avg_e2e_fidelity = float(per_pga.get("e2e_fidelity", float("nan")))
+        pga_d = float(per_pga.get("pga_duration", float("nan")))
         if "routing_efficiency" in df.columns:
             eff = pd.to_numeric(df["routing_efficiency"], errors="coerce")
             chose_fastest = (eff >= 1.0 - 1e-9).astype(float)
             chose_fastest[eff.isna()] = np.nan
-            per_app_fastest = chose_fastest.groupby(df["task"]).mean()
-            fastest_path_rate = float(per_app_fastest.mean())
+            fastest_path_rate = float(chose_fastest.mean())
     else:
         avg_hops = params["hops"].mean() if not params.empty else float("nan")
         e2e_fidelity_values = [

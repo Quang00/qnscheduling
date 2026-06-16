@@ -249,6 +249,7 @@ def simulate_dynamic(
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
     rates: Dict[Tuple[str, str], float] = None,
+    app_e2e_fidelities: Dict[str, float] | None = None,
 ):
     log = []
     defer_counts = {}
@@ -413,6 +414,11 @@ def simulate_dynamic(
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
                 duration = durations.get(app, 0.0)
+                routed_fid = (
+                    app_e2e_fidelities.get(app, np.nan)
+                    if app_e2e_fidelities is not None
+                    else np.nan
+                )
                 last_available = max(
                     (resources.get(lk, 0.0) for lk in route_links),
                     default=0.0,
@@ -511,6 +517,7 @@ def simulate_dynamic(
                 }
                 if (full_dynamic and simple_paths is not None)
                 or rerouting_mode
+                or static_routing_mode
                 else {}
             )
             if full_dynamic and simple_paths is not None:
@@ -520,6 +527,8 @@ def simulate_dynamic(
                     if duration > 0 and not np.isnan(best)
                     else float("nan")
                 )
+            elif static_routing_mode:
+                _stamp["routing_efficiency"] = 1.0
 
             if last_available > cur_t + EPS:
                 if last_available + duration <= deadline + EPS:

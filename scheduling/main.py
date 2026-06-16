@@ -347,6 +347,7 @@ def run_simulation(
         rng_arrivals=rng_arrivals_per_app,
         instance_arrival_rate=instance_arrival_rate,
         rates=rates,
+        app_e2e_fidelities=app_e2e_fidelities,
     )
     feasible = True
     if not full_dynamic:
