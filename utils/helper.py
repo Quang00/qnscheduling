@@ -851,6 +851,7 @@ def generate_n_apps(
     deadline_range: tuple[float, float],
     list_policies: list[str],
     rng: np.random.Generator,
+    manual_pairs: list[tuple[str, str]] | None = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Generates a specified number of applications with random parameters.
 
@@ -889,7 +890,10 @@ def generate_n_apps(
     pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
     for k in range(n_apps):
-        src, dst, min_f, max_f = feasible[int(pair_idx[k])]
+        if manual_pairs:
+            src, dst = manual_pairs[k % len(manual_pairs)]
+        else:
+            src, dst, min_f, max_f = feasible[int(pair_idx[k])]
         name_app = get_column_letter(k + 1)
         apps[name_app] = {
             "src": src,
