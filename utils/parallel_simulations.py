@@ -65,6 +65,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
             shutil.rmtree(sd_dir, ignore_errors=True)
 
     summary_metrics = {
+        "executed_pgas": 0,
         "throughput": float("nan"),
         "app_throughput": float("nan"),
         "service_ratio": float("nan"),

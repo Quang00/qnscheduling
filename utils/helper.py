@@ -368,6 +368,11 @@ def save_results(
     del final_status
     failed_total = tot_reqs - completed_total - drop_total
 
+    executed_burst = pd.to_numeric(df["burst_time"], errors="coerce")
+    executed_total = int(
+        df.loc[executed_burst.notna() & (executed_burst > 0), "pga"].nunique()
+    )
+
     if end_time is not None and warmup is not None:
         makespan = end_time - warmup
     else:
@@ -663,6 +668,7 @@ def save_results(
 
         print(f"Admission rate   : {admission_rate:.4f}")
         print(f"Completion time  : {makespan:.4f}")
+        print(f"Executed PGAs    : {executed_total}")
         print(f"Throughput       : {throughput:.4f} completed PGAs/s")
         print(f"App throughput   : {app_throughput:.4f} served apps/s")
         print(f"Service ratio    : {service_ratio:.4f}")
@@ -703,6 +709,7 @@ def save_results(
     summary_metrics = {
         "admission_rate": float(admission_rate),
         "makespan": float(makespan),
+        "executed_pgas": int(executed_total),
         "throughput": float(throughput),
         "app_throughput": float(app_throughput),
         "service_ratio": float(service_ratio),
