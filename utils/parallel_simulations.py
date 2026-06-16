@@ -66,6 +66,7 @@ def simulate_one_ppacket(args: tuple) -> dict:
 
     summary_metrics = {
         "executed_pgas": 0,
+        "avg_active_pgas": float("nan"),
         "throughput": float("nan"),
         "app_throughput": float("nan"),
         "service_ratio": float("nan"),

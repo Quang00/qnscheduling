@@ -541,6 +541,11 @@ def save_results(
         if not df.empty
         else float("nan")
     )
+    total_burst_time = float(executed_burst.fillna(0).clip(lower=0).sum())
+    avg_active_pgas = (
+        total_burst_time / makespan if makespan and makespan > 0
+        else float("nan")
+    )
     fastest_path_rate = float("nan")
     if has_per_row_routing:
         cols = [
@@ -678,6 +683,7 @@ def save_results(
         print(f"Avg defer per PGA: {avg_defer_per_pga:.4f}")
         print(f"Avg retry per PGA: {avg_retry_per_pga:.4f}")
         print(f"Avg burst time   : {avg_burst_time:.4f}")
+        print(f"Avg active PGAs  : {avg_active_pgas:.4f}")
         print(f"Avg service time : {avg_service_time:.4f}")
         print(f"Avg waiting time : {avg_wait:.4f}")
         print(f"Max waiting time : {max_wait:.4f}")
@@ -719,6 +725,7 @@ def save_results(
         "avg_defer_per_pga": float(avg_defer_per_pga),
         "avg_retry_per_pga": float(avg_retry_per_pga),
         "avg_burst_time": float(avg_burst_time),
+        "avg_active_pgas": float(avg_active_pgas),
         "avg_waiting_time": float(avg_wait),
         "max_waiting_time": float(max_wait),
         "avg_turnaround_time": float(avg_turnaround),
