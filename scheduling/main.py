@@ -63,6 +63,7 @@ def run_simulation(
     provisioning: bool = True,
     full_dynamic: bool = True,
     static_routing_mode: bool = False,
+    nwc_mode: bool = False,
     windows: tuple[float, float] | None = None,
 ):
     """Run the quantum network scheduling simulation.
@@ -340,6 +341,7 @@ def run_simulation(
         all_links,
         simple_paths,
         static_routing_mode,
+        nwc_mode=nwc_mode,
         horizon_time=windows[1] if windows is not None else None,
         warmup_time=windows[0] if windows is not None else 0.0,
         rng_arrivals=rng_arrivals_per_app,
@@ -510,11 +512,12 @@ def main():
         "--routing-strategy",
         "-rs",
         type=str,
-        choices=["static", "hybrid", "rerouting", "dynamic"],
+        choices=["static", "hybrid", "rerouting", "dynamic", "nwc"],
         default=None,
         help="Routing strategy: 'static' (fixed static paths), 'hybrid' ("
         "static no rerouting), 'rerouting' (static rerouting),"
-        "or 'dynamic' (dynamic routing)",
+        "'dynamic' (work-conserving dynamic routing), or 'nwc' "
+        "(non-work-conserving dynamic routing)",
     )
     parser.add_argument(
         "--seed",
@@ -565,8 +568,9 @@ def main():
         routing=args.routing,
         graph=args.graph,
         provisioning=args.routing_strategy == "rerouting",
-        full_dynamic=args.routing_strategy == "dynamic",
+        full_dynamic=args.routing_strategy in ("dynamic", "nwc"),
         static_routing_mode=args.routing_strategy == "static",
+        nwc_mode=args.routing_strategy == "nwc",
     )
     t1 = time.perf_counter()
 

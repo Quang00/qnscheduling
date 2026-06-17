@@ -27,7 +27,12 @@ def main():
         },
         {
             "id": 2,
-            "name": "reactive",
+            "name": "non_work_conserving",
+            "routing_strategy": "nwc",
+        },
+        {
+            "id": 3,
+            "name": "work_conserving",
             "routing_strategy": "dynamic",
         },
     ]
@@ -37,8 +42,9 @@ def main():
         sim_kwargs = dict(
             base_kwargs,
             provisioning=routing_strategy == "rerouting",
-            full_dynamic=routing_strategy == "dynamic",
+            full_dynamic=routing_strategy in ("dynamic", "nwc"),
             static_routing_mode=routing_strategy == "static",
+            nwc_mode=routing_strategy == "nwc",
         )
         if "routing" in scenario:
             sim_kwargs["routing"] = scenario["routing"]
