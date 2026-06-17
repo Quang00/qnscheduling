@@ -376,7 +376,8 @@ def run_simulation(
             link,
             {
                 "total_waiting_time": 0.0,
-                "pga_waited": 0,
+                "block_events": 0,
+                "acquisitions": 0,
             },
         )
 

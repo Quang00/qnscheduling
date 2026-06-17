@@ -167,12 +167,17 @@ def track_link_waiting(
     """Track waiting time statistics per link.
 
     Args:
-        waiting_time (float): Waiting time per PGA.
+        waiting_time (float): Wait incurred by a single deferral.
         wait_acc (Dict[Tuple[str, str], Dict[str, float]]): Accumulator
         for waiting time statistics per link.
         blocking_links (List[Tuple[str, str]] | None): The specific link(s)
         that caused the waiting (with maximum busy time). If provided, waiting
         time is distributed equally among these links.
+
+    Note:
+        ``block_events`` counts blocking episodes (one per deferral per link),
+        not distinct PGAs, so a single PGA deferred repeatedly contributes
+        multiple counts.
     """
     wait = max(0.0, float(waiting_time))
     if wait <= 0.0:
@@ -184,15 +189,15 @@ def track_link_waiting(
     w = wait / len(blocking_links)
 
     for link in links_to_update:
-        pga_wait = wait_acc.setdefault(
+        link_acc = wait_acc.setdefault(
             link,
             {
                 "total_waiting_time": 0.0,
-                "pga_waited": 0,
+                "block_events": 0,
             },
         )
-        pga_wait["total_waiting_time"] = pga_wait["total_waiting_time"] + w
-        pga_wait["pga_waited"] = pga_wait["pga_waited"] + 1
+        link_acc["total_waiting_time"] = link_acc["total_waiting_time"] + w
+        link_acc["block_events"] = link_acc["block_events"] + 1
 
 
 # =============================================================================
@@ -400,6 +405,7 @@ def save_results(
     avg_queue_length = float("nan")
     p90_avg_queue_length = float("nan")
     p95_avg_queue_length = float("nan")
+    blocking_prob = float("nan")
     link_waiting_path = None
     if link_utilization:
         link_util_rows = [
@@ -456,17 +462,27 @@ def save_results(
                 "total_waiting_time": waiting.get(
                     "total_waiting_time", float("nan")
                 ),
-                "pga_waited": waiting.get("pga_waited", 0),
+                "block_events": waiting.get("block_events", 0),
+                "acquisitions": waiting.get("acquisitions", 0),
             }
             for (a, b), waiting in link_waiting.items()
         ]
         for row in waiting_rows:
-            w = row["pga_waited"]
+            w = row["block_events"]
             total_wait = row["total_waiting_time"]
+            accesses = w + row["acquisitions"]
             row["avg_wait"] = total_wait / w if w and w > 0 else 0.0
             row["avg_queue_length"] = (
                 total_wait / makespan if makespan and makespan > 0 else 0.0
             )
+            row["blocking_prob"] = w / accesses if accesses > 0 else 0.0
+        total_blocks = sum(r["block_events"] for r in waiting_rows)
+        total_accesses = total_blocks + sum(
+            r["acquisitions"] for r in waiting_rows
+        )
+        blocking_prob = (
+            total_blocks / total_accesses if total_accesses > 0 else 0.0
+        )
         waiting_df = (
             pd.DataFrame(waiting_rows)
             .sort_values("total_waiting_time", ascending=False)
@@ -689,6 +705,7 @@ def save_results(
         print(f"Avg queue length : {avg_queue_length:.4f}")
         print(f"P90 avg_queue_length : {p90_avg_queue_length:.4f}")
         print(f"P95 avg_queue_length : {p95_avg_queue_length:.4f}")
+        print(f"Blocking prob    : {blocking_prob:.4f}")
         print(f"Avg turnaround   : {avg_turnaround:.4f}")
         print(f"Max turnaround   : {max_turnaround:.4f}")
         print(f"Avg hops         : {avg_hops:.4f}")
@@ -746,6 +763,7 @@ def save_results(
         "avg_queue_length": float(avg_queue_length),
         "p90_avg_queue_length": float(p90_avg_queue_length),
         "p95_avg_queue_length": float(p95_avg_queue_length),
+        "blocking_prob": float(blocking_prob),
         "avg_deg": float(avg_deg),
         "fairness": float(fairness),
         "routing_decision_count": (

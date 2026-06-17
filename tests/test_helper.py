@@ -134,7 +134,7 @@ def test_save_results_basic(tmp_path):
         ("Bob", "Charlie"): {"busy_time": 1.5, "utilization": 1.5 / makespan},
     }
     link_waiting = {
-        ("Alice", "Bob"): {"total_waiting_time": 2.0, "pga_waited": 1},
+        ("Alice", "Bob"): {"total_waiting_time": 2.0, "block_events": 1},
     }
 
     with tempfile.TemporaryDirectory() as tmpdir:

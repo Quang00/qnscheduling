@@ -503,13 +503,20 @@ def dynamic_routing(
     resources: Dict[Tuple[str, str], float] = None,
     mode: str = "wc",
     nwc_tol: float = 0.0,
-) -> Tuple[Tuple | None, float | None]:
+) -> Tuple[Tuple | None, float | None, List[Tuple[str, str]]]:
     non_work_conserving = mode == "nwc"
     next_avail = None
+    next_avail_links = []
     best = None
     best_finish = float("inf")
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
+
+    def bottleneck(links: List[Tuple[str, str]], avail: float):
+        return [
+            lnk for lnk in links
+            if abs(resources.get(lnk, 0.0) - avail) < EPS
+        ]
 
     if non_work_conserving:
         best_duration = float("inf")
@@ -519,7 +526,7 @@ def dynamic_routing(
             if pga_duration < best_duration:
                 best_duration = pga_duration
         if best_duration == float("inf"):
-            return None, None
+            return None, None, []
         dur_cap = best_duration * (1.0 + nwc_tol) + EPS
 
         nwc_best = None
@@ -539,14 +546,15 @@ def dynamic_routing(
             if avail > cur_t_eps:
                 if next_avail is None or avail < next_avail:
                     next_avail = avail
+                    next_avail_links = bottleneck(links, avail)
                 continue
             if finish < best_finish:
                 best_finish = finish
                 nwc_best = (path, links, cur_t, pga_duration, e2e_fid)
 
         if nwc_best is not None:
-            return nwc_best, None
-        return None, next_avail
+            return nwc_best, None, []
+        return None, next_avail, next_avail_links
 
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
@@ -564,13 +572,14 @@ def dynamic_routing(
         if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
+                next_avail_links = bottleneck(links, avail)
             continue
 
         if finish < best_finish:
             best_finish = finish
             best = (path, links, cur_t, pga_duration, e2e_fid)
 
-    return best, next_avail
+    return best, next_avail, next_avail_links
 
 
 def static_routing(
