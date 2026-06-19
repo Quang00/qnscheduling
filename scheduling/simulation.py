@@ -222,7 +222,6 @@ def simulate_dynamic(
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
     nwc_mode: bool = False,
-    nwc_tol: float = 0.0,
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
@@ -414,7 +413,6 @@ def simulate_dynamic(
                     cur_t,
                     resources,
                     mode="nwc" if nwc_mode else "wc",
-                    nwc_tol=nwc_tol,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
