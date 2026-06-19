@@ -495,6 +495,16 @@ def compute_path_durations(
     return result
 
 
+def bottlenecks(
+    resources: Dict[Tuple[str, str], float],
+    links: List[Tuple[str, str]] | None,
+    avail: float | None,
+) -> List[Tuple[str, str]]:
+    if not links or avail is None:
+        return []
+    return [lnk for lnk in links if abs(resources[lnk] - avail) < EPS]
+
+
 def dynamic_routing(
     candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
     min_fidelity: float,
@@ -505,18 +515,13 @@ def dynamic_routing(
     nwc_tol: float = 0.0,
 ) -> Tuple[Tuple | None, float | None, List[Tuple[str, str]]]:
     non_work_conserving = mode == "nwc"
+    res = resources
     next_avail = None
-    next_avail_links = []
+    next_avail_path_links = None
     best = None
     best_finish = float("inf")
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
-
-    def bottleneck(links: List[Tuple[str, str]], avail: float):
-        return [
-            lnk for lnk in links
-            if abs(resources.get(lnk, 0.0) - avail) < EPS
-        ]
 
     if non_work_conserving:
         best_duration = float("inf")
@@ -537,7 +542,7 @@ def dynamic_routing(
                 continue
             avail = cur_t
             for lnk in links:
-                v = resources.get(lnk, 0.0)
+                v = res[lnk]
                 if v > avail:
                     avail = v
             finish = avail + pga_duration
@@ -546,7 +551,7 @@ def dynamic_routing(
             if avail > cur_t_eps:
                 if next_avail is None or avail < next_avail:
                     next_avail = avail
-                    next_avail_links = bottleneck(links, avail)
+                    next_avail_path_links = links
                 continue
             if finish < best_finish:
                 best_finish = finish
@@ -554,7 +559,11 @@ def dynamic_routing(
 
         if nwc_best is not None:
             return nwc_best, None, []
-        return None, next_avail, next_avail_links
+        return (
+            None,
+            next_avail,
+            bottlenecks(res, next_avail_path_links, next_avail),
+        )
 
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
@@ -563,7 +572,7 @@ def dynamic_routing(
             continue
         avail = cur_t
         for lnk in links:
-            v = resources.get(lnk, 0.0)
+            v = res[lnk]
             if v > avail:
                 avail = v
         finish = avail + pga_duration
@@ -572,14 +581,20 @@ def dynamic_routing(
         if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
-                next_avail_links = bottleneck(links, avail)
+                next_avail_path_links = links
             continue
 
         if finish < best_finish:
             best_finish = finish
             best = (path, links, cur_t, pga_duration, e2e_fid)
 
-    return best, next_avail, next_avail_links
+    if best is not None:
+        return best, next_avail, []
+    return (
+        best,
+        next_avail,
+        bottlenecks(res, next_avail_path_links, next_avail),
+    )
 
 
 def static_routing(
