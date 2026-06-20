@@ -438,20 +438,28 @@ def rerouting(
     app: str,
     resources: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
+    res = resources
     best = None
     best_score = None
+    deadline_eps = deadline + EPS
 
     for e2e_fid, path, links, pga_duration in precomputed.get(app, []):
-        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
-        start = cur_t + max(waits, default=0.0)
-        finish = start + pga_duration
-        if finish > deadline + EPS:
+        avail = cur_t
+        sum_wait = 0.0
+        for lnk in links:
+            v = res.get(lnk, 0.0)
+            if v > avail:
+                avail = v
+            wait = v - cur_t
+            if wait > 0.0:
+                sum_wait += wait
+        finish = avail + pga_duration
+        if finish > deadline_eps:
             continue
-        sum_wait = sum(waits)
-        score = (finish, sum_wait)
-        if best_score is None or score < best_score:
-            best_score = score
-            best = (path, links, start, pga_duration, e2e_fid)
+        path_score = (finish, sum_wait, avail)
+        if best_score is None or path_score < best_score:
+            best_score = path_score
+            best = (path, links, avail, pga_duration, e2e_fid)
 
     return best
 
@@ -518,7 +526,7 @@ def dynamic_routing(
     next_avail = None
     next_avail_path_links = None
     best = None
-    best_finish = None
+    best_score = None
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
 
@@ -526,10 +534,14 @@ def dynamic_routing(
         if e2e_fid < min_fidelity:
             continue
         avail = cur_t
+        sum_wait = 0.0
         for lnk in links:
             v = res[lnk]
             if v > avail:
                 avail = v
+            wait = v - cur_t
+            if wait > 0.0:
+                sum_wait += wait
         finish = avail + pga_duration
         if finish > deadline_eps:
             continue
@@ -539,9 +551,9 @@ def dynamic_routing(
                 next_avail_path_links = links
             if not non_work_conserving:
                 continue
-        path_finish = (finish, avail)
-        if best_finish is None or path_finish < best_finish:
-            best_finish = path_finish
+        path_score = (finish, sum_wait, avail)
+        if best_score is None or path_score < best_score:
+            best_score = path_score
             best = (path, links, avail, pga_duration, e2e_fid)
 
     if best is None:
