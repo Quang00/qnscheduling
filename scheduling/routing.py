@@ -475,7 +475,14 @@ def compute_path_durations(
     duration_cache = {}
     result = []
     if provisioned_paths is not None:
-        items = ((None, p) for p in provisioned_paths)
+        fid_lookup = {
+            tuple(p): fid
+            for fid, p in all_simple_paths(simple_paths, src, dst)
+        }
+        items = (
+            (fid_lookup.get(tuple(p), float("nan")), p)
+            for p in provisioned_paths
+        )
     else:
         items = (
             (item[0], item[1])

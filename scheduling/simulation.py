@@ -303,6 +303,9 @@ def simulate_dynamic(
                 pga_parameters[app],
                 provisioned_paths=app_paths,
                 rates=rates,
+                simple_paths=simple_paths,
+                src=app_specs[app]["src"],
+                dst=app_specs[app]["dst"],
             )
             routing_decision_runtime += time.perf_counter() - _t0
 
@@ -459,6 +462,12 @@ def simulate_dynamic(
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
                 duration = durations.get(app, 0.0)
+                if rerouting_mode:
+                    routed_fid = (
+                        app_e2e_fidelities.get(app, np.nan)
+                        if app_e2e_fidelities is not None
+                        else np.nan
+                    )
 
                 last_available = 0.0
                 for link in route_links:
