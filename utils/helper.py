@@ -568,7 +568,7 @@ def save_results(
             )
             if c in df.columns
         ]
-        per_pga = df[cols].mean()
+        per_pga = df.loc[df["status"] == "completed", cols].mean()
         avg_hops = float(per_pga.get("hops", float("nan")))
         avg_e2e_fidelity = float(per_pga.get("e2e_fidelity", float("nan")))
         pga_d = float(per_pga.get("pga_duration", float("nan")))
