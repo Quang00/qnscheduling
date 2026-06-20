@@ -879,8 +879,6 @@ def generate_n_apps(
         pairs for each application.
         deadline_range (tuple[float, float]): Range (min, max) for the relative
         deadline budget of each application (deadline = release + budget).
-        fidelity_range (tuple[float, float]): Range (min, max) for the minimum
-        fidelity of each application.
         rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
@@ -890,23 +888,22 @@ def generate_n_apps(
     """
     apps = {}
     feasible = []
-    min_fidelity_threshold = 0.51
+    floor = 0.51
     for i in range(len(end_nodes)):
         for j in range(i + 1, len(end_nodes)):
             src, dst = end_nodes[i], end_nodes[j]
-            min_f, max_f = fidelity_bounds(bounds, src, dst)
-            if max_f > min_fidelity_threshold:
-                feasible.append(
-                    (src, dst, min_fidelity_threshold, float(max_f))
-                )
+            _, max_f = fidelity_bounds(bounds, src, dst)
+            if max_f > floor:
+                feasible.append((src, dst, float(max_f)))
 
     pair_idx = rng.integers(0, len(feasible), size=n_apps)
 
     for k in range(n_apps):
         if manual_pairs:
             src, dst = manual_pairs[k % len(manual_pairs)]
+            _, max_f = fidelity_bounds(bounds, src, dst)
         else:
-            src, dst, min_f, max_f = feasible[int(pair_idx[k])]
+            src, dst, max_f = feasible[int(pair_idx[k])]
         name_app = get_column_letter(k + 1)
         apps[name_app] = {
             "src": src,
@@ -918,7 +915,7 @@ def generate_n_apps(
             "deadline_budget": float(
                 rng.uniform(deadline_range[0], deadline_range[1])
             ),
-            "min_fidelity": min_fidelity_threshold,
+            "min_fidelity": float(rng.uniform(floor, max_f)),
         }
 
     return apps
