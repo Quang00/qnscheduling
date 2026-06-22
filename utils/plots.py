@@ -79,12 +79,28 @@ def build_metric_specs(
             "ylabel": "Average turnaround time (s)",
         },
         {
+            "key": "p95_waiting_time",
+            "ylabel": "95th percentile waiting time (s)",
+        },
+        {
+            "key": "p95_turnaround_time",
+            "ylabel": "95th percentile turnaround time (s)",
+        },
+        {
+            "key": "p95_burst_time",
+            "ylabel": "95th percentile burst time (s)",
+        },
+        {
             "key": "avg_e2e_fidelity",
             "ylabel": "Average E2E fidelity",
         },
         {
             "key": "avg_pga_duration",
             "ylabel": "Average PGA duration (s)",
+        },
+        {
+            "key": "avg_defer_per_pga",
+            "ylabel": "Average deferrals per PGA",
         },
         {
             "key": "avg_active_pgas",
