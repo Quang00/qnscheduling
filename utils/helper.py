@@ -517,24 +517,25 @@ def save_results(
         admission_rate = float(admitted_apps) / float(total_apps)
     throughput = completed_total / makespan
     pga_duration = list(durations.values()) if durations else []
+    served_df = df[df["status"].isin(("completed", "failed"))]
     avg_wait = (
-        df["waiting_time"].mean()
-        if not df.empty
+        served_df["waiting_time"].mean()
+        if not served_df.empty
         else float("nan")
     )
     max_wait = (
-        df["waiting_time"].max()
-        if not df.empty
+        served_df["waiting_time"].max()
+        if not served_df.empty
         else float("nan")
     )
     avg_turnaround = (
-        df["turnaround_time"].mean()
-        if not df.empty
+        served_df["turnaround_time"].mean()
+        if not served_df.empty
         else float("nan")
     )
     max_turnaround = (
-        df["turnaround_time"].max()
-        if not df.empty
+        served_df["turnaround_time"].max()
+        if not served_df.empty
         else float("nan")
     )
     pga_d = (

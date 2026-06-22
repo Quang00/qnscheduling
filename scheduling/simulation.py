@@ -604,7 +604,6 @@ def simulate_dynamic(
             )
             result = pga.run()
             result["ready_time"] = float(rdy_t)
-            result["waiting_time"] = max(0.0, start_time - rdy_t)
             result.update(_stamp)
 
             if recording:
