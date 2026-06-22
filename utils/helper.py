@@ -538,6 +538,21 @@ def save_results(
         if not served_df.empty
         else float("nan")
     )
+    p95_wait = (
+        float(served_df["waiting_time"].quantile(0.95))
+        if not served_df.empty
+        else float("nan")
+    )
+    p95_turnaround = (
+        float(served_df["turnaround_time"].quantile(0.95))
+        if not served_df.empty
+        else float("nan")
+    )
+    p95_burst = (
+        float(served_df["burst_time"].quantile(0.95))
+        if not served_df.empty
+        else float("nan")
+    )
     pga_d = (
         np.mean(pga_duration) if len(pga_duration) > 0 else float("nan")
     )
@@ -701,6 +716,8 @@ def save_results(
         print(f"Avg service time : {avg_service_time:.4f}")
         print(f"Avg waiting time : {avg_wait:.4f}")
         print(f"Max waiting time : {max_wait:.4f}")
+        print(f"P95 waiting time : {p95_wait:.4f}")
+        print(f"P95 burst time   : {p95_burst:.4f}")
         print(f"P90 link avg_wait : {p90_link_avg_wait:.4f}")
         print(f"P95 link avg_wait : {p95_link_avg_wait:.4f}")
         print(f"Avg queue length : {avg_queue_length:.4f}")
@@ -709,6 +726,7 @@ def save_results(
         print(f"Blocking prob    : {blocking_prob:.4f}")
         print(f"Avg turnaround   : {avg_turnaround:.4f}")
         print(f"Max turnaround   : {max_turnaround:.4f}")
+        print(f"P95 turnaround   : {p95_turnaround:.4f}")
         print(f"Avg hops         : {avg_hops:.4f}")
         print(f"Avg min fidelity : {avg_min_fidelity:.4f}")
         print(f"Avg E2E fidelity : {avg_e2e_fidelity:.4f}")
@@ -743,9 +761,12 @@ def save_results(
         "avg_active_pgas": float(avg_active_pgas),
         "avg_waiting_time": float(avg_wait),
         "max_waiting_time": float(max_wait),
+        "p95_waiting_time": float(p95_wait),
         "avg_turnaround_time": float(avg_turnaround),
         "avg_service_time": float(avg_service_time),
         "max_turnaround_time": float(max_turnaround),
+        "p95_turnaround_time": float(p95_turnaround),
+        "p95_burst_time": float(p95_burst),
         "avg_hops": float(avg_hops),
         "avg_min_fidelity": float(avg_min_fidelity),
         "avg_e2e_fidelity": float(avg_e2e_fidelity),
