@@ -6,15 +6,17 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('..'))
+from sphinx.ext.autodoc.mock import _MockObject
+
+sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'qnscheduling'
-copyright = '2026, Quang-Phong Tran'
-author = 'Quang-Phong Tran'
-release = '1.0.0'
+project = "qnscheduling"
+copyright = "2026, Quang-Phong Tran"
+author = "Quang-Phong Tran"
+release = "1.0.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -30,13 +32,29 @@ napoleon_numpy_docstring = False
 napoleon_use_param = True
 napoleon_use_rtype = True
 
+autodoc_mock_imports = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "networkx",
+    "matplotlib",
+    "seaborn",
+    "tqdm",
+    "openpyxl",
+    "pyarrow",
+]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+_MockObject.__or__ = lambda self, other: self
+_MockObject.__ror__ = lambda self, other: self
+
+
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ['_static']
+html_static_path = ["_static"]
