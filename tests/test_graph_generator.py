@@ -95,7 +95,7 @@ class TestFatTree:
         assert isinstance(diameter, float)
 
     def test_fidelity_bounds(self):
-        _, _, fidelities, _, _, _ = fat_tree(k=4, L_dep=50.0)
+        _, _, fidelities, _, _, _ = fat_tree(k=4)
         assert all(0.25 <= f <= 1.0 for f in fidelities.values())
 
     def test_diameter_k4(self, fat_tree_k4):

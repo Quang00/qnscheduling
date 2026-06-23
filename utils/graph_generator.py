@@ -72,10 +72,9 @@ def generate_waxman_graph(
 
 def fat_tree(
     k: int = 4,
-    qpu_edge_dist=1.0,
-    edge_aggregate_dist=3.0,
-    aggregate_core_dist=6.0,
-    L_dep: float = 50.0,
+    qpu_edge_dist=0.1,
+    edge_aggregate_dist=0.3,
+    aggregate_core_dist=0.6,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a fat-tree topology with k pods. Each pod contains k/2 edge
     switches and k/2 aggregate switches. The core layer has (k/2)^2 core
@@ -90,8 +89,6 @@ def fat_tree(
         aggregate switches.
         aggregate_core_dist (float, optional): Distance between aggregate and
         core switches.
-        L_dep (float, optional): Depolarization length in km for edge
-        fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -141,7 +138,7 @@ def fat_tree(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances, L_dep=L_dep)
+    fidelities = compute_edge_fidelities(G, distances)
     rates = compute_edge_rates(G, distances)
     diameter = float(nx.diameter(G))
 
@@ -152,9 +149,8 @@ def clos(
     n_spine: int = 4,
     n_leaf: int = 4,
     hosts_per_leaf: int = 4,
-    qpu_leaf_dist: float = 1.0,
-    leaf_spine_dist: float = 3.0,
-    L_dep: float = 50.0,
+    qpu_leaf_dist: float = 0.1,
+    leaf_spine_dist: float = 0.3,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a leaf-spine (two-tier Clos).
 
@@ -167,8 +163,6 @@ def clos(
         switches.
         leaf_spine_dist (float, optional): Distance between leaf and spine
         switches.
-        L_dep (float, optional): Depolarization length in km for edge
-        fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -203,7 +197,7 @@ def clos(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances, L_dep=L_dep)
+    fidelities = compute_edge_fidelities(G, distances)
     rates = compute_edge_rates(G, distances)
     diameter = float(nx.diameter(G))
 
