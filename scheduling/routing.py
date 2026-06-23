@@ -438,20 +438,28 @@ def rerouting(
     app: str,
     resources: Dict[Tuple[str, str], float] | None = None,
 ) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
+    res = resources
     best = None
     best_score = None
+    deadline_eps = deadline + EPS
 
     for e2e_fid, path, links, pga_duration in precomputed.get(app, []):
-        waits = [max(resources.get(lnk, 0.0) - cur_t, 0.0) for lnk in links]
-        start = cur_t + max(waits, default=0.0)
-        finish = start + pga_duration
-        if finish > deadline + EPS:
+        avail = cur_t
+        sum_wait = 0.0
+        for lnk in links:
+            v = res.get(lnk, 0.0)
+            if v > avail:
+                avail = v
+            wait = v - cur_t
+            if wait > 0.0:
+                sum_wait += wait
+        finish = avail + pga_duration
+        if finish > deadline_eps:
             continue
-        sum_wait = sum(waits)
-        score = (finish, sum_wait)
-        if best_score is None or score < best_score:
-            best_score = score
-            best = (path, links, start, pga_duration, e2e_fid)
+        path_score = (finish, sum_wait, avail)
+        if best_score is None or path_score < best_score:
+            best_score = path_score
+            best = (path, links, avail, pga_duration, e2e_fid)
 
     return best
 
@@ -467,7 +475,14 @@ def compute_path_durations(
     duration_cache = {}
     result = []
     if provisioned_paths is not None:
-        items = ((None, p) for p in provisioned_paths)
+        fid_lookup = {
+            tuple(p): fid
+            for fid, p in all_simple_paths(simple_paths, src, dst)
+        }
+        items = (
+            (fid_lookup.get(tuple(p), float("nan")), p)
+            for p in provisioned_paths
+        )
     else:
         items = (
             (item[0], item[1])
@@ -495,41 +510,70 @@ def compute_path_durations(
     return result
 
 
+def bottlenecks(
+    resources: Dict[Tuple[str, str], float],
+    links: List[Tuple[str, str]] | None,
+    avail: float | None,
+) -> List[Tuple[str, str]]:
+    if not links or avail is None:
+        return []
+    return [lnk for lnk in links if abs(resources[lnk] - avail) < EPS]
+
+
 def dynamic_routing(
     candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
     min_fidelity: float,
     deadline: float,
     cur_t: float = 0.0,
     resources: Dict[Tuple[str, str], float] = None,
-) -> Tuple[Tuple | None, float | None]:
+    mode: str = "wc",
+) -> Tuple[Tuple | None, float | None, List[Tuple[str, str]]]:
+    non_work_conserving = mode == "nwc"
+    res = resources
     next_avail = None
+    next_avail_path_links = None
     best = None
-    best_finish = float("inf")
+    best_score = None
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
+
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
             continue
-        if cur_t + pga_duration > deadline_eps:
-            continue
         avail = cur_t
+        sum_wait = 0.0
         for lnk in links:
-            v = resources.get(lnk, 0.0)
+            v = res[lnk]
             if v > avail:
                 avail = v
+            wait = v - cur_t
+            if wait > 0.0:
+                sum_wait += wait
         finish = avail + pga_duration
         if finish > deadline_eps:
             continue
         if avail > cur_t_eps:
             if next_avail is None or avail < next_avail:
                 next_avail = avail
-            continue
+                next_avail_path_links = links
+            if not non_work_conserving:
+                continue
+        path_score = (finish, sum_wait, avail)
+        if best_score is None or path_score < best_score:
+            best_score = path_score
+            best = (path, links, avail, pga_duration, e2e_fid)
 
-        if finish < best_finish:
-            best_finish = finish
-            best = (path, links, cur_t, pga_duration, e2e_fid)
+    if best is None:
+        return (
+            None,
+            next_avail,
+            bottlenecks(res, next_avail_path_links, next_avail),
+        )
 
-    return best, next_avail
+    if best[2] <= cur_t_eps:
+        ret = (best[0], best[1], cur_t, best[3], best[4])
+        return ret, (None if non_work_conserving else next_avail), []
+    return None, best[2], bottlenecks(res, best[1], best[2])
 
 
 def static_routing(

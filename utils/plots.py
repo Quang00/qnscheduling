@@ -35,27 +35,18 @@ def build_metric_specs(
             "ylabel": "Throughput (completed PGAs/s)",
         },
         {
-            "key": "app_throughput",
-            "ylabel": "Application Throughput (served apps/s)",
-        },
-        {
-            "key": "service_ratio",
-            "ylabel": "Service ratio (%)",
-            "percentage": True,
-        },
-        {
             "key": "completed_ratio",
             "ylabel": "Completion ratio (%)",
             "percentage": True,
         },
         {
-            "key": "avg_link_utilization",
-            "ylabel": "Average link utilization (%)",
+            "key": "drop_ratio",
+            "ylabel": "Drop ratio (%)",
             "percentage": True,
         },
         {
-            "key": "p90_link_utilization",
-            "ylabel": "90th percentile link utilization (%)",
+            "key": "avg_link_utilization",
+            "ylabel": "Average link utilization (%)",
             "percentage": True,
         },
         {
@@ -68,10 +59,6 @@ def build_metric_specs(
             "ylabel": "Average waiting time (s)",
         },
         {
-            "key": "p90_link_avg_wait",
-            "ylabel": "90th percentile link average wait (s)",
-        },
-        {
             "key": "p95_link_avg_wait",
             "ylabel": "95th percentile link average wait (s)",
         },
@@ -80,26 +67,28 @@ def build_metric_specs(
             "ylabel": "Average queue length",
         },
         {
+            "key": "p95_avg_queue_length",
+            "ylabel": "95th percentile average queue length",
+        },
+        {
+            "key": "blocking_prob",
+            "ylabel": "Blocking probability",
+        },
+        {
             "key": "avg_turnaround_time",
             "ylabel": "Average turnaround time (s)",
         },
         {
-            "key": "avg_service_time",
-            "ylabel": "Average service time (s)",
+            "key": "p95_waiting_time",
+            "ylabel": "95th percentile waiting time (s)",
         },
         {
-            "key": "failed_ratio",
-            "ylabel": "Failed ratio (%)",
-            "percentage": True,
+            "key": "p95_turnaround_time",
+            "ylabel": "95th percentile turnaround time (s)",
         },
         {
-            "key": "drop_ratio",
-            "ylabel": "Drop ratio (%)",
-            "percentage": True,
-        },
-        {
-            "key": "avg_hops",
-            "ylabel": "Average number of hops",
+            "key": "p95_burst_time",
+            "ylabel": "95th percentile burst time (s)",
         },
         {
             "key": "avg_e2e_fidelity",
@@ -110,8 +99,22 @@ def build_metric_specs(
             "ylabel": "Average PGA duration (s)",
         },
         {
-            "key": "avg_routing_efficiency",
-            "ylabel": "Routing efficiency",
+            "key": "avg_defer_per_pga",
+            "ylabel": "Average deferrals per PGA",
+        },
+        {
+            "key": "avg_active_pgas",
+            "ylabel": "Average active PGAs",
+        },
+        {
+            "key": "fastest_path_rate",
+            "ylabel": "Fastest-path rate",
+            "percentage": True,
+        },
+        {
+            "key": "top5_busy_share",
+            "ylabel": "Top 5 busy time-share (%)",
+            "percentage": True,
         },
         {
             "key": "fairness",
@@ -392,14 +395,12 @@ def plot_metrics_vs_load(
             "1.csv",
             "2.csv",
             "3.csv",
-            "4.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Precomputed",
-            "2": "Proactive",
-            "3": "Hybrid",
-            "4": "Reactive",
+            "1": "Fastest-path",
+            "2": "K-fastest-paths",
+            "3": "All-paths",
         },
     )
     """

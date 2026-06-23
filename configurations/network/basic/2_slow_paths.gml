@@ -1,5 +1,5 @@
 graph [
-  name "2_paths"
+  name "2_slow_paths"
   directed 0
   stats [
     nodes 6
@@ -8,18 +8,20 @@ graph [
     max_degree 2
   ]
 
-  node [ id 0 label "B" lon 0.0 lat 0.0 ]
-  node [ id 1 label "A" lon 0.5 lat 0.866 ]
-  node [ id 2 label "D" lon 0.0 lat -1.0 ]
-  node [ id 3 label "E" lon 1.0 lat -1.0 ]
-  node [ id 4 label "C" lon 1.0 lat 0.0 ]
-  node [ id 5 label "F" lon 0.5 lat -1.0 ]
+  node [ id 0 label "A" lon 0.0 lat 1.0 ]
+  node [ id 1 label "B" lon 0.0 lat -1.0 ]
 
-  edge [ source 0 target 1 dist 1.0 ]
-  edge [ source 1 target 4 dist 1.0 ]
+  node [ id 2 label "R1" lon -1.0 lat 0.0 ]
 
-  edge [ source 0 target 2 dist 1.0 ]
-  edge [ source 2 target 5 dist 1.0 ]
-  edge [ source 5 target 3 dist 1.0 ]
-  edge [ source 3 target 4 dist 1.0 ]
+  node [ id 3 label "R2" lon 1.0 lat 0.6 ]
+  node [ id 4 label "R3" lon 1.0 lat 0.0 ]
+  node [ id 5 label "R4" lon 1.0 lat -0.6 ]
+
+  edge [ source 0 target 2 dist 5.0 ]
+  edge [ source 2 target 1 dist 5.0 ]
+
+  edge [ source 0 target 3 dist 5.0 ]
+  edge [ source 3 target 4 dist 5.0 ]
+  edge [ source 4 target 5 dist 5.0 ]
+  edge [ source 5 target 1 dist 5.0 ]
 ]

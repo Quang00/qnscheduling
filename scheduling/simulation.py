@@ -4,10 +4,7 @@ Simulation Of PGAs Scheduling
 This module provides classes and functions to simulate the scheduling of
 Packet Generation Attempts (PGAs) in a quantum network. Each PGA tries to
 generate entangled EPR pairs over a specified route within a defined time
-window, considering resource availability and link busy times. The function,
-`simulate_static`, simulates a static schedule of PGAs and returns performance
-metrics, link utilizations, and other relevant data. While the function
-`simulate_dynamic` implement a dynamic scheduling approach.
+window, considering resource availability and link busy times.
 """
 
 import heapq
@@ -44,7 +41,6 @@ class PGA:
         slot_duration: float,
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
-        policy: str,
         p_swap: float,
         memory: int,
         deadline: float | None = None,
@@ -88,9 +84,6 @@ class PGA:
             rng (np.random.Generator): Random number generator for
             probabilistic events.
             log (List[Dict[str, Any]]): Log to record PGA performance metrics.
-            policy (str): Scheduling policy for the PGA, either "best_effort"
-            or "deadline". If "deadline", the PGA will attempt to complete
-            within the maximum burst time defined in durations.
             p_swap (float): Probability of swapping an EPR pair.
             memory (int): Memory: number of independent link-generation trials
             per slot.
@@ -108,7 +101,6 @@ class PGA:
         self.slot_duration = float(slot_duration)
         self.rng = rng
         self.log = log
-        self.policy = policy
         self.deadline = None if deadline is None else float(deadline)
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
@@ -162,25 +154,12 @@ class PGA:
     def run(self) -> Dict[str, Any]:
         attempts_run = 0
         pairs_generated = 0
-        wait_until = 0.0
-        blocking_links = []
-
-        for link in self.links:
-            lk_b_t = self.resources.get(link, 0.0)
-            if lk_b_t > wait_until:
-                wait_until = lk_b_t
-
-        for link in self.links:
-            lk_b_t = self.resources.get(link, 0.0)
-            if abs(lk_b_t - wait_until) < EPS:
-                blocking_links.append(link)
-
         current_time = self.start
         diff = self.end - self.start
         t_budget = diff if diff > 0.0 else 0.0
         status = "failed"
 
-        if t_budget > EPS and self.policy == "deadline":
+        if t_budget > EPS:
             max_attempts = int((t_budget + EPS) // self.slot_duration)
             succ = self._simulate_e2e_attempts(max_attempts)
             csum = (
@@ -224,8 +203,7 @@ class PGA:
             "waiting_time": waiting,
             "pairs_generated": pairs_generated,
             "status": status,
-            "deadline": self.deadline if self.policy == "deadline" else None,
-            "blocking_links": blocking_links,
+            "deadline": self.deadline,
         }
         self.log.append(result)
         return result
@@ -243,12 +221,13 @@ def simulate_dynamic(
     all_links: List[Tuple[str, str]] | None = None,
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
+    nwc_mode: bool = False,
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
-    rng_routing: np.random.Generator | None = None,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
     rates: Dict[Tuple[str, str], float] = None,
+    app_e2e_fidelities: Dict[str, float] | None = None,
 ):
     log = []
     defer_counts = {}
@@ -266,25 +245,19 @@ def simulate_dynamic(
     resources = {link: 0.0 for link in all_links}
     link_busy = dict.fromkeys(all_links, 0.0)
     link_busy_record = dict.fromkeys(all_links, 0.0)
-    link_waiting_routing = (
-        {
-            link: {"total_waiting_time": 0.0, "pga_waited": 0}
-            for link in all_links
-        }
-        if full_dynamic and simple_paths is not None
-        else None
-    )
     link_waiting = {
-        link: {"total_waiting_time": 0.0, "pga_waited": 0}
+        link: {
+            "total_waiting_time": 0.0,
+            "block_events": 0,
+            "acquisitions": 0,
+        }
         for link in all_links
     }
-    min_arrival = float("inf")
-    max_completion = 0.0
     routing_decision_cpt = 0
     routing_decision_runtime = 0.0
 
     deadline_budgets = {
-        app: app_specs[app].get("deadline_budget") for app in app_specs
+        app: app_specs[app].get("deadline_budget", 0.0) for app in app_specs
     }
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     max_instances = {
@@ -330,6 +303,9 @@ def simulate_dynamic(
                 pga_parameters[app],
                 provisioned_paths=app_paths,
                 rates=rates,
+                simple_paths=simple_paths,
+                src=app_specs[app]["src"],
+                dst=app_specs[app]["dst"],
             )
             routing_decision_runtime += time.perf_counter() - _t0
 
@@ -358,14 +334,25 @@ def simulate_dynamic(
         )
         release_indices[app] += 1
 
+    def track_defer_wait(
+        defer_until: float,
+        blocking_links: List[Tuple[str, str]],
+    ) -> None:
+        if cur_t < warmup_time or not blocking_links:
+            return
+        track_link_waiting(
+            max(0.0, defer_until - cur_t),
+            link_waiting,
+            blocking_links=blocking_links,
+        )
+
     for app in app_specs:
         enqueue_release(app)
 
     cur_t = 0.0
 
-    while events_queue or ready_queue:
-        if not ready_queue:
-            cur_t = events_queue[0][0]
+    while events_queue:
+        cur_t = events_queue[0][0]
 
         if cur_t >= horizon_time:
             break
@@ -398,9 +385,6 @@ def simulate_dynamic(
             deadline, rdy_t, arrival_time, app, i, _ = heapq.heappop(
                 ready_queue
             )
-            at = float(arrival_time)
-            if at < min_arrival:
-                min_arrival = at
 
             pga_name = f"{app}{i}"
             if pga_name not in seen_pgas:
@@ -413,6 +397,11 @@ def simulate_dynamic(
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
                 duration = durations.get(app, 0.0)
+                routed_fid = (
+                    app_e2e_fidelities.get(app, np.nan)
+                    if app_e2e_fidelities is not None
+                    else np.nan
+                )
                 last_available = max(
                     (resources.get(lk, 0.0) for lk in route_links),
                     default=0.0,
@@ -420,12 +409,13 @@ def simulate_dynamic(
             elif full_dynamic and simple_paths is not None:
                 routing_decision_cpt += 1
                 _t0 = time.perf_counter()
-                routed, next_avail = dynamic_routing(
+                routed, next_avail, next_avail_links = dynamic_routing(
                     routing_metadata[app],
-                    app_specs[app]["min_fidelity"],
+                    app_specs[app].get("min_fidelity", 0.0),
                     deadline,
                     cur_t,
                     resources,
+                    mode="nwc" if nwc_mode else "wc",
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -433,6 +423,7 @@ def simulate_dynamic(
                         defer_counts[pga_name] = (
                             defer_counts.get(pga_name, 0) + 1
                         )
+                        track_defer_wait(next_avail, next_avail_links)
                         heapq.heappush(
                             events_queue,
                             (
@@ -471,6 +462,12 @@ def simulate_dynamic(
                 route_links = pga_route_links.get(app, [])
                 selected_path = pga_network_paths[app][0]
                 duration = durations.get(app, 0.0)
+                if rerouting_mode:
+                    routed_fid = (
+                        app_e2e_fidelities.get(app, np.nan)
+                        if app_e2e_fidelities is not None
+                        else np.nan
+                    )
 
                 last_available = 0.0
                 for link in route_links:
@@ -478,11 +475,10 @@ def simulate_dynamic(
                         last_available, resources.get(link, 0.0)
                     )
 
-                would_drop = last_available + duration > deadline + EPS
                 if (
                     last_available > cur_t + EPS
                     and rerouting_mode
-                    and would_drop
+                    and last_available + duration > deadline + EPS
                 ):
                     routing_decision_cpt += 1
                     _t0 = time.perf_counter()
@@ -511,6 +507,7 @@ def simulate_dynamic(
                 }
                 if (full_dynamic and simple_paths is not None)
                 or rerouting_mode
+                or static_routing_mode
                 else {}
             )
             if full_dynamic and simple_paths is not None:
@@ -520,11 +517,21 @@ def simulate_dynamic(
                     if duration > 0 and not np.isnan(best)
                     else float("nan")
                 )
+            elif static_routing_mode:
+                _stamp["routing_efficiency"] = 1.0
 
             if last_available > cur_t + EPS:
                 if last_available + duration <= deadline + EPS:
                     defer_counts[pga_name] = (
                         defer_counts.get(pga_name, 0) + 1
+                    )
+                    track_defer_wait(
+                        last_available,
+                        [
+                            lk for lk in route_links
+                            if abs(resources.get(lk, 0.0) - last_available)
+                            < EPS
+                        ],
                     )
                     heapq.heappush(
                         events_queue,
@@ -558,11 +565,7 @@ def simulate_dynamic(
             start_time = cur_t
             completion = start_time + duration
 
-            if (
-                app_specs[app].get("policy") == "deadline"
-                and deadline is not None
-                and start_time + duration > deadline + EPS
-            ):
+            if deadline is not None and start_time + duration > deadline + EPS:
                 log.append({
                     "pga": pga_name,
                     "arrival_time": arrival_time,
@@ -594,7 +597,6 @@ def simulate_dynamic(
                 slot_duration=pga_parameters[app]["slot_duration"],
                 rng=rng,
                 log=log,
-                policy=app_specs[app].get("policy"),
                 p_swap=pga_parameters[app]["p_swap"],
                 memory=pga_parameters[app]["memory"],
                 deadline=deadline,
@@ -602,22 +604,12 @@ def simulate_dynamic(
             )
             result = pga.run()
             result["ready_time"] = float(rdy_t)
-            result["waiting_time"] = max(0.0, start_time - rdy_t)
             result.update(_stamp)
 
-            if link_waiting_routing is not None:
-                track_link_waiting(
-                    result.get("waiting_time", 0.0),
-                    link_waiting_routing,
-                    blocking_links=result.get("blocking_links"),
-                )
-
             if recording:
-                track_link_waiting(
-                    result.get("waiting_time", 0.0),
-                    link_waiting,
-                    blocking_links=result.get("blocking_links"),
-                )
+                for lk in route_links:
+                    if lk in link_waiting:
+                        link_waiting[lk]["acquisitions"] += 1
                 if result["completion_time"] > horizon_time:
                     excess = result["completion_time"] - horizon_time
                     for lk in route_links:
@@ -625,12 +617,6 @@ def simulate_dynamic(
                             link_busy_record[lk] = max(
                                 0.0, link_busy_record[lk] - excess
                             )
-
-            max_completion = max(max_completion, result["completion_time"])
-
-            status = result.get("status", "")
-            if status == "completed":
-                continue
 
     df = pd.DataFrame(log)
     del log
