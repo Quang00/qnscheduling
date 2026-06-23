@@ -244,7 +244,7 @@ def test_compute_edge_fidelities():
     G.add_edge("B", "C", dist=100.0)
     distances = {("A", "B"): 50.0, ("B", "C"): 100.0}
 
-    fidelities = compute_edge_fidelities(G, distances, T_coh=0.25e-3)
+    fidelities = compute_edge_fidelities(G, distances)
 
     assert len(fidelities) == 2
     assert all(0.25 <= f <= 1.0 for f in fidelities.values())
