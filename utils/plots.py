@@ -395,12 +395,16 @@ def plot_metrics_vs_load(
             "1.csv",
             "2.csv",
             "3.csv",
+            "4.csv",
+            "5.csv",
         ],
         multi=True,
         gp_labels={
-            "1": "Fastest-path",
-            "2": "K-fastest-paths",
-            "3": "All-paths",
+            "1": "Precomputed",
+            "2": "Proactive",
+            "3": "Hybrid",
+            "4": "Reactive (wc)",
+            "5": "Reactive (nwc)",
         },
     )
     """
