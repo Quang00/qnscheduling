@@ -28,7 +28,7 @@ def main():
         {
             "id": 2,
             "name": "proactive",
-            "routing_strategy": "static",
+            "routing_strategy": "hybrid",
             "routing": "smallest",
         },
         {
