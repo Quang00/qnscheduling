@@ -814,13 +814,15 @@ def save_results(
 def compute_edge_fidelities(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    L_dep: float = 50.0,
+    T_coh: float = 1e-3,
+    c_fiber: float = 2e5,
 ) -> Dict[Tuple, float]:
     fidelities = {}
 
     for u, v, data in G.edges(data=True):
         L = float(distances.get((u, v), data.get("dist", 0.0)))
-        p = np.exp(-L / L_dep)
+        t_herald = L / c_fiber
+        p = np.exp(-t_herald / T_coh)
         f = (1 + 3 * p) / 4
         data["fidelity"] = f
         fidelities[(u, v)] = f
