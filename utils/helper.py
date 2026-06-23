@@ -834,13 +834,14 @@ def compute_edge_rates(
     G: nx.Graph,
     distances: Dict[Tuple, float],
     attenuation: float = 0.3,
+    hardware_efficiency: float = 0.8,
 ) -> Dict[Tuple, float]:
     rates = {}
     L_attenuation = 10.0 / (attenuation * np.log(10.0))
 
     for u, v, data in G.edges(data=True):
         L = float(distances.get((u, v), data.get("dist", 0.0)))
-        r = np.exp(-L / L_attenuation)
+        r = hardware_efficiency * np.exp(-L / L_attenuation)
         data["rate"] = r
         rates[(min(u, v), max(u, v))] = r
 
