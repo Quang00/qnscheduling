@@ -456,7 +456,7 @@ def rerouting(
         finish = avail + pga_duration
         if finish > deadline_eps:
             continue
-        path_score = (finish, sum_wait, avail)
+        path_score = finish + sum_wait
         if best_score is None or path_score < best_score:
             best_score = path_score
             best = (path, links, avail, pga_duration, e2e_fid)
@@ -558,7 +558,7 @@ def dynamic_routing(
                 next_avail_path_links = links
             if not non_work_conserving:
                 continue
-        path_score = (finish, sum_wait, avail)
+        path_score = finish + sum_wait
         if best_score is None or path_score < best_score:
             best_score = path_score
             best = (path, links, avail, pga_duration, e2e_fid)
