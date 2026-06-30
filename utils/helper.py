@@ -896,7 +896,7 @@ def compute_edge_fidelities(
 def compute_edge_rates(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    attenuation: float = 0.3,
+    attenuation: float = 0.2,
     hardware_efficiency: float = 0.8,
 ) -> Dict[Tuple, float]:
     rates = {}
