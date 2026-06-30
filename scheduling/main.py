@@ -229,6 +229,7 @@ def run_simulation(
 
     single_path_cpt = 0
     two_path_cpt = 0
+    multi_path_apps = set()
     app_request_rows = []
     for app, spec in app_specs.items():
         src, dst = spec["src"], spec["dst"]
@@ -242,6 +243,8 @@ def run_simulation(
             single_path_cpt += 1
         if len(feasible_paths) <= 2:
             two_path_cpt += 1
+        if len(feasible_paths) >= 2:
+            multi_path_apps.add(app)
 
         if not verbose:
             continue
@@ -415,6 +418,7 @@ def run_simulation(
         warmup=windows[0] if windows is not None else None,
         end_time=windows[1] if windows is not None else None,
         defer_counts=defer_counts,
+        multi_path_apps=multi_path_apps,
     )
     del df
     return feasible, summary
