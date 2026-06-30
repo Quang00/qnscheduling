@@ -965,14 +965,16 @@ def generate_n_apps(
         per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
         pairs for each application.
-        deadline_range (tuple[float, float]): Range (min, max) for the relative
-        deadline budget of each application (deadline = release + budget).
+        deadline_range (tuple[float, float]): Range (min, max) for the deadline
+        budget multiplier k (k > 1) of each application. The absolute budget is
+        derived later as deadline_budget = k * fastest-path PGA duration, so
+        every app is feasible on its best path.
         rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
         Dict[str, Dict[str, Any]]: Mapping of application name to its metadata,
         including endpoints, number of instances, requested EPR pairs, and
-        deadline budget.
+        deadline budget multiplier.
     """
     apps = {}
     feasible = []

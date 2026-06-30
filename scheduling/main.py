@@ -77,9 +77,11 @@ def run_simulation(
             instances per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
             pairs to generate per application.
-        deadline_range (tuple[float, float]): Range (min, max) for the relative
-            deadline budget of each application (deadline = release +
-            deadline_budget).
+        deadline_range (tuple[float, float]): Range (min, max) for the deadline
+            budget multiplier k (k > 1). Each application's absolute budget is
+            deadline_budget = k * fastest-path PGA duration, and its deadline
+            is release + deadline_budget, so every app is feasible on its best
+            path.
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
             per slot.
@@ -150,6 +152,29 @@ def run_simulation(
         deadline_range=deadline_range,
         rng=rng,
     )
+
+    for spec in app_specs.values():
+        min_fid = spec.get("min_fidelity", 0.0)
+        pga_params = {
+            "p_packet": p_packet,
+            "epr_pairs": int(spec["epr"]),
+            "memory": memory,
+            "p_swap": p_swap,
+            "slot_duration": time_slot_duration,
+        }
+        feasible_durations = [
+            duration
+            for fid, _, _, duration in compute_path_durations(
+                pga_params, rates, simple_paths=simple_paths,
+                src=spec["src"], dst=spec["dst"],
+            )
+            if fid >= min_fid
+        ]
+        fastest = (
+            min(feasible_durations) if feasible_durations else float("nan")
+        )
+        spec["deadline_budget"] = float(spec["deadline_budget"]) * fastest
+
     pga_rel_times = {
         app: arrival_times[i] for i, app in enumerate(app_specs.keys())
     }
@@ -460,8 +485,8 @@ def main():
         nargs=2,
         metavar=("MIN", "MAX"),
         default=[1.0, 1.0],
-        help="Relative deadline budget per application: deadline = release"
-        " + budget (e.g., --deadline 1.0 5.0)",
+        help="Deadline budget multiplier k (k > 1) per application: budget ="
+        " k * fastest-path PGA duration",
     )
     parser.add_argument(
         "--ppacket",
