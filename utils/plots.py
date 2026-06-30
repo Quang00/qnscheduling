@@ -28,6 +28,7 @@ def build_metric_specs(
     individual_values: Sequence[int | float] | None = None,
     group_line_styles: dict[str, str] | None = None,
     create_individual: bool = False,
+    overlay_multipath: bool = False,
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
@@ -148,6 +149,7 @@ def build_metric_specs(
         spec["group_palette"] = group_palette
         spec["group_palette_map"] = group_palette_map
         spec["group_line_styles"] = group_line_styles
+        spec["overlay_multipath"] = overlay_multipath
         specs.append(spec)
 
         if create_individual:
@@ -161,6 +163,7 @@ def build_metric_specs(
                 )
                 i["filter_value"] = float(v)
                 i["color_override"] = group_palette_map.get(str(v))
+                i["overlay_multipath"] = overlay_multipath
                 specs.append(i)
     return specs
 
@@ -182,8 +185,17 @@ def render_plot(
     filter_column = spec.get("filter_column")
     filter_value = spec.get("filter_value")
     base_color = color_override or sns.color_palette("tab10", 1)[0]
-    cols = [x_var, metric]
 
+    mp_metric = f"multipath_{metric}"
+    overlay = (
+        bool(spec.get("overlay_multipath"))
+        and not metric.startswith("multipath_")
+        and mp_metric in raw_data.columns
+    )
+
+    cols = [x_var, metric]
+    if overlay:
+        cols.append(mp_metric)
     if group_column:
         cols.append(group_column)
     if filter_column:
@@ -192,79 +204,96 @@ def render_plot(
     if filter_column and filter_value is not None:
         data = data[data[filter_column].isin(np.atleast_1d(filter_value))]
 
-    keys = [x_var] + ([group_column] if group_column else [])
-    summary_df = data.groupby(keys, as_index=False).agg(
-        mean=(metric, "mean"),
-        std=(metric, "std"),
-        count=(metric, "count"),
-    )
-    sem = summary_df["std"] / np.sqrt(summary_df["count"].clip(lower=1))
-    sem = sem.where(summary_df["count"] >= 2)
-    ci95 = 1.96 * sem
-    summary_df["lower"] = summary_df["mean"] - ci95
-    summary_df["upper"] = summary_df["mean"] + ci95
-    x_values = sorted(summary_df[x_var].unique())
-
+    x_values = sorted(data[x_var].unique())
     use_categorical = x_var not in ("p_packet", "load", "arrival_rate")
-    if use_categorical:
-        x_map = {val: idx for idx, val in enumerate(x_values)}
-        summary_df["x_plot"] = summary_df[x_var].map(x_map)
-    else:
-        summary_df["x_plot"] = summary_df[x_var]
+    x_map = {val: idx for idx, val in enumerate(x_values)}
 
-    if group_column:
-        summary_df["group_display"] = summary_df[group_column].apply(
-            lambda x: group_labels.get(x, group_labels.get(str(x), str(x)))
+    def _summarize(metric_col: str) -> pd.DataFrame:
+        keys = [x_var] + ([group_column] if group_column else [])
+        s = data.groupby(keys, as_index=False).agg(
+            mean=(metric_col, "mean"),
+            std=(metric_col, "std"),
+            count=(metric_col, "count"),
         )
+        sem = s["std"] / np.sqrt(s["count"].clip(lower=1))
+        sem = sem.where(s["count"] >= 2)
+        ci95 = 1.96 * sem
+        s["lower"] = s["mean"] - ci95
+        s["upper"] = s["mean"] + ci95
+        if use_categorical:
+            s["x_plot"] = s[x_var].map(x_map)
+        else:
+            s["x_plot"] = s[x_var]
+        if group_column:
+            s["group_display"] = s[group_column].apply(
+                lambda x: group_labels.get(
+                    x, group_labels.get(str(x), str(x))
+                )
+            )
+        return s
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-    if group_column:
-        group_values = summary_df[group_column].dropna().unique().tolist()
-        base_palette = (
-            list(group_palette)
-            if group_palette
-            else sns.color_palette("tab10", max(1, len(group_values)))
-        )
-        markers = ["o", "s", "D", "^", "v"]
-
-        for i, gv in enumerate(group_values):
-            gdf = summary_df[summary_df[group_column] == gv]
-            disp = gdf["group_display"].iloc[0]
-            col = palette_map.get(str(gv), base_palette[i % len(base_palette)])
-            style = group_line_styles.get(str(gv), "-")
+    def _draw(sdf: pd.DataFrame, linestyle: str, scope_label: str) -> None:
+        if group_column:
+            group_values = sdf[group_column].dropna().unique().tolist()
+            base_palette = (
+                list(group_palette)
+                if group_palette
+                else sns.color_palette("tab10", max(1, len(group_values)))
+            )
+            markers = ["o", "s", "D", "^", "v"]
+            for i, gv in enumerate(group_values):
+                gdf = sdf[sdf[group_column] == gv]
+                disp = gdf["group_display"].iloc[0]
+                col = palette_map.get(
+                    str(gv), base_palette[i % len(base_palette)]
+                )
+                style = (
+                    linestyle
+                    if scope_label
+                    else group_line_styles.get(str(gv), "-")
+                )
+                label = f"{disp} ({scope_label})" if scope_label else disp
+                ax.plot(
+                    gdf["x_plot"],
+                    gdf["mean"],
+                    marker=markers[i % len(markers)],
+                    linestyle=style,
+                    color=col,
+                    label=label,
+                )
+                ax.fill_between(
+                    gdf["x_plot"],
+                    gdf["lower"],
+                    gdf["upper"],
+                    color=col,
+                    alpha=0.2,
+                )
+        else:
             ax.plot(
-                gdf["x_plot"],
-                gdf["mean"],
-                marker=markers[i % len(markers)],
-                linestyle=style,
-                color=col,
-                label=disp,
+                sdf["x_plot"],
+                sdf["mean"],
+                marker="o",
+                linestyle=linestyle,
+                color=base_color,
+                label=scope_label or None,
             )
             ax.fill_between(
-                gdf["x_plot"],
-                gdf["lower"],
-                gdf["upper"],
-                color=col,
+                sdf["x_plot"],
+                sdf["lower"],
+                sdf["upper"],
+                color=base_color,
                 alpha=0.2,
             )
 
+    summary_df = _summarize(metric)
+    _draw(summary_df, "-", "All-paths" if overlay else "")
+    if overlay:
+        _draw(_summarize(mp_metric), "--", "Multi-path")
+
+    if group_column or overlay:
         ax.legend()
-    else:
-        ax.plot(
-            summary_df["x_plot"],
-            summary_df["mean"],
-            marker="o",
-            linestyle="-",
-            color=base_color,
-        )
-        ax.fill_between(
-            summary_df["x_plot"],
-            summary_df["lower"],
-            summary_df["upper"],
-            color=base_color,
-            alpha=0.2,
-        )
 
     if spec.get("yscale"):
         if summary_df["mean"].gt(0).any():
@@ -315,6 +344,7 @@ def plot_metrics_vs_ppacket(
     n_apps_values: Sequence[int] | None = None,
     scheduler: str | None = None,
     create_individual: bool = False,
+    overlay_multipath: bool = False,
 ) -> pd.DataFrame:
     results_df = pd.read_csv(raw_csv_path)
     run_dir = os.path.dirname(raw_csv_path) or "."
@@ -361,6 +391,7 @@ def plot_metrics_vs_ppacket(
         group_palette_map=plt_map,
         individual_values=apps_list if len(apps_list) > 1 else None,
         create_individual=create_individual,
+        overlay_multipath=overlay_multipath,
     )
 
     set_plot_theme(dpi)
@@ -388,6 +419,7 @@ def plot_metrics_vs_load(
     create_individual: bool = False,
     multi: bool = False,
     x_var: str = "arrival_rate",
+    overlay_multipath: bool = False,
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
@@ -406,6 +438,7 @@ def plot_metrics_vs_load(
             "4": "Reactive (wc)",
             "5": "Reactive (nwc)",
         },
+        overlay_multipath=True,
     )
     """
     if multi:
@@ -483,6 +516,7 @@ def plot_metrics_vs_load(
         group_palette_map=plt_map,
         individual_values=val_list if len(val_list) > 1 else None,
         create_individual=create_individual,
+        overlay_multipath=overlay_multipath,
     )
 
     set_plot_theme(dpi)

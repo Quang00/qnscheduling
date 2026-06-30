@@ -531,7 +531,7 @@ def save_results(
             )
         )
 
-    summaries: Dict[str, Dict[str, float]] = {}
+    summaries = {}
     for scope_name, sdf, sspecs, sdurations, se2e, fname in scopes:
         tot_reqs = sdf["pga"].nunique()
         final_status = (
