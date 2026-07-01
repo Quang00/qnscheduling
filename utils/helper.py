@@ -879,14 +879,14 @@ def compute_edge_fidelities(
     distances: Dict[Tuple, float],
     T_coh: float = 1e-3,
     c_fiber: float = 2e5,
+    F0: float = 0.9,
 ) -> Dict[Tuple, float]:
     fidelities = {}
 
     for u, v, data in G.edges(data=True):
         L = float(distances.get((u, v), data.get("dist", 0.0)))
         t_herald = 2 * L / c_fiber
-        p = np.exp(-t_herald / T_coh)
-        f = (1 + 3 * p) / 4
+        f = np.exp(-t_herald / T_coh) * (F0 - 0.25) + 0.25
         data["fidelity"] = f
         fidelities[(u, v)] = f
 
