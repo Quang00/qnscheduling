@@ -893,22 +893,22 @@ def compute_edge_fidelities(
     return fidelities
 
 
-def compute_edge_rates(
+def compute_edge_probs(
     G: nx.Graph,
     distances: Dict[Tuple, float],
     attenuation: float = 0.2,
-    hardware_efficiency: float = 0.8,
+    coupling_efficiency: float = 0.9,
 ) -> Dict[Tuple, float]:
-    rates = {}
+    probs = {}
     L_attenuation = 10.0 / (attenuation * np.log(10.0))
 
     for u, v, data in G.edges(data=True):
         L = float(distances.get((u, v), data.get("dist", 0.0)))
-        r = hardware_efficiency * np.exp(-L / L_attenuation)
-        data["rate"] = r
-        rates[(min(u, v), max(u, v))] = r
+        p = 0.5 * coupling_efficiency**2 * np.exp(-L / L_attenuation)
+        data["p_gen"] = p
+        probs[(min(u, v), max(u, v))] = p
 
-    return rates
+    return probs
 
 
 def gml_data(
@@ -940,7 +940,7 @@ def gml_data(
         for u, v, data in G.edges(data=True)
     }
     fidelities = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
     return nodes, edges, distances, fidelities, rates, diameter

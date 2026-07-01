@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 
-from utils.helper import compute_edge_fidelities, compute_edge_rates
+from utils.helper import compute_edge_fidelities, compute_edge_probs
 
 
 def generate_waxman_graph(
@@ -65,7 +65,7 @@ def generate_waxman_graph(
         distances[(u, v)] = d
         G[u][v]["dist"] = d
     fidelites = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    rates = compute_edge_probs(G, distances)
 
     return nodes, edges, fidelites, rates, avg_deg, diameter
 
@@ -139,7 +139,7 @@ def fat_tree(
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
     fidelities = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
     return nodes, edges, fidelities, rates, qpus, diameter
@@ -198,7 +198,7 @@ def clos(
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
     fidelities = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
     return nodes, edges, fidelities, rates, qpus, diameter
