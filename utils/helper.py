@@ -877,9 +877,9 @@ def save_results(
 def compute_edge_fidelities(
     G: nx.Graph,
     distances: Dict[Tuple, float],
-    T_coh: float = 1e-3,
+    T_coh: float = 0.02,
     c_fiber: float = 2e5,
-    F0: float = 0.9,
+    F0: float = 0.95,
 ) -> Dict[Tuple, float]:
     fidelities = {}
 
@@ -897,7 +897,7 @@ def compute_edge_probs(
     G: nx.Graph,
     distances: Dict[Tuple, float],
     attenuation: float = 0.2,
-    coupling_efficiency: float = 0.9,
+    coupling_efficiency: float = 0.4,
 ) -> Dict[Tuple, float]:
     probs = {}
     L_attenuation = 10.0 / (attenuation * np.log(10.0))
