@@ -528,7 +528,8 @@ def dynamic_routing(
     resources: Dict[Tuple[str, str], float] = None,
     mode: str = "wc",
 ) -> Tuple[Tuple | None, float | None, List[Tuple[str, str]]]:
-    non_work_conserving = mode == "nwc"
+    non_work_conserving = mode in ("nwc", "fastest")
+    fastest_only = mode == "fastest"
     res = resources
     next_avail = None
     next_avail_path_links = None
@@ -537,8 +538,18 @@ def dynamic_routing(
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
 
+    fastest_dur = None
+    if fastest_only:
+        for e2e_fid, _, _, pga_duration in candidate_paths:
+            if e2e_fid < min_fidelity:
+                continue
+            if fastest_dur is None or pga_duration < fastest_dur:
+                fastest_dur = pga_duration
+
     for e2e_fid, path, links, pga_duration in candidate_paths:
         if e2e_fid < min_fidelity:
+            continue
+        if fastest_only and pga_duration > fastest_dur + EPS:
             continue
         avail = cur_t
         sum_wait = 0.0

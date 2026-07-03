@@ -47,6 +47,11 @@ def main():
             "name": "nwc",
             "routing_strategy": "nwc",
         },
+        {
+            "id": 6,
+            "name": "fastest",
+            "routing_strategy": "fastest",
+        },
     ]
 
     for scenario in scenarios:
@@ -54,9 +59,13 @@ def main():
         sim_kwargs = dict(
             base_kwargs,
             provisioning=routing_strategy == "rerouting",
-            full_dynamic=routing_strategy in ("dynamic", "nwc"),
+            full_dynamic=routing_strategy in ("dynamic", "nwc", "fastest"),
             static_routing_mode=routing_strategy == "static",
-            nwc_mode=routing_strategy == "nwc",
+            dynamic_mode=(
+                routing_strategy
+                if routing_strategy in ("nwc", "fastest")
+                else "wc"
+            ),
         )
         if "routing" in scenario:
             sim_kwargs["routing"] = scenario["routing"]
