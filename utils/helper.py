@@ -75,6 +75,7 @@ def app_params_sim(
     memory: int,
     p_swap: float,
     time_slot_duration: float,
+    coherence: float = 0.020,
 ) -> dict[str, dict[str, float | int]]:
     """Prepare application parameters for simulation.
 
@@ -87,6 +88,7 @@ def app_params_sim(
         memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
+        coherence (float): Coherence time in seconds of a generated pair.
 
     Returns:
         dict[str, dict[str, float | int]]: Mapping of application name to the
@@ -98,6 +100,7 @@ def app_params_sim(
         sim_params[key] = {
             "p_packet": p_packet,
             "memory": memory,
+            "coherence": coherence,
             "p_swap": p_swap,
             "epr_pairs": int(spec["epr"]),
             "slot_duration": time_slot_duration,

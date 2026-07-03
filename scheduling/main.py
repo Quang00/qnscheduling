@@ -55,6 +55,7 @@ def run_simulation(
     time_slot_duration: float,
     seed: int,
     output_dir: str,
+    coherence: float = 0.020,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     save_csv: bool = True,
@@ -84,11 +85,13 @@ def run_simulation(
             path.
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
-            per slot.
+            per slot (multimode/multiplexed capacity).
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
+        coherence (float): Coherence time in seconds of a generated pair,
+            converted to slots inside the simulation.
         windows (tuple[float, float] | None): Post-warm-up observation
             window as (min_time, max_time). In dynamic mode, max_time is used
             as the simulation horizon.
@@ -346,6 +349,7 @@ def run_simulation(
         memory,
         p_swap,
         time_slot_duration,
+        coherence=coherence,
     )
 
     # Run simulation
@@ -504,6 +508,14 @@ def main():
         "multiplexed memory",
     )
     parser.add_argument(
+        "--coherence",
+        "-co",
+        type=float,
+        default=0.020,
+        help="Coherence time in seconds of a generated pair (converted to"
+        " slots in the simulation)",
+    )
+    parser.add_argument(
         "--pswap",
         "-ps",
         type=float,
@@ -599,6 +611,7 @@ def main():
         windows=windows,
         p_packet=args.ppacket,
         memory=args.memory,
+        coherence=args.coherence,
         p_swap=args.pswap,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
@@ -634,6 +647,7 @@ def main():
         "windows_max": windows[1],
         "p_packet": args.ppacket,
         "memory": args.memory,
+        "coherence": args.coherence,
         "p_swap": args.pswap,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,

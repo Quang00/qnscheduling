@@ -42,7 +42,7 @@ class PGA:
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
         p_swap: float,
-        memory: int,
+        coherence: float = 0.020,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
@@ -61,8 +61,8 @@ class PGA:
         - The number of trials needed for a successful EPR pair generation on
           each link follows a geometric distribution with success probability
           `p_gen`.
-        - The first success across all links must occur within the memory
-          of the first generated pair to be considered valid.
+        - The first success across all links must occur within the coherence
+          window of the first generated pair to be considered valid.
         - If there are swaps involved, each swap must also succeed based on
           the swap probability `p_swap` for the end-to-end entanglement to be
           successful.
@@ -85,8 +85,9 @@ class PGA:
             probabilistic events.
             log (List[Dict[str, Any]]): Log to record PGA performance metrics.
             p_swap (float): Probability of swapping an EPR pair.
-            memory (int): Memory: number of independent link-generation trials
-            per slot.
+            coherence (float): Coherence time in seconds of a generated pair.
+            Converted internally to an integer number of slots, which bounds
+            the window during which links must all succeed.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
         """
@@ -105,16 +106,16 @@ class PGA:
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
-        self.memory = max(0, int(memory))
+        self.coherence = max(0, int(round(coherence / self.slot_duration)))
         self.link_p_gens = np.asarray(link_p_gens, dtype=float)
 
     def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
         """Single end-to-end entanglement for a batch of attempts."""
-        if self.memory <= 0 or max_attempts <= 0:
+        if self.coherence <= 0 or max_attempts <= 0:
             return np.zeros(max_attempts, dtype=bool)
 
         n_links = self.n_swap + 1
-        t_mem = self.memory
+        t_mem = self.coherence
         size = (max_attempts, n_links)
 
         if np.any(self.link_p_gens <= 0.0):
@@ -598,7 +599,7 @@ def simulate_dynamic(
                 rng=rng,
                 log=log,
                 p_swap=pga_parameters[app]["p_swap"],
-                memory=pga_parameters[app]["memory"],
+                coherence=pga_parameters[app].get("coherence", 0.020),
                 deadline=deadline,
                 route_links=route_links,
             )
