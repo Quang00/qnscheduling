@@ -52,6 +52,7 @@ def _compute_delta_and_links(
     p_swap: float,
     rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
+    coherence: float = 0.020,
 ) -> Tuple[float, List[Tuple[str, str]]]:
     n_swaps = max(0, len(path) - 2)
     links = [
@@ -67,6 +68,7 @@ def _compute_delta_and_links(
         p_swap=p_swap,
         p_gen=effective_p_gen,
         time_slot_duration=time_slot_duration,
+        coherence=coherence,
     )
     delta = float(pga_duration) / float(req["deadline_budget"])
     return delta, links
@@ -84,13 +86,15 @@ def smallest_bottleneck(
     rates: Dict[Tuple[str, str], float],
     time_slot_duration: float,
     k: int | None = None,
+    coherence: float = 0.020,
 ) -> Tuple[List[List[str]], float, float]:
     candidates = []
     for e2e_fid, path in all_simple_paths(simple_paths, src, dst):
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, rates, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration,
+            coherence=coherence,
         )
         post_loads = [cap[lk] + delta for lk in links]
         bottleneck = max(post_loads)
@@ -121,6 +125,7 @@ def least_capacity(
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
+    coherence: float = 0.020,
 ) -> Tuple[List[List[str]], float, float]:
     """Select the path with the least total capacity utilization among all
     paths that meet the fidelity requirement. The total capacity utilization of
@@ -137,7 +142,8 @@ def least_capacity(
         if e2e_fid < req["min_fidelity"]:
             continue
         delta, links = _compute_delta_and_links(
-            path, req, p_packet, memory, p_swap, rates, time_slot_duration
+            path, req, p_packet, memory, p_swap, rates, time_slot_duration,
+            coherence=coherence,
         )
 
         sum_cap = sum(cap[lk] + delta for lk in links)
@@ -283,6 +289,7 @@ def find_feasible_path(
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
+    coherence: float = 0.020,
 ) -> Dict[str, List[List[str]]]:
     """Find feasible paths for each application request based on the specified
     routing and the fidelity threshold.
@@ -372,6 +379,7 @@ def find_feasible_path(
                 rates,
                 time_slot_duration,
                 k=None if provisioning else 1,
+                coherence=coherence,
             )
             if not path_list:
                 ret[app] = []
@@ -395,6 +403,7 @@ def find_feasible_path(
                 time_slot_duration,
                 rng,
                 provisioning,
+                coherence=coherence,
             )
             if not path_list:
                 ret[app] = []
@@ -505,6 +514,7 @@ def compute_path_durations(
                 p_swap=pga_params["p_swap"],
                 p_gen=effective_p_gen,
                 time_slot_duration=pga_params["slot_duration"],
+                coherence=pga_params.get("coherence", 0.020),
             )
         result.append((e2e_fid, path, links, duration_cache[key]))
     return result

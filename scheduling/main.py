@@ -164,6 +164,7 @@ def run_simulation(
             "memory": memory,
             "p_swap": p_swap,
             "slot_duration": time_slot_duration,
+            "coherence": coherence,
         }
         feasible_durations = [
             duration
@@ -236,6 +237,7 @@ def run_simulation(
             time_slot_duration=time_slot_duration,
             rng=rng_routing,
             provisioning=provisioning,
+            coherence=coherence,
         )
         static_routing_time = time.perf_counter() - _t0
 
@@ -283,6 +285,7 @@ def run_simulation(
             "memory": memory,
             "p_swap": p_swap,
             "slot_duration": time_slot_duration,
+            "coherence": coherence,
         }
         feasible_durations = sorted(
             (
@@ -339,6 +342,7 @@ def run_simulation(
             p_swap,
             time_slot_duration,
             rates=rates,
+            coherence=coherence,
         )
     )
 
