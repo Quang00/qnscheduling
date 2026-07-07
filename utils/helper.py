@@ -888,7 +888,7 @@ def compute_edge_fidelities(
 
     for u, v, data in G.edges(data=True):
         L = float(distances.get((u, v), data.get("dist", 0.0)))
-        t_herald = 2 * L / c_fiber
+        t_herald = L / c_fiber
         f = np.exp(-t_herald / T_coh) * (F0 - 0.25) + 0.25
         data["fidelity"] = f
         fidelities[(u, v)] = f
