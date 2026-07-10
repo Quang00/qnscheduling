@@ -32,7 +32,12 @@ from scheduling.routing import (
     static_routing,
 )
 from scheduling.simulation import simulate_dynamic
-from utils.graph_generator import clos, fat_tree, generate_waxman_graph
+from utils.graph_generator import (
+    clos,
+    dragonfly,
+    fat_tree,
+    generate_waxman_graph,
+)
 from utils.helper import (
     all_simple_paths,
     app_params_sim,
@@ -126,6 +131,9 @@ def run_simulation(
         nodes = qpus
     elif graph == "clos":
         nodes, edges, fidelities, rates, qpus, diameter = clos()
+        nodes = qpus
+    elif graph == "dragonfly":
+        nodes, edges, fidelities, rates, qpus, diameter = dragonfly()
         nodes = qpus
     elif graph == "gml":
         nodes, edges, distances, fidelities, rates, diameter = gml_data(config)
@@ -556,9 +564,12 @@ def main():
         "--graph",
         "-g",
         type=str,
-        choices=["waxman", "fat", "clos", "gml"],
+        choices=["waxman", "fat", "clos", "dragonfly", "gml"],
         default=None,
-        help="Graph generator (e.g., 'waxman', 'fat', 'clos', 'gml')",
+        help=(
+            "Graph generator (e.g., 'waxman', 'fat', 'clos', 'dragonfly', "
+            "'gml')"
+        ),
     )
     parser.add_argument(
         "--routing-strategy",
