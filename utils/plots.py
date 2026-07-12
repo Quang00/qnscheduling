@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 from typing import Any, Sequence
 
@@ -420,6 +421,7 @@ def plot_metrics_vs_load(
     multi: bool = False,
     x_var: str = "arrival_rate",
     overlay_multipath: bool = False,
+    out_dir: str | None = None,
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
@@ -445,8 +447,11 @@ def plot_metrics_vs_load(
         paths = path if isinstance(path, (list, tuple)) else [path]
         dfs = [pd.read_csv(p) for p in paths]
         results_df = pd.concat(dfs, ignore_index=True)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        run_dir = os.path.join("results", timestamp)
+        if out_dir:
+            run_dir = out_dir
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_dir = os.path.join("results", timestamp)
         os.makedirs(run_dir, exist_ok=True)
         if p_packet_values is None:
             val_list = results_df["scenario"].dropna().unique().tolist()
@@ -459,7 +464,8 @@ def plot_metrics_vs_load(
         dft_labels = {v: f"{v}" for v in val_list}
     else:
         results_df = pd.read_csv(path)
-        run_dir = os.path.dirname(path) or "."
+        run_dir = out_dir or os.path.dirname(path) or "."
+        os.makedirs(run_dir, exist_ok=True)
         if x_var == "inst_range":
             val_list = (
                 results_df["inst_range"].dropna().astype(int).unique().tolist()
@@ -529,3 +535,26 @@ def plot_metrics_vs_load(
         )
 
     return results_df
+
+
+def main():
+    out_dir = sys.argv[1]
+    paths = sys.argv[2:]
+
+    plot_metrics_vs_load(
+        path=paths,
+        multi=True,
+        gp_labels={
+            "1": "Precomputed",
+            "2": "Proactive",
+            "3": "Hybrid",
+            "4": "Reactive",
+            "5": "Reactive (nwc)",
+        },
+        overlay_multipath=False,
+        out_dir=out_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()

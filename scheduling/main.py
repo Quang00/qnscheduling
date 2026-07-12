@@ -71,6 +71,7 @@ def run_simulation(
     static_routing_mode: bool = False,
     dynamic_mode: str = "wc",
     windows: tuple[float, float] | None = None,
+    end_nodes: list[str] | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -163,7 +164,7 @@ def run_simulation(
             break
         arrival_times.append(t)
     app_specs = generate_n_apps(
-        nodes,
+        end_nodes if end_nodes else nodes,
         bounds,
         n_apps=len(arrival_times),
         inst_range=inst_range,
