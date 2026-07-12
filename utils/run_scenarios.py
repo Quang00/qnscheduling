@@ -4,14 +4,14 @@ from utils.parallel_simulations import run_ppacket_sweep_to_csv
 def main():
     ppacket_values = [0.9]
     arrival_rate_values = [1, 3, 5, 7, 9]
-    inst_range_values = [200]
+    inst_range_values = [300]
     # arrival_rate_values = [3]
     # inst_range_values = [50, 100, 150, 200]
     topology = "configurations/network/basic/3_equal_paths.gml"
     simulations_per_point = 20
 
     base_kwargs = {
-        "epr_range": (6, 6),
+        "epr_range": (2, 2),
         "deadline_range": (2, 2),
         "memory": 50,
         "p_swap": 0.5,
