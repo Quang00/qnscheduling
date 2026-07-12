@@ -1,13 +1,22 @@
+import sys
+
 from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
 def main():
+    graph = sys.argv[1] if len(sys.argv) > 1 else "gml"
+    topology = (
+        sys.argv[2]
+        if len(sys.argv) > 2
+        else "configurations/network/basic/3_equal_paths.gml"
+    )
+    coherence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.020
+
     ppacket_values = [0.9]
     arrival_rate_values = [1, 3, 5, 7, 9]
     inst_range_values = [300]
     # arrival_rate_values = [3]
     # inst_range_values = [50, 100, 150, 200]
-    topology = "configurations/network/basic/3_equal_paths.gml"
     simulations_per_point = 20
 
     base_kwargs = {
@@ -15,10 +24,12 @@ def main():
         "deadline_range": (2, 2),
         "memory": 50,
         "p_swap": 0.5,
-        "coherence": 0.020,
+        "coherence": coherence,
         "time_slot_duration": 1e-4,
-        "graph": "gml",
+        "graph": graph,
     }
+    if graph == "gml" and "3_equal_paths" in topology:
+        base_kwargs["end_nodes"] = ["A", "B"]
 
     scenarios = [
         {
