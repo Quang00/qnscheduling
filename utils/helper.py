@@ -116,6 +116,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "deadline_range": (1, 1),
         "memory": 1,
         "p_swap": 0.5,
+        "coherence": 0.020,
         "routing": "smallest",
         "time_slot_duration": 1e-4,
         "graph": "gml",
@@ -900,7 +901,7 @@ def compute_edge_probs(
     G: nx.Graph,
     distances: Dict[Tuple, float],
     attenuation: float = 0.2,
-    coupling_efficiency: float = 0.4,
+    coupling_efficiency: float = 0.2,
 ) -> Dict[Tuple, float]:
     probs = {}
     L_attenuation = 10.0 / (attenuation * np.log(10.0))
@@ -916,12 +917,15 @@ def compute_edge_probs(
 
 def gml_data(
     gml_file: str,
+    coherence: float = 0.020,
 ) -> Tuple[list, list, dict[tuple, float], dict, float]:
     """Extracts nodes, edges, distances, fidelities, and diameter from a GML
     file.
 
     Args:
         gml_file (str): Path to the GML file.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         nodes (list): List of nodes.
@@ -942,7 +946,7 @@ def gml_data(
         (u, v): float(data.get("dist", 0.0))
         for u, v, data in G.edges(data=True)
     }
-    fidelities = compute_edge_fidelities(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
     rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 

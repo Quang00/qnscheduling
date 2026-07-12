@@ -15,6 +15,7 @@ def main():
         "deadline_range": (1, 1),
         "memory": 1,
         "p_swap": 0.5,
+        "coherence": 0.020,
         "time_slot_duration": 1e-4,
         "graph": "gml",
     }
@@ -46,11 +47,6 @@ def main():
             "id": 5,
             "name": "nwc",
             "routing_strategy": "nwc",
-        },
-        {
-            "id": 6,
-            "name": "fastest",
-            "routing_strategy": "fastest",
         },
     ]
 

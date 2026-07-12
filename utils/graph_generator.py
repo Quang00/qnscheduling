@@ -12,6 +12,7 @@ def generate_waxman_graph(
     max_retries: int = 5000,
     max_avg_degree: float = 3.0,
     max_hops: int = 8,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, float, float]:
     """Generates a Waxman graph with constraints on connectivity,
     average degree, and diameter.
@@ -29,6 +30,8 @@ def generate_waxman_graph(
         and diameter <= max_hops).
         max_avg_degree (float, optional): Maximum average degree of the graph.
         max_hops (int, optional): Maximum diameter of the graph. Defaults to 8.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, float, float]: A tuple containing:
@@ -64,7 +67,7 @@ def generate_waxman_graph(
         d = sq_d**0.5
         distances[(u, v)] = d
         G[u][v]["dist"] = d
-    fidelites = compute_edge_fidelities(G, distances)
+    fidelites = compute_edge_fidelities(G, distances, T_coh=coherence)
     rates = compute_edge_probs(G, distances)
 
     return nodes, edges, fidelites, rates, avg_deg, diameter
@@ -75,6 +78,7 @@ def fat_tree(
     qpu_edge_dist=0.1,
     edge_aggregate_dist=0.3,
     aggregate_core_dist=0.6,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a fat-tree topology with k pods. Each pod contains k/2 edge
     switches and k/2 aggregate switches. The core layer has (k/2)^2 core
@@ -89,6 +93,8 @@ def fat_tree(
         aggregate switches.
         aggregate_core_dist (float, optional): Distance between aggregate and
         core switches.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -138,7 +144,7 @@ def fat_tree(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
     rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
@@ -152,6 +158,7 @@ def dragonfly(
     qpu_router_dist: float = 0.1,
     intra_group_dist: float = 0.3,
     global_dist: float = 0.6,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a dragonfly topology with g = a * h + 1 groups. Each group
     contains a routers connected in a complete graph, each router hosts p
@@ -167,6 +174,8 @@ def dragonfly(
         a group.
         global_dist (float, optional): Distance between routers of different
         groups.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -212,7 +221,7 @@ def dragonfly(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
     rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
@@ -225,6 +234,7 @@ def clos(
     hosts_per_leaf: int = 4,
     qpu_leaf_dist: float = 0.1,
     leaf_spine_dist: float = 0.3,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a leaf-spine (two-tier Clos).
 
@@ -237,6 +247,8 @@ def clos(
         switches.
         leaf_spine_dist (float, optional): Distance between leaf and spine
         switches.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -271,7 +283,7 @@ def clos(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
     rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 

@@ -121,22 +121,30 @@ def run_simulation(
     rates = None
     if graph == "waxman":
         nodes, edges, fidelities, rates, avg_deg, diameter = (
-            generate_waxman_graph(rng=rng)
+            generate_waxman_graph(rng=rng, coherence=coherence)
         )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, rates, qpus, diameter = fat_tree()
+        nodes, edges, fidelities, rates, qpus, diameter = fat_tree(
+            coherence=coherence
+        )
         nodes = qpus
     elif graph == "clos":
-        nodes, edges, fidelities, rates, qpus, diameter = clos()
+        nodes, edges, fidelities, rates, qpus, diameter = clos(
+            coherence=coherence
+        )
         nodes = qpus
     elif graph == "dragonfly":
-        nodes, edges, fidelities, rates, qpus, diameter = dragonfly()
+        nodes, edges, fidelities, rates, qpus, diameter = dragonfly(
+            coherence=coherence
+        )
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, distances, fidelities, rates, diameter = gml_data(config)
+        nodes, edges, distances, fidelities, rates, diameter = gml_data(
+            config, coherence=coherence
+        )
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 2
     )
