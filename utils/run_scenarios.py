@@ -11,6 +11,7 @@ def main():
         else "configurations/network/basic/3_equal_paths.gml"
     )
     coherence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.020
+    deadline = float(sys.argv[4]) if len(sys.argv) > 4 else 2.0
 
     ppacket_values = [0.9]
     arrival_rate_values = [1, 3, 5, 7, 9]
@@ -21,7 +22,7 @@ def main():
 
     base_kwargs = {
         "epr_range": (2, 2),
-        "deadline_range": (2, 2),
+        "deadline_range": (deadline, deadline),
         "memory": 50,
         "p_swap": 0.5,
         "coherence": coherence,
