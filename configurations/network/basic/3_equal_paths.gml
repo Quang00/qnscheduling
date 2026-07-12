@@ -24,11 +24,11 @@ graph [
   edge [ source 2 target 3 dist 1.0 ]
   edge [ source 3 target 1 dist 1.0 ]
 
-  edge [ source 0 target 4 dist 5.0 ]
-  edge [ source 4 target 5 dist 5.0 ]
-  edge [ source 5 target 1 dist 5.0 ]
+  edge [ source 0 target 4 dist 1.0 ]
+  edge [ source 4 target 5 dist 1.0 ]
+  edge [ source 5 target 1 dist 1.0 ]
 
-  edge [ source 0 target 6 dist 10.0 ]
-  edge [ source 6 target 7 dist 10.0 ]
-  edge [ source 7 target 1 dist 10.0 ]
+  edge [ source 0 target 6 dist 1.0 ]
+  edge [ source 6 target 7 dist 1.0 ]
+  edge [ source 7 target 1 dist 1.0 ]
 ]
