@@ -1,23 +1,36 @@
+import sys
+
 from utils.parallel_simulations import run_ppacket_sweep_to_csv
 
 
 def main():
+    graph = sys.argv[1] if len(sys.argv) > 1 else "gml"
+    topology = (
+        sys.argv[2]
+        if len(sys.argv) > 2
+        else "configurations/network/basic/3_equal_paths.gml"
+    )
+    coherence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.020
+    deadline = float(sys.argv[4]) if len(sys.argv) > 4 else 2.0
+
     ppacket_values = [0.9]
     arrival_rate_values = [1, 3, 5, 7, 9]
-    inst_range_values = [100]
+    inst_range_values = [300]
     # arrival_rate_values = [3]
     # inst_range_values = [50, 100, 150, 200]
-    topology = "configurations/network/basic/Grid_2_2.gml"
     simulations_per_point = 20
 
     base_kwargs = {
         "epr_range": (2, 2),
-        "deadline_range": (1, 1),
-        "memory": 1,
+        "deadline_range": (deadline, deadline),
+        "memory": 50,
         "p_swap": 0.5,
+        "coherence": coherence,
         "time_slot_duration": 1e-4,
-        "graph": "gml",
+        "graph": graph,
     }
+    if graph == "gml" and "3_equal_paths" in topology:
+        base_kwargs["end_nodes"] = ["A", "B"]
 
     scenarios = [
         {
@@ -54,9 +67,13 @@ def main():
         sim_kwargs = dict(
             base_kwargs,
             provisioning=routing_strategy == "rerouting",
-            full_dynamic=routing_strategy in ("dynamic", "nwc"),
+            full_dynamic=routing_strategy in ("dynamic", "nwc", "fastest"),
             static_routing_mode=routing_strategy == "static",
-            nwc_mode=routing_strategy == "nwc",
+            dynamic_mode=(
+                routing_strategy
+                if routing_strategy in ("nwc", "fastest")
+                else "wc"
+            ),
         )
         if "routing" in scenario:
             sim_kwargs["routing"] = scenario["routing"]

@@ -32,7 +32,12 @@ from scheduling.routing import (
     static_routing,
 )
 from scheduling.simulation import simulate_dynamic
-from utils.graph_generator import clos, fat_tree, generate_waxman_graph
+from utils.graph_generator import (
+    clos,
+    dragonfly,
+    fat_tree,
+    generate_waxman_graph,
+)
 from utils.helper import (
     all_simple_paths,
     app_params_sim,
@@ -55,6 +60,7 @@ def run_simulation(
     time_slot_duration: float,
     seed: int,
     output_dir: str,
+    coherence: float = 0.020,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     save_csv: bool = True,
@@ -63,8 +69,9 @@ def run_simulation(
     provisioning: bool = True,
     full_dynamic: bool = True,
     static_routing_mode: bool = False,
-    nwc_mode: bool = False,
+    dynamic_mode: str = "wc",
     windows: tuple[float, float] | None = None,
+    end_nodes: list[str] | None = None,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -77,16 +84,20 @@ def run_simulation(
             instances per application.
         epr_range (tuple[int, int]): Range (min, max) for the number of EPR
             pairs to generate per application.
-        deadline_range (tuple[float, float]): Range (min, max) for the relative
-            deadline budget of each application (deadline = release +
-            deadline_budget).
+        deadline_range (tuple[float, float]): Range (min, max) for the deadline
+            budget multiplier k (k > 1). Each application's absolute budget is
+            deadline_budget = k * fastest-path PGA duration, and its deadline
+            is release + deadline_budget, so every app is feasible on its best
+            path.
         p_packet (float): Probability of a packet being generated.
         memory (float): Memory: number of independent link-generation trials
-            per slot.
+            per slot (multimode/multiplexed capacity).
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
+        coherence (float): Coherence time in seconds of a generated pair,
+            converted to slots inside the simulation.
         windows (tuple[float, float] | None): Post-warm-up observation
             window as (min_time, max_time). In dynamic mode, max_time is used
             as the simulation horizon.
@@ -111,19 +122,30 @@ def run_simulation(
     rates = None
     if graph == "waxman":
         nodes, edges, fidelities, rates, avg_deg, diameter = (
-            generate_waxman_graph(rng=rng)
+            generate_waxman_graph(rng=rng, coherence=coherence)
         )
         if not nodes or not edges:
             print("Failed to generate a connected Waxman graph.")
             return False, {}
     elif graph == "fat":
-        nodes, edges, fidelities, rates, qpus, diameter = fat_tree()
+        nodes, edges, fidelities, rates, qpus, diameter = fat_tree(
+            coherence=coherence
+        )
         nodes = qpus
     elif graph == "clos":
-        nodes, edges, fidelities, rates, qpus, diameter = clos()
+        nodes, edges, fidelities, rates, qpus, diameter = clos(
+            coherence=coherence
+        )
+        nodes = qpus
+    elif graph == "dragonfly":
+        nodes, edges, fidelities, rates, qpus, diameter = dragonfly(
+            coherence=coherence
+        )
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, distances, fidelities, rates, diameter = gml_data(config)
+        nodes, edges, distances, fidelities, rates, diameter = gml_data(
+            config, coherence=coherence
+        )
     bounds, simple_paths = fidelity_bounds_and_paths(
         nodes, fidelities, diameter + 2
     )
@@ -142,7 +164,7 @@ def run_simulation(
             break
         arrival_times.append(t)
     app_specs = generate_n_apps(
-        nodes,
+        end_nodes if end_nodes else nodes,
         bounds,
         n_apps=len(arrival_times),
         inst_range=inst_range,
@@ -150,6 +172,30 @@ def run_simulation(
         deadline_range=deadline_range,
         rng=rng,
     )
+
+    for spec in app_specs.values():
+        min_fid = spec.get("min_fidelity", 0.0)
+        pga_params = {
+            "p_packet": p_packet,
+            "epr_pairs": int(spec["epr"]),
+            "memory": memory,
+            "p_swap": p_swap,
+            "slot_duration": time_slot_duration,
+            "coherence": coherence,
+        }
+        feasible_durations = [
+            duration
+            for fid, _, _, duration in compute_path_durations(
+                pga_params, rates, simple_paths=simple_paths,
+                src=spec["src"], dst=spec["dst"],
+            )
+            if fid >= min_fid
+        ]
+        fastest = (
+            min(feasible_durations) if feasible_durations else float("nan")
+        )
+        spec["deadline_budget"] = float(spec["deadline_budget"]) * fastest
+
     pga_rel_times = {
         app: arrival_times[i] for i, app in enumerate(app_specs.keys())
     }
@@ -208,6 +254,7 @@ def run_simulation(
             time_slot_duration=time_slot_duration,
             rng=rng_routing,
             provisioning=provisioning,
+            coherence=coherence,
         )
         static_routing_time = time.perf_counter() - _t0
 
@@ -229,6 +276,7 @@ def run_simulation(
 
     single_path_cpt = 0
     two_path_cpt = 0
+    multi_path_apps = set()
     app_request_rows = []
     for app, spec in app_specs.items():
         src, dst = spec["src"], spec["dst"]
@@ -242,6 +290,8 @@ def run_simulation(
             single_path_cpt += 1
         if len(feasible_paths) <= 2:
             two_path_cpt += 1
+        if len(feasible_paths) >= 2:
+            multi_path_apps.add(app)
 
         if not verbose:
             continue
@@ -252,6 +302,7 @@ def run_simulation(
             "memory": memory,
             "p_swap": p_swap,
             "slot_duration": time_slot_duration,
+            "coherence": coherence,
         }
         feasible_durations = sorted(
             (
@@ -308,6 +359,7 @@ def run_simulation(
             p_swap,
             time_slot_duration,
             rates=rates,
+            coherence=coherence,
         )
     )
 
@@ -318,6 +370,7 @@ def run_simulation(
         memory,
         p_swap,
         time_slot_duration,
+        coherence=coherence,
     )
 
     # Run simulation
@@ -348,7 +401,7 @@ def run_simulation(
         all_links,
         simple_paths,
         static_routing_mode,
-        nwc_mode=nwc_mode,
+        dynamic_mode=dynamic_mode,
         horizon_time=windows[1] if windows is not None else None,
         warmup_time=windows[0] if windows is not None else 0.0,
         rng_arrivals=rng_arrivals_per_app,
@@ -415,6 +468,7 @@ def run_simulation(
         warmup=windows[0] if windows is not None else None,
         end_time=windows[1] if windows is not None else None,
         defer_counts=defer_counts,
+        multi_path_apps=multi_path_apps,
     )
     del df
     return feasible, summary
@@ -456,8 +510,8 @@ def main():
         nargs=2,
         metavar=("MIN", "MAX"),
         default=[1.0, 1.0],
-        help="Relative deadline budget per application: deadline = release"
-        " + budget (e.g., --deadline 1.0 5.0)",
+        help="Deadline budget multiplier k (k > 1) per application: budget ="
+        " k * fastest-path PGA duration",
     )
     parser.add_argument(
         "--ppacket",
@@ -473,6 +527,14 @@ def main():
         default=1,
         help="Number of independent link-generation trials per slot in the"
         "multiplexed memory",
+    )
+    parser.add_argument(
+        "--coherence",
+        "-co",
+        type=float,
+        default=0.020,
+        help="Coherence time in seconds of a generated pair (converted to"
+        " slots in the simulation)",
     )
     parser.add_argument(
         "--pswap",
@@ -511,20 +573,25 @@ def main():
         "--graph",
         "-g",
         type=str,
-        choices=["waxman", "fat", "clos", "gml"],
+        choices=["waxman", "fat", "clos", "dragonfly", "gml"],
         default=None,
-        help="Graph generator (e.g., 'waxman', 'fat', 'clos', 'gml')",
+        help=(
+            "Graph generator (e.g., 'waxman', 'fat', 'clos', 'dragonfly', "
+            "'gml')"
+        ),
     )
     parser.add_argument(
         "--routing-strategy",
         "-rs",
         type=str,
-        choices=["static", "hybrid", "rerouting", "dynamic", "nwc"],
+        choices=["static", "hybrid", "rerouting", "dynamic", "nwc", "fastest"],
         default=None,
         help="Routing strategy: 'static' (fixed static paths), 'hybrid' ("
         "static no rerouting), 'rerouting' (static rerouting),"
-        "'dynamic' (work-conserving dynamic routing), or 'nwc' "
-        "(non-work-conserving dynamic routing)",
+        "'dynamic' (work-conserving dynamic routing), 'nwc' "
+        "(non-work-conserving dynamic routing), or 'fastest' "
+        "(non-work-conserving dynamic routing restricted to the fastest "
+        "feasible path(s))",
     )
     parser.add_argument(
         "--seed",
@@ -568,6 +635,7 @@ def main():
         windows=windows,
         p_packet=args.ppacket,
         memory=args.memory,
+        coherence=args.coherence,
         p_swap=args.pswap,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
@@ -575,9 +643,13 @@ def main():
         routing=args.routing,
         graph=args.graph,
         provisioning=args.routing_strategy == "rerouting",
-        full_dynamic=args.routing_strategy in ("dynamic", "nwc"),
+        full_dynamic=args.routing_strategy in ("dynamic", "nwc", "fastest"),
         static_routing_mode=args.routing_strategy == "static",
-        nwc_mode=args.routing_strategy == "nwc",
+        dynamic_mode=(
+            args.routing_strategy
+            if args.routing_strategy in ("nwc", "fastest")
+            else "wc"
+        ),
     )
     t1 = time.perf_counter()
 
@@ -599,6 +671,7 @@ def main():
         "windows_max": windows[1],
         "p_packet": args.ppacket,
         "memory": args.memory,
+        "coherence": args.coherence,
         "p_swap": args.pswap,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,

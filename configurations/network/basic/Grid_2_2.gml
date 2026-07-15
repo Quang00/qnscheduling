@@ -20,21 +20,21 @@ graph [
     node [ id 7 label "H" lon  0.0 lat -1.0 ]
     node [ id 8 label "I" lon  1.0 lat -1.0 ]
 
-    edge [ source 0 target 1 dist 10.0 ]
-    edge [ source 1 target 2 dist 10.0 ]
+    edge [ source 0 target 1 dist 1 ]
+    edge [ source 1 target 2 dist 1 ]
 
-    edge [ source 3 target 4 dist 10.0 ]
-    edge [ source 4 target 5 dist 10.0 ]
+    edge [ source 3 target 4 dist 1 ]
+    edge [ source 4 target 5 dist 1 ]
 
-    edge [ source 6 target 7 dist 10.0 ]
-    edge [ source 7 target 8 dist 10.0 ]
+    edge [ source 6 target 7 dist 1 ]
+    edge [ source 7 target 8 dist 1 ]
 
-    edge [ source 0 target 3 dist 10.0 ]
-    edge [ source 3 target 6 dist 10.0 ]
+    edge [ source 0 target 3 dist 1 ]
+    edge [ source 3 target 6 dist 1 ]
 
-    edge [ source 1 target 4 dist 10.0 ]
-    edge [ source 4 target 7 dist 10.0 ]
+    edge [ source 1 target 4 dist 1 ]
+    edge [ source 4 target 7 dist 1 ]
 
-    edge [ source 2 target 5 dist 10.0 ]
-    edge [ source 5 target 8 dist 10.0 ]
+    edge [ source 2 target 5 dist 1 ]
+    edge [ source 5 target 8 dist 1 ]
 ]

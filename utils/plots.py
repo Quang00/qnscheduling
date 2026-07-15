@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 from typing import Any, Sequence
 
@@ -28,6 +29,8 @@ def build_metric_specs(
     individual_values: Sequence[int | float] | None = None,
     group_line_styles: dict[str, str] | None = None,
     create_individual: bool = False,
+    overlay_multipath: bool = False,
+    y_start_zero: bool = False,
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
@@ -107,6 +110,10 @@ def build_metric_specs(
             "ylabel": "Average active PGAs",
         },
         {
+            "key": "avg_hops",
+            "ylabel": "Average number of hops",
+        },
+        {
             "key": "fastest_path_rate",
             "ylabel": "Fastest-path rate",
             "percentage": True,
@@ -137,6 +144,8 @@ def build_metric_specs(
 
     for template in metric_templates:
         spec = template.copy()
+        if y_start_zero and not spec.get("yscale"):
+            spec["ymin"] = 0
         if spec["key"] == "admission_rate":
             spec["plot_path"] = save_path
         else:
@@ -148,11 +157,14 @@ def build_metric_specs(
         spec["group_palette"] = group_palette
         spec["group_palette_map"] = group_palette_map
         spec["group_line_styles"] = group_line_styles
+        spec["overlay_multipath"] = overlay_multipath
         specs.append(spec)
 
         if create_individual:
             for v in indiv_values:
                 i = template.copy()
+                if y_start_zero and not i.get("yscale"):
+                    i["ymin"] = 0
                 file = f"{i['key']}_vs_{x}_value_{v}_{sch_suffix}.png"
                 i["plot_path"] = os.path.join(run_dir, file)
                 i["x_var"] = x
@@ -161,6 +173,7 @@ def build_metric_specs(
                 )
                 i["filter_value"] = float(v)
                 i["color_override"] = group_palette_map.get(str(v))
+                i["overlay_multipath"] = overlay_multipath
                 specs.append(i)
     return specs
 
@@ -182,8 +195,17 @@ def render_plot(
     filter_column = spec.get("filter_column")
     filter_value = spec.get("filter_value")
     base_color = color_override or sns.color_palette("tab10", 1)[0]
-    cols = [x_var, metric]
 
+    mp_metric = f"multipath_{metric}"
+    overlay = (
+        bool(spec.get("overlay_multipath"))
+        and not metric.startswith("multipath_")
+        and mp_metric in raw_data.columns
+    )
+
+    cols = [x_var, metric]
+    if overlay:
+        cols.append(mp_metric)
     if group_column:
         cols.append(group_column)
     if filter_column:
@@ -192,79 +214,96 @@ def render_plot(
     if filter_column and filter_value is not None:
         data = data[data[filter_column].isin(np.atleast_1d(filter_value))]
 
-    keys = [x_var] + ([group_column] if group_column else [])
-    summary_df = data.groupby(keys, as_index=False).agg(
-        mean=(metric, "mean"),
-        std=(metric, "std"),
-        count=(metric, "count"),
-    )
-    sem = summary_df["std"] / np.sqrt(summary_df["count"].clip(lower=1))
-    sem = sem.where(summary_df["count"] >= 2)
-    ci95 = 1.96 * sem
-    summary_df["lower"] = summary_df["mean"] - ci95
-    summary_df["upper"] = summary_df["mean"] + ci95
-    x_values = sorted(summary_df[x_var].unique())
-
+    x_values = sorted(data[x_var].unique())
     use_categorical = x_var not in ("p_packet", "load", "arrival_rate")
-    if use_categorical:
-        x_map = {val: idx for idx, val in enumerate(x_values)}
-        summary_df["x_plot"] = summary_df[x_var].map(x_map)
-    else:
-        summary_df["x_plot"] = summary_df[x_var]
+    x_map = {val: idx for idx, val in enumerate(x_values)}
 
-    if group_column:
-        summary_df["group_display"] = summary_df[group_column].apply(
-            lambda x: group_labels.get(x, group_labels.get(str(x), str(x)))
+    def _summarize(metric_col: str) -> pd.DataFrame:
+        keys = [x_var] + ([group_column] if group_column else [])
+        s = data.groupby(keys, as_index=False).agg(
+            mean=(metric_col, "mean"),
+            std=(metric_col, "std"),
+            count=(metric_col, "count"),
         )
+        sem = s["std"] / np.sqrt(s["count"].clip(lower=1))
+        sem = sem.where(s["count"] >= 2)
+        ci95 = 1.96 * sem
+        s["lower"] = s["mean"] - ci95
+        s["upper"] = s["mean"] + ci95
+        if use_categorical:
+            s["x_plot"] = s[x_var].map(x_map)
+        else:
+            s["x_plot"] = s[x_var]
+        if group_column:
+            s["group_display"] = s[group_column].apply(
+                lambda x: group_labels.get(
+                    x, group_labels.get(str(x), str(x))
+                )
+            )
+        return s
 
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-    if group_column:
-        group_values = summary_df[group_column].dropna().unique().tolist()
-        base_palette = (
-            list(group_palette)
-            if group_palette
-            else sns.color_palette("tab10", max(1, len(group_values)))
-        )
-        markers = ["o", "s", "D", "^", "v"]
-
-        for i, gv in enumerate(group_values):
-            gdf = summary_df[summary_df[group_column] == gv]
-            disp = gdf["group_display"].iloc[0]
-            col = palette_map.get(str(gv), base_palette[i % len(base_palette)])
-            style = group_line_styles.get(str(gv), "-")
+    def _draw(sdf: pd.DataFrame, linestyle: str, scope_label: str) -> None:
+        if group_column:
+            group_values = sdf[group_column].dropna().unique().tolist()
+            base_palette = (
+                list(group_palette)
+                if group_palette
+                else sns.color_palette("tab10", max(1, len(group_values)))
+            )
+            markers = ["o", "s", "D", "^", "v"]
+            for i, gv in enumerate(group_values):
+                gdf = sdf[sdf[group_column] == gv]
+                disp = gdf["group_display"].iloc[0]
+                col = palette_map.get(
+                    str(gv), base_palette[i % len(base_palette)]
+                )
+                style = (
+                    linestyle
+                    if scope_label
+                    else group_line_styles.get(str(gv), "-")
+                )
+                label = f"{disp} ({scope_label})" if scope_label else disp
+                ax.plot(
+                    gdf["x_plot"],
+                    gdf["mean"],
+                    marker=markers[i % len(markers)],
+                    linestyle=style,
+                    color=col,
+                    label=label,
+                )
+                ax.fill_between(
+                    gdf["x_plot"],
+                    gdf["lower"],
+                    gdf["upper"],
+                    color=col,
+                    alpha=0.2,
+                )
+        else:
             ax.plot(
-                gdf["x_plot"],
-                gdf["mean"],
-                marker=markers[i % len(markers)],
-                linestyle=style,
-                color=col,
-                label=disp,
+                sdf["x_plot"],
+                sdf["mean"],
+                marker="o",
+                linestyle=linestyle,
+                color=base_color,
+                label=scope_label or None,
             )
             ax.fill_between(
-                gdf["x_plot"],
-                gdf["lower"],
-                gdf["upper"],
-                color=col,
+                sdf["x_plot"],
+                sdf["lower"],
+                sdf["upper"],
+                color=base_color,
                 alpha=0.2,
             )
 
+    summary_df = _summarize(metric)
+    _draw(summary_df, "-", "All-paths" if overlay else "")
+    if overlay:
+        _draw(_summarize(mp_metric), "--", "Multi-path")
+
+    if group_column or overlay:
         ax.legend()
-    else:
-        ax.plot(
-            summary_df["x_plot"],
-            summary_df["mean"],
-            marker="o",
-            linestyle="-",
-            color=base_color,
-        )
-        ax.fill_between(
-            summary_df["x_plot"],
-            summary_df["lower"],
-            summary_df["upper"],
-            color=base_color,
-            alpha=0.2,
-        )
 
     if spec.get("yscale"):
         if summary_df["mean"].gt(0).any():
@@ -315,6 +354,7 @@ def plot_metrics_vs_ppacket(
     n_apps_values: Sequence[int] | None = None,
     scheduler: str | None = None,
     create_individual: bool = False,
+    overlay_multipath: bool = False,
 ) -> pd.DataFrame:
     results_df = pd.read_csv(raw_csv_path)
     run_dir = os.path.dirname(raw_csv_path) or "."
@@ -361,6 +401,7 @@ def plot_metrics_vs_ppacket(
         group_palette_map=plt_map,
         individual_values=apps_list if len(apps_list) > 1 else None,
         create_individual=create_individual,
+        overlay_multipath=overlay_multipath,
     )
 
     set_plot_theme(dpi)
@@ -388,6 +429,8 @@ def plot_metrics_vs_load(
     create_individual: bool = False,
     multi: bool = False,
     x_var: str = "arrival_rate",
+    overlay_multipath: bool = False,
+    out_dir: str | None = None,
 ) -> pd.DataFrame:
     """Example usage:
     df = plot_metrics_vs_load(
@@ -406,14 +449,18 @@ def plot_metrics_vs_load(
             "4": "Reactive (wc)",
             "5": "Reactive (nwc)",
         },
+        overlay_multipath=True,
     )
     """
     if multi:
         paths = path if isinstance(path, (list, tuple)) else [path]
         dfs = [pd.read_csv(p) for p in paths]
         results_df = pd.concat(dfs, ignore_index=True)
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        run_dir = os.path.join("results", timestamp)
+        if out_dir:
+            run_dir = out_dir
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_dir = os.path.join("results", timestamp)
         os.makedirs(run_dir, exist_ok=True)
         if p_packet_values is None:
             val_list = results_df["scenario"].dropna().unique().tolist()
@@ -426,7 +473,8 @@ def plot_metrics_vs_load(
         dft_labels = {v: f"{v}" for v in val_list}
     else:
         results_df = pd.read_csv(path)
-        run_dir = os.path.dirname(path) or "."
+        run_dir = out_dir or os.path.dirname(path) or "."
+        os.makedirs(run_dir, exist_ok=True)
         if x_var == "inst_range":
             val_list = (
                 results_df["inst_range"].dropna().astype(int).unique().tolist()
@@ -483,6 +531,8 @@ def plot_metrics_vs_load(
         group_palette_map=plt_map,
         individual_values=val_list if len(val_list) > 1 else None,
         create_individual=create_individual,
+        overlay_multipath=overlay_multipath,
+        y_start_zero=True,
     )
 
     set_plot_theme(dpi)
@@ -495,3 +545,26 @@ def plot_metrics_vs_load(
         )
 
     return results_df
+
+
+def main():
+    out_dir = sys.argv[1]
+    paths = sys.argv[2:]
+
+    plot_metrics_vs_load(
+        path=paths,
+        multi=True,
+        gp_labels={
+            "1": "Precomputed",
+            "2": "Proactive",
+            "3": "Hybrid",
+            "4": "Reactive",
+            "5": "Reactive (nwc)",
+        },
+        overlay_multipath=False,
+        out_dir=out_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()

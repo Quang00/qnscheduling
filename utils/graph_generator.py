@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 
-from utils.helper import compute_edge_fidelities, compute_edge_rates
+from utils.helper import compute_edge_fidelities, compute_edge_probs
 
 
 def generate_waxman_graph(
@@ -12,6 +12,7 @@ def generate_waxman_graph(
     max_retries: int = 5000,
     max_avg_degree: float = 3.0,
     max_hops: int = 8,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, float, float]:
     """Generates a Waxman graph with constraints on connectivity,
     average degree, and diameter.
@@ -29,6 +30,8 @@ def generate_waxman_graph(
         and diameter <= max_hops).
         max_avg_degree (float, optional): Maximum average degree of the graph.
         max_hops (int, optional): Maximum diameter of the graph. Defaults to 8.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, float, float]: A tuple containing:
@@ -64,8 +67,8 @@ def generate_waxman_graph(
         d = sq_d**0.5
         distances[(u, v)] = d
         G[u][v]["dist"] = d
-    fidelites = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    fidelites = compute_edge_fidelities(G, distances, T_coh=coherence)
+    rates = compute_edge_probs(G, distances)
 
     return nodes, edges, fidelites, rates, avg_deg, diameter
 
@@ -75,6 +78,7 @@ def fat_tree(
     qpu_edge_dist=0.1,
     edge_aggregate_dist=0.3,
     aggregate_core_dist=0.6,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a fat-tree topology with k pods. Each pod contains k/2 edge
     switches and k/2 aggregate switches. The core layer has (k/2)^2 core
@@ -89,6 +93,8 @@ def fat_tree(
         aggregate switches.
         aggregate_core_dist (float, optional): Distance between aggregate and
         core switches.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -138,8 +144,85 @@ def fat_tree(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
+    rates = compute_edge_probs(G, distances)
+    diameter = float(nx.diameter(G))
+
+    return nodes, edges, fidelities, rates, qpus, diameter
+
+
+def dragonfly(
+    a: int = 4,
+    h: int = 2,
+    p: int = 2,
+    qpu_router_dist: float = 0.1,
+    intra_group_dist: float = 0.3,
+    global_dist: float = 0.6,
+    coherence: float = 0.020,
+) -> tuple[list, list, dict, dict, list, float]:
+    """Generates a dragonfly topology with g = a * h + 1 groups. Each group
+    contains a routers connected in a complete graph, each router hosts p
+    QPUs and has h global links, so every pair of groups is connected by
+    exactly one global link. See: https://doi.org/10.1145/1394608.1382129
+
+    Args:
+        a (int, optional): Number of routers per group.
+        h (int, optional): Number of global links per router.
+        p (int, optional): Number of QPUs (hosts) per router.
+        qpu_router_dist (float, optional): Distance between QPUs and routers.
+        intra_group_dist (float, optional): Distance between routers within
+        a group.
+        global_dist (float, optional): Distance between routers of different
+        groups.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
+
+    Returns:
+        tuple[list, list, dict, dict, list, float]: A tuple containing:
+            - List of nodes in the graph.
+            - List of edges in the graph.
+            - Dictionary mapping edges to their fidelities.
+            - Dictionary mapping edges to their p_gen rates.
+            - List of QPUs (hosts) in the graph.
+            - Diameter of the graph.
+    """
+    G = nx.Graph()
+    qpus = []
+    groups = a * h + 1
+    ports = a * h
+
+    for g in range(groups):
+        routers = [f"grp{g}_rtr_{i}" for i in range(a)]
+        G.add_nodes_from(routers, layer=0, group=g)
+
+        # router <-> router (complete graph within the group)
+        for i, r in enumerate(routers):
+            for r2 in routers[i + 1:]:
+                G.add_edge(r, r2, dist=float(intra_group_dist))
+
+        # router <-> qpu
+        for i, r in enumerate(routers):
+            for q in range(p):
+                qpu = f"grp{g}_qpu_{i}_{q}"
+                qpus.append(qpu)
+                G.add_node(qpu, layer=1, group=g)
+                G.add_edge(r, qpu, dist=float(qpu_router_dist))
+
+    # group <-> group: port t of group g connects to group (g + t + 1) mod
+    # groups and belongs to router t // h; the peer uses port ports - 1 - t
+    for g in range(groups):
+        for t in range(ports):
+            g2 = (g + t + 1) % groups
+            if g < g2:
+                r = f"grp{g}_rtr_{t // h}"
+                r2 = f"grp{g2}_rtr_{(ports - 1 - t) // h}"
+                G.add_edge(r, r2, dist=float(global_dist))
+
+    nodes = sorted(G.nodes(), key=str)
+    edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
+    distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
+    rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
     return nodes, edges, fidelities, rates, qpus, diameter
@@ -151,6 +234,7 @@ def clos(
     hosts_per_leaf: int = 4,
     qpu_leaf_dist: float = 0.1,
     leaf_spine_dist: float = 0.3,
+    coherence: float = 0.020,
 ) -> tuple[list, list, dict, dict, list, float]:
     """Generates a leaf-spine (two-tier Clos).
 
@@ -163,6 +247,8 @@ def clos(
         switches.
         leaf_spine_dist (float, optional): Distance between leaf and spine
         switches.
+        coherence (float, optional): Memory coherence time in seconds used to
+        compute edge fidelities.
 
     Returns:
         tuple[list, list, dict, dict, list, float]: A tuple containing:
@@ -197,8 +283,8 @@ def clos(
     nodes = sorted(G.nodes(), key=str)
     edges = sorted(G.edges(), key=lambda edge: (str(edge[0]), str(edge[1])))
     distances = {(u, v): float(G.edges[u, v]["dist"]) for (u, v) in edges}
-    fidelities = compute_edge_fidelities(G, distances)
-    rates = compute_edge_rates(G, distances)
+    fidelities = compute_edge_fidelities(G, distances, T_coh=coherence)
+    rates = compute_edge_probs(G, distances)
     diameter = float(nx.diameter(G))
 
     return nodes, edges, fidelities, rates, qpus, diameter

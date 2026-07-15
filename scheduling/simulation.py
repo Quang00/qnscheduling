@@ -10,6 +10,7 @@ window, considering resource availability and link busy times.
 import heapq
 import re
 import time
+from bisect import bisect_left
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -42,7 +43,8 @@ class PGA:
         rng: np.random.Generator,
         log: List[Dict[str, Any]],
         p_swap: float,
-        memory: int,
+        memory: int = 1,
+        coherence: float = 0.020,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
@@ -57,15 +59,18 @@ class PGA:
           its time window, it is marked as "completed".
 
         The conditions for EPR generation:
-        - Each link attempts to generate EPR pairs in discrete time slots.
-        - The number of trials needed for a successful EPR pair generation on
-          each link follows a geometric distribution with success probability
-          `p_gen`.
-        - The first success across all links must occur within the memory
-          of the first generated pair to be considered valid.
-        - If there are swaps involved, each swap must also succeed based on
-          the swap probability `p_swap` for the end-to-end entanglement to be
-          successful.
+        - In every time slot each link attempts to generate an EPR pair; with
+          `memory` multiplexed trials per slot the per-slot success
+          probability is ``1 - (1 - p_gen) ** memory``.
+        - A generated link pair stays live for the coherence window (`t_mem`
+          slots) and is refreshed by later successes on the same link.
+        - The end-to-end BSM fires at the earliest slot where every link of
+          the route simultaneously holds a live pair; it consumes the pair of
+          every link (destructive, regardless of outcome) and delivers an
+          end-to-end pair with probability ``p_swap ** n_swap``.
+        - Delivered end-to-end pairs decohere after the same coherence
+          window; the PGA completes once `epr_pairs` end-to-end pairs are
+          alive simultaneously.
 
         Args:
             name (str): PGA identifier.
@@ -85,8 +90,12 @@ class PGA:
             probabilistic events.
             log (List[Dict[str, Any]]): Log to record PGA performance metrics.
             p_swap (float): Probability of swapping an EPR pair.
-            memory (int): Memory: number of independent link-generation trials
-            per slot.
+            memory (int): Number of independent link-generation trials per
+            slot (multiplexed memory modes).
+            coherence (float): Coherence time in seconds of a generated pair.
+            Converted internally to an integer number of slots `t_mem`; a
+            pair generated at slot ``s`` is live during
+            ``[s, s + t_mem - 1]``.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
         """
@@ -105,35 +114,77 @@ class PGA:
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
-        self.memory = max(0, int(memory))
+        self.coherence = max(0, int(round(coherence / self.slot_duration)))
+        self.memory = max(1, int(memory))
         self.link_p_gens = np.asarray(link_p_gens, dtype=float)
+        self.link_qs = 1.0 - (1.0 - self.link_p_gens) ** self.memory
 
-    def _simulate_e2e_attempts(self, max_attempts: int) -> np.ndarray:
-        """Single end-to-end entanglement for a batch of attempts."""
-        if self.memory <= 0 or max_attempts <= 0:
-            return np.zeros(max_attempts, dtype=bool)
+    def _sample_success_slots(self, q: float, max_slots: int) -> np.ndarray:
+        slots = []
+        last = -1
+        chunk = int(max_slots * q * 1.25) + 16
+        while last < max_slots - 1:
+            gaps = self.rng.geometric(q, size=chunk)
+            offsets = last + np.cumsum(gaps)
+            slots.append(offsets)
+            last = int(offsets[-1])
+        merged = np.concatenate(slots)
+        return merged[merged < max_slots]
 
-        n_links = self.n_swap + 1
-        t_mem = self.memory
-        size = (max_attempts, n_links)
+    def _simulate_e2e_pairs(self, max_slots: int) -> np.ndarray:
+        if self.coherence <= 0 or max_slots <= 0:
+            return np.array([], dtype=np.int64)
+        if np.any(self.link_qs <= 0.0):
+            return np.array([], dtype=np.int64)
 
-        if np.any(self.link_p_gens <= 0.0):
-            return np.zeros(max_attempts, dtype=bool)
-        starts = self.rng.geometric(self.link_p_gens, size=size) - 1
-        ends = starts + (t_mem - 1)
+        t_mem = self.coherence
+        link_slots = [
+            self._sample_success_slots(q, max_slots).tolist()
+            for q in self.link_qs
+        ]
+        if any(not s for s in link_slots):
+            return np.array([], dtype=np.int64)
 
-        candidate = starts.max(axis=1)
-        last_valid = ends.min(axis=1)
+        sizes = [len(s) for s in link_slots]
+        cursors = [0] * len(link_slots)
+        p_bsms = self.p_swap**self.n_swap
+        rng_random = self.rng.random
+        deliveries = []
+        alive_lo = 0
+        fresh_from = 0
 
-        succ = (candidate < t_mem) & (last_valid >= candidate)
+        while True:
+            t = -1
+            for i, s in enumerate(link_slots):
+                j = bisect_left(s, fresh_from, cursors[i])
+                if j == sizes[i]:
+                    return np.asarray(deliveries, dtype=np.int64)
+                cursors[i] = j
+                if s[j] > t:
+                    t = s[j]
 
-        if self.n_swap > 0:
-            if self.p_swap < 1.0:
-                p_bsms = self.p_swap**self.n_swap
-                swap_ok = self.rng.random(max_attempts) < p_bsms
-                succ &= swap_ok
+            stable = False
+            while not stable:
+                stable = True
+                floor = t - t_mem + 1
+                for i, s in enumerate(link_slots):
+                    j = cursors[i]
+                    if floor > s[j]:
+                        j = bisect_left(s, floor, j)
+                        if j == sizes[i]:
+                            return np.asarray(deliveries, dtype=np.int64)
+                        cursors[i] = j
+                    if s[j] > t:
+                        t = s[j]
+                        stable = False
 
-        return succ
+            fresh_from = t + 1
+            if p_bsms >= 1.0 or rng_random() < p_bsms:
+                deliveries.append(t)
+                while deliveries[alive_lo] <= t - t_mem:
+                    alive_lo += 1
+                if len(deliveries) - alive_lo >= self.epr_pairs:
+                    return np.asarray(deliveries, dtype=np.int64)
 
     def _update_resources_and_links(
         self,
@@ -161,25 +212,24 @@ class PGA:
 
         if t_budget > EPS:
             max_attempts = int((t_budget + EPS) // self.slot_duration)
-            succ = self._simulate_e2e_attempts(max_attempts)
-            csum = (
-                np.cumsum(succ, dtype=int)
-                if len(succ)
-                else np.array([], dtype=int)
-            )
-            hit = (
-                np.searchsorted(csum, self.epr_pairs, side="left")
-                if len(csum)
-                else len(csum)
-            )
+            deliveries = self._simulate_e2e_pairs(max_attempts)
+            attempts_run = max_attempts
 
-            if len(csum) and hit < len(csum):
-                attempts_run = int(hit + 1)
-                pairs_generated = int(csum[attempts_run - 1])
-                status = "completed"
-            else:
-                attempts_run = max_attempts
-                pairs_generated = int(csum[-1]) if len(csum) else 0
+            if deliveries.size:
+                t_mem = self.coherence
+                oldest_alive = np.searchsorted(
+                    deliveries, deliveries - (t_mem - 1)
+                )
+                live_counts = (
+                    np.arange(1, deliveries.size + 1) - oldest_alive
+                )
+                hits = np.flatnonzero(live_counts >= self.epr_pairs)
+                if hits.size:
+                    attempts_run = int(deliveries[hits[0]]) + 1
+                    pairs_generated = self.epr_pairs
+                    status = "completed"
+                else:
+                    pairs_generated = int(live_counts.max())
 
             current_time = self.start + attempts_run * self.slot_duration
             completion = (
@@ -221,7 +271,7 @@ def simulate_dynamic(
     all_links: List[Tuple[str, str]] | None = None,
     simple_paths: Dict[str, List[List[str]]] | None = None,
     static_routing_mode: bool = False,
-    nwc_mode: bool = False,
+    dynamic_mode: str = "wc",
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
     rng_arrivals: Dict[str, np.random.Generator] | None = None,
@@ -415,7 +465,7 @@ def simulate_dynamic(
                     deadline,
                     cur_t,
                     resources,
-                    mode="nwc" if nwc_mode else "wc",
+                    mode=dynamic_mode,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -598,7 +648,8 @@ def simulate_dynamic(
                 rng=rng,
                 log=log,
                 p_swap=pga_parameters[app]["p_swap"],
-                memory=pga_parameters[app]["memory"],
+                memory=int(pga_parameters[app].get("memory", 1)),
+                coherence=pga_parameters[app].get("coherence", 0.020),
                 deadline=deadline,
                 route_links=route_links,
             )
