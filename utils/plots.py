@@ -30,6 +30,7 @@ def build_metric_specs(
     group_line_styles: dict[str, str] | None = None,
     create_individual: bool = False,
     overlay_multipath: bool = False,
+    y_start_zero: bool = False,
 ) -> list[dict[str, Any]]:
     metric_templates = [
         {
@@ -109,6 +110,10 @@ def build_metric_specs(
             "ylabel": "Average active PGAs",
         },
         {
+            "key": "avg_hops",
+            "ylabel": "Average number of hops",
+        },
+        {
             "key": "fastest_path_rate",
             "ylabel": "Fastest-path rate",
             "percentage": True,
@@ -139,6 +144,8 @@ def build_metric_specs(
 
     for template in metric_templates:
         spec = template.copy()
+        if y_start_zero and not spec.get("yscale"):
+            spec["ymin"] = 0
         if spec["key"] == "admission_rate":
             spec["plot_path"] = save_path
         else:
@@ -156,6 +163,8 @@ def build_metric_specs(
         if create_individual:
             for v in indiv_values:
                 i = template.copy()
+                if y_start_zero and not i.get("yscale"):
+                    i["ymin"] = 0
                 file = f"{i['key']}_vs_{x}_value_{v}_{sch_suffix}.png"
                 i["plot_path"] = os.path.join(run_dir, file)
                 i["x_var"] = x
@@ -523,6 +532,7 @@ def plot_metrics_vs_load(
         individual_values=val_list if len(val_list) > 1 else None,
         create_individual=create_individual,
         overlay_multipath=overlay_multipath,
+        y_start_zero=True,
     )
 
     set_plot_theme(dpi)
