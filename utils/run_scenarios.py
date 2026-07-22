@@ -12,6 +12,7 @@ def main():
     )
     coherence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.020
     deadline = float(sys.argv[4]) if len(sys.argv) > 4 else 2.0
+    out_dir = sys.argv[5] if len(sys.argv) > 5 else "results"
 
     ppacket_values = [0.9]
     arrival_rate_values = [1, 3, 5, 7, 9]
@@ -87,6 +88,7 @@ def main():
             simulations_per_point=simulations_per_point,
             simulation_kwargs=sim_kwargs,
             config=topology,
+            output_dir=out_dir,
             keep_seed_outputs=False,
         )
         df.insert(0, "scenario", scenario["id"])
