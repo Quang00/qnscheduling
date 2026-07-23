@@ -32,6 +32,8 @@ def main():
     }
     if graph == "gml" and "3_equal_paths" in topology:
         base_kwargs["end_nodes"] = ["A", "B"]
+    if graph == "fat":
+        base_kwargs["memory"] = 200
 
     scenarios = [
         {
