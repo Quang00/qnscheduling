@@ -75,7 +75,7 @@ def app_params_sim(
     memory: int,
     p_swap: float,
     time_slot_duration: float,
-    coherence: float = 0.020,
+    t_cut: float = 0.001,
 ) -> dict[str, dict[str, float | int]]:
     """Prepare application parameters for simulation.
 
@@ -88,7 +88,8 @@ def app_params_sim(
         memory (int): Number of independent link-generation trials per slot.
         p_swap (float): Probability of swapping an EPR pair in a single trial.
         time_slot_duration (float): Duration of a time slot in seconds.
-        coherence (float): Coherence time in seconds of a generated pair.
+        t_cut (float): Cutoff time in seconds: how long a generated pair is
+        held before being discarded.
 
     Returns:
         dict[str, dict[str, float | int]]: Mapping of application name to the
@@ -100,7 +101,7 @@ def app_params_sim(
         sim_params[key] = {
             "p_packet": p_packet,
             "memory": memory,
-            "coherence": coherence,
+            "t_cut": t_cut,
             "p_swap": p_swap,
             "epr_pairs": int(spec["epr"]),
             "slot_duration": time_slot_duration,
@@ -117,6 +118,7 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
         "memory": 1,
         "p_swap": 0.5,
         "coherence": 0.020,
+        "t_cut": 0.001,
         "routing": "smallest",
         "time_slot_duration": 1e-4,
         "graph": "gml",

@@ -44,7 +44,7 @@ class PGA:
         log: List[Dict[str, Any]],
         p_swap: float,
         memory: int = 1,
-        coherence: float = 0.020,
+        t_cut: float = 0.001,
         deadline: float | None = None,
         route_links: List[Tuple[str, str]] | None = None,
     ) -> None:
@@ -62,13 +62,13 @@ class PGA:
         - In every time slot each link attempts to generate an EPR pair; with
           `memory` multiplexed trials per slot the per-slot success
           probability is ``1 - (1 - p_gen) ** memory``.
-        - A generated link pair stays live for the coherence window (`t_mem`
+        - A generated link pair stays live for the cutoff window (`t_mem`
           slots) and is refreshed by later successes on the same link.
         - The end-to-end BSM fires at the earliest slot where every link of
           the route simultaneously holds a live pair; it consumes the pair of
           every link (destructive, regardless of outcome) and delivers an
           end-to-end pair with probability ``p_swap ** n_swap``.
-        - Delivered end-to-end pairs decohere after the same coherence
+        - Delivered end-to-end pairs decohere after the same cutoff
           window; the PGA completes once `epr_pairs` end-to-end pairs are
           alive simultaneously.
 
@@ -92,10 +92,10 @@ class PGA:
             p_swap (float): Probability of swapping an EPR pair.
             memory (int): Number of independent link-generation trials per
             slot (multiplexed memory modes).
-            coherence (float): Coherence time in seconds of a generated pair.
-            Converted internally to an integer number of slots `t_mem`; a
-            pair generated at slot ``s`` is live during
-            ``[s, s + t_mem - 1]``.
+            t_cut (float): Cutoff time: how long a generated
+            pair is held before being discarded. Converted internally to an
+            integer number of slots `t_mem`; a pair generated at slot ``s``
+            is live during ``[s, s + t_mem - 1]``.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
         """
@@ -114,7 +114,7 @@ class PGA:
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
-        self.coherence = max(0, int(round(coherence / self.slot_duration)))
+        self.t_cut = max(0, int(round(t_cut / self.slot_duration)))
         self.memory = max(1, int(memory))
         self.link_p_gens = np.asarray(link_p_gens, dtype=float)
         self.link_qs = 1.0 - (1.0 - self.link_p_gens) ** self.memory
@@ -132,12 +132,12 @@ class PGA:
         return merged[merged < max_slots]
 
     def _simulate_e2e_pairs(self, max_slots: int) -> np.ndarray:
-        if self.coherence <= 0 or max_slots <= 0:
+        if self.t_cut <= 0 or max_slots <= 0:
             return np.array([], dtype=np.int64)
         if np.any(self.link_qs <= 0.0):
             return np.array([], dtype=np.int64)
 
-        t_mem = self.coherence
+        t_mem = self.t_cut
         link_slots = [
             self._sample_success_slots(q, max_slots).tolist()
             for q in self.link_qs
@@ -216,7 +216,7 @@ class PGA:
             attempts_run = max_attempts
 
             if deliveries.size:
-                t_mem = self.coherence
+                t_mem = self.t_cut
                 oldest_alive = np.searchsorted(
                     deliveries, deliveries - (t_mem - 1)
                 )
@@ -649,7 +649,7 @@ def simulate_dynamic(
                 log=log,
                 p_swap=pga_parameters[app]["p_swap"],
                 memory=int(pga_parameters[app].get("memory", 1)),
-                coherence=pga_parameters[app].get("coherence", 0.020),
+                t_cut=pga_parameters[app].get("t_cut", 0.001),
                 deadline=deadline,
                 route_links=route_links,
             )

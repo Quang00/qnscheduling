@@ -61,6 +61,7 @@ def run_simulation(
     seed: int,
     output_dir: str,
     coherence: float = 0.020,
+    t_cut: float = 0.001,
     instance_arrival_rate: float = 10.0,
     routing: str = "shortest",
     save_csv: bool = True,
@@ -96,8 +97,9 @@ def run_simulation(
         time_slot_duration (float): Duration of a time slot in seconds.
         seed (int): Random seed for reproducibility of the simulation.
         output_dir (str): Directory where the results will be saved.
-        coherence (float): Coherence time in seconds of a generated pair,
-            converted to slots inside the simulation.
+        coherence (float): Memory coherence time.
+        t_cut (float): Cutoff time : how long a generated pair is
+            held before being discarded.
         windows (tuple[float, float] | None): Post-warm-up observation
             window as (min_time, max_time). In dynamic mode, max_time is used
             as the simulation horizon.
@@ -181,7 +183,7 @@ def run_simulation(
             "memory": memory,
             "p_swap": p_swap,
             "slot_duration": time_slot_duration,
-            "coherence": coherence,
+            "t_cut": t_cut,
         }
         feasible_durations = [
             duration
@@ -254,7 +256,7 @@ def run_simulation(
             time_slot_duration=time_slot_duration,
             rng=rng_routing,
             provisioning=provisioning,
-            coherence=coherence,
+            t_cut=t_cut,
         )
         static_routing_time = time.perf_counter() - _t0
 
@@ -302,7 +304,7 @@ def run_simulation(
             "memory": memory,
             "p_swap": p_swap,
             "slot_duration": time_slot_duration,
-            "coherence": coherence,
+            "t_cut": t_cut,
         }
         feasible_durations = sorted(
             (
@@ -359,7 +361,7 @@ def run_simulation(
             p_swap,
             time_slot_duration,
             rates=rates,
-            coherence=coherence,
+            t_cut=t_cut,
         )
     )
 
@@ -370,7 +372,7 @@ def run_simulation(
         memory,
         p_swap,
         time_slot_duration,
-        coherence=coherence,
+        t_cut=t_cut,
     )
 
     # Run simulation
@@ -533,8 +535,15 @@ def main():
         "-co",
         type=float,
         default=0.020,
-        help="Coherence time in seconds of a generated pair (converted to"
-        " slots in the simulation)",
+        help="Memory coherence time",
+    )
+    parser.add_argument(
+        "--t-cut",
+        "-tc",
+        type=float,
+        default=0.001,
+        help="Cutoff time: how long a generated pair is held "
+        "before being discarded",
     )
     parser.add_argument(
         "--pswap",
@@ -636,6 +645,7 @@ def main():
         p_packet=args.ppacket,
         memory=args.memory,
         coherence=args.coherence,
+        t_cut=args.t_cut,
         p_swap=args.pswap,
         time_slot_duration=args.slot_duration,
         seed=args.seed,
@@ -672,6 +682,7 @@ def main():
         "p_packet": args.ppacket,
         "memory": args.memory,
         "coherence": args.coherence,
+        "t_cut": args.t_cut,
         "p_swap": args.pswap,
         "time_slot_duration": args.slot_duration,
         "seed": args.seed,

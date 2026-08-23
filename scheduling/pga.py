@@ -156,7 +156,7 @@ def duration_pga(
     p_swap: float = 0.6,
     p_gen: float = 0.001,
     time_slot_duration: float = 1e-4,
-    coherence: float = 0.020,
+    t_cut: float = 0.001,
 ) -> float:
     """Calculate the duration of a PGA (Packet Generation Attempt).
 
@@ -172,9 +172,8 @@ def duration_pga(
         single trial.
         time_slot_duration (float, optional): Duration of a time slot in
         seconds.
-        coherence (float, optional): Coherence time in seconds of a
-        generated pair; converted internally to a window of
-        ``round(coherence / time_slot_duration)`` slots.
+        t_cut (float, optional): Cutoff time: how long a
+        generated pair is held before being discarded.
 
     Returns:
         float: Duration of a PGA in seconds.
@@ -183,7 +182,7 @@ def duration_pga(
         raise ValueError(
             "p_packet cannot be 1.0, as it would lead to infinite duration."
         )
-    window = int(round(coherence / time_slot_duration))
+    window = int(round(t_cut / time_slot_duration))
     n_links = n_swap + 1
     p_link = 1.0 - (1.0 - p_gen) ** memory
     if p_link <= 0.0 or window < 1 or epr_pairs > window:
@@ -218,7 +217,7 @@ def compute_durations(
     p_swap: float,
     time_slot_duration: float,
     rates: dict[tuple, float],
-    coherence: float = 0.020,
+    t_cut: float = 0.001,
 ) -> dict[str, float]:
     """Compute the duration of each application based on the paths and
     link parameters.
@@ -237,8 +236,8 @@ def compute_durations(
         rates (dict[tuple, float]): Per-link p_gen, keyed by sorted-tuple
         edges. The effective p_gen for a route is the minimum across its
         edges.
-        coherence (float, optional): Coherence time in seconds of a
-        generated pair.
+        t_cut (float, optional): Cutoff time: how long a generated
+        pair is held before being discarded.
 
     Returns:
         dict[str, float]: A dictionary mapping each application to its total
@@ -265,7 +264,7 @@ def compute_durations(
             p_swap=p_swap,
             p_gen=effective_p_gen,
             time_slot_duration=time_slot_duration,
-            coherence=coherence,
+            t_cut=t_cut,
         )
         durations[app] = pga_time
     return durations

@@ -10,7 +10,7 @@ def main():
         if len(sys.argv) > 2
         else "configurations/network/basic/3_equal_paths.gml"
     )
-    coherence = float(sys.argv[3]) if len(sys.argv) > 3 else 0.020
+    t_cut = float(sys.argv[3]) if len(sys.argv) > 3 else 0.001
     deadline = float(sys.argv[4]) if len(sys.argv) > 4 else 2.0
     out_dir = sys.argv[5] if len(sys.argv) > 5 else "results"
 
@@ -22,11 +22,11 @@ def main():
     simulations_per_point = 20
 
     base_kwargs = {
-        "epr_range": (2, 2),
+        "epr_range": (1, 1),
         "deadline_range": (deadline, deadline),
         "memory": 50,
         "p_swap": 0.5,
-        "coherence": coherence,
+        "t_cut": t_cut,
         "time_slot_duration": 1e-4,
         "graph": graph,
     }
