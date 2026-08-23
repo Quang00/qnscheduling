@@ -59,7 +59,7 @@ class TestGenerateWaxmanGraph:
 
     def test_impossible_constraints_returns_empty(self):
         rng = np.random.default_rng(42)
-        nodes, edges, fidelities, rates, avg_deg, diameter = (
+        nodes, edges, fidelities, rates, avg_deg, _diameter = (
             generate_waxman_graph(
                 n=20, rng=rng, max_retries=5, max_avg_degree=0.1, max_hops=1
             )

@@ -1,5 +1,6 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from itertools import pairwise
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -11,8 +12,8 @@ EPS = 1e-12
 
 
 def shortest_paths(
-    edges: List[Tuple[str, str]], app_requests: Dict[str, Dict[str, Any]]
-) -> Dict[str, List[str]]:
+    edges: list[tuple[str, str]], app_requests: dict[str, dict[str, Any]]
+) -> dict[str, list[str]]:
     """Find shortest paths for each applications in a quantum network graph
     represented by edges.
 
@@ -45,19 +46,19 @@ def shortest_paths(
 
 
 def _compute_delta_and_links(
-    path: List[str],
-    req: Dict[str, Any],
+    path: list[str],
+    req: dict[str, Any],
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    rates: Dict[Tuple[str, str], float],
+    rates: dict[tuple[str, str], float],
     time_slot_duration: float,
     t_cut: float = 0.001,
-) -> Tuple[float, List[Tuple[str, str]]]:
+) -> tuple[float, list[tuple[str, str]]]:
     n_swaps = max(0, len(path) - 2)
     links = [
         (min(u, v), max(u, v))
-        for u, v in zip(path[:-1], path[1:], strict=False)
+        for u, v in pairwise(path)
     ]
     effective_p_gen = min(rates[lk] for lk in links)
     pga_duration = duration_pga(
@@ -75,19 +76,19 @@ def _compute_delta_and_links(
 
 
 def smallest_bottleneck(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
     src: str,
     dst: str,
-    req: Dict[str, Any],
-    cap: Dict[Tuple[str, str], float],
+    req: dict[str, Any],
+    cap: dict[tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    rates: Dict[Tuple[str, str], float],
+    rates: dict[tuple[str, str], float],
     time_slot_duration: float,
     k: int | None = None,
     t_cut: float = 0.001,
-) -> Tuple[List[List[str]], float, float]:
+) -> tuple[list[list[str]], float, float]:
     candidates = []
     for e2e_fid, path in all_simple_paths(simple_paths, src, dst):
         if e2e_fid < req["min_fidelity"]:
@@ -113,20 +114,20 @@ def smallest_bottleneck(
 
 
 def least_capacity(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
     src: str,
     dst: str,
-    req: Dict[str, Any],
-    cap: Dict[Tuple[str, str], float],
+    req: dict[str, Any],
+    cap: dict[tuple[str, str], float],
     p_packet: float | None,
     memory: int,
     p_swap: float,
-    rates: Dict[Tuple[str, str], float],
+    rates: dict[tuple[str, str], float],
     time_slot_duration: float,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
     t_cut: float = 0.001,
-) -> Tuple[List[List[str]], float, float]:
+) -> tuple[list[list[str]], float, float]:
     """Select the path with the least total capacity utilization among all
     paths that meet the fidelity requirement. The total capacity utilization of
     a path is defined as the sum of the capacity utilizations of all edges
@@ -177,13 +178,13 @@ def least_capacity(
 
 
 def fidelity_shortest(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
     src: str,
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
     provisioning: bool = True,
-) -> Tuple[List[List[str]], float]:
+) -> tuple[list[list[str]], float]:
     candidate_paths = []
     shortest_length = None
 
@@ -213,13 +214,13 @@ def fidelity_shortest(
 
 
 def highest_fidelity(
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
     src: str,
     dst: str,
     min_fidelity: float,
     rng: np.random.Generator,
     provisioning: bool = True,
-) -> Tuple[List[List[str]], float]:
+) -> tuple[list[list[str]], float]:
     """Select the path with the highest E2E fidelity among all paths that
     meet the minimum fidelity requirement. Ties are broken randomly.
 
@@ -266,31 +267,31 @@ def highest_fidelity(
 
 
 def _update_capacity(
-    path: List[str],
+    path: list[str],
     delta: float,
-    cap: Dict[Tuple[str, str], float],
+    cap: dict[tuple[str, str], float],
 ) -> None:
-    for u, v in zip(path[:-1], path[1:], strict=False):
+    for u, v in pairwise(path):
         link = tuple(sorted((u, v)))
         cap[link] += delta
 
 
 def find_feasible_path(
-    edges: List[Tuple[str, str]],
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-    app_requests: Dict[str, Dict[str, Any]],
-    fidelities: Dict[Tuple[str, str], float] | None,
-    pga_rel_times: Dict[str, float] | None = None,
+    edges: list[tuple[str, str]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
+    app_requests: dict[str, dict[str, Any]],
+    fidelities: dict[tuple[str, str], float] | None,
+    pga_rel_times: dict[str, float] | None = None,
     routing_mode: str = "shortest",
     p_packet: float | None = None,
     memory: int = 1,
     p_swap: float = 0.6,
-    rates: Dict[Tuple[str, str], float] | None = None,
+    rates: dict[tuple[str, str], float] | None = None,
     time_slot_duration: float = 1e-4,
     rng: np.random.Generator | None = None,
     provisioning: bool = True,
     t_cut: float = 0.001,
-) -> Dict[str, List[List[str]]]:
+) -> dict[str, list[list[str]]]:
     """Find feasible paths for each application request based on the specified
     routing and the fidelity threshold.
 
@@ -334,8 +335,8 @@ def find_feasible_path(
     """
     if fidelities is None or not fidelities:
         return (
-            {app: [] for app in app_requests.keys()},
-            {app: float("nan") for app in app_requests.keys()},
+            {app: [] for app in app_requests},
+            {app: float("nan") for app in app_requests},
         )
 
     G = nx.Graph()
@@ -441,12 +442,12 @@ def find_feasible_path(
 
 
 def rerouting(
-    precomputed: Dict[str, List[Tuple]],
+    precomputed: dict[str, list[tuple]],
     deadline: float,
     cur_t: float,
     app: str,
-    resources: Dict[Tuple[str, str], float] | None = None,
-) -> Tuple[List[str], List[Tuple[str, str]], float, float, float] | None:
+    resources: dict[tuple[str, str], float] | None = None,
+) -> tuple[list[str], list[tuple[str, str]], float, float, float] | None:
     res = resources
     best = None
     best_score = None
@@ -457,8 +458,7 @@ def rerouting(
         sum_wait = 0.0
         for lnk in links:
             v = res.get(lnk, 0.0)
-            if v > avail:
-                avail = v
+            avail = max(avail, v)
             wait = v - cur_t
             if wait > 0.0:
                 sum_wait += wait
@@ -474,13 +474,13 @@ def rerouting(
 
 
 def compute_path_durations(
-    pga_params: Dict[str, float],
-    rates: Dict[Tuple[str, str], float],
-    simple_paths: Dict[Tuple[str, str], List] | None = None,
-    provisioned_paths: List[List[str]] | None = None,
+    pga_params: dict[str, float],
+    rates: dict[tuple[str, str], float],
+    simple_paths: dict[tuple[str, str], list] | None = None,
+    provisioned_paths: list[list[str]] | None = None,
     src: str | None = None,
     dst: str | None = None,
-) -> List[Tuple]:
+) -> list[tuple]:
     duration_cache = {}
     result = []
     if provisioned_paths is not None:
@@ -500,7 +500,7 @@ def compute_path_durations(
     for e2e_fid, path in items:
         links = [
             (min(u, v), max(u, v))
-            for u, v in zip(path[:-1], path[1:], strict=False)
+            for u, v in pairwise(path)
         ]
         n_swap = max(0, len(path) - 2)
         effective_p_gen = min(rates[lk] for lk in links)
@@ -521,23 +521,23 @@ def compute_path_durations(
 
 
 def bottlenecks(
-    resources: Dict[Tuple[str, str], float],
-    links: List[Tuple[str, str]] | None,
+    resources: dict[tuple[str, str], float],
+    links: list[tuple[str, str]] | None,
     avail: float | None,
-) -> List[Tuple[str, str]]:
+) -> list[tuple[str, str]]:
     if not links or avail is None:
         return []
     return [lnk for lnk in links if abs(resources[lnk] - avail) < EPS]
 
 
 def dynamic_routing(
-    candidate_paths: List[Tuple[float, Any, List[Tuple[str, str]], float]],
+    candidate_paths: list[tuple[float, Any, list[tuple[str, str]], float]],
     min_fidelity: float,
     deadline: float,
     cur_t: float = 0.0,
-    resources: Dict[Tuple[str, str], float] = None,
+    resources: dict[tuple[str, str], float] | None = None,
     mode: str = "wc",
-) -> Tuple[Tuple | None, float | None, List[Tuple[str, str]]]:
+) -> tuple[tuple | None, float | None, list[tuple[str, str]]]:
     non_work_conserving = mode in ("nwc", "fastest")
     fastest_only = mode == "fastest"
     res = resources
@@ -565,8 +565,7 @@ def dynamic_routing(
         sum_wait = 0.0
         for lnk in links:
             v = res[lnk]
-            if v > avail:
-                avail = v
+            avail = max(avail, v)
             wait = v - cur_t
             if wait > 0.0:
                 sum_wait += wait
@@ -598,9 +597,9 @@ def dynamic_routing(
 
 
 def static_routing(
-    app_requests: Dict[str, Dict[str, Any]],
-    simple_paths: Dict[Tuple[str, str], List[List[str]]],
-) -> Tuple[Dict[str, List[List[str]]], Dict[str, float]]:
+    app_requests: dict[str, dict[str, Any]],
+    simple_paths: dict[tuple[str, str], list[list[str]]],
+) -> tuple[dict[str, list[list[str]]], dict[str, float]]:
     ret = {}
     e2e_fids = {}
     path_cache = {}

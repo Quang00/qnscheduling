@@ -11,7 +11,7 @@ import heapq
 import re
 import time
 from bisect import bisect_left
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -34,19 +34,19 @@ class PGA:
         arrival: float,
         start: float,
         end: float,
-        route: List[str],
-        resources: Dict[Tuple[str, str], float],
-        link_busy: Dict[Tuple[str, str], float],
-        link_p_gens: List[float] | np.ndarray,
+        route: list[str],
+        resources: dict[tuple[str, str], float],
+        link_busy: dict[tuple[str, str], float],
+        link_p_gens: list[float] | np.ndarray,
         epr_pairs: int,
         slot_duration: float,
         rng: np.random.Generator,
-        log: List[Dict[str, Any]],
+        log: list[dict[str, Any]],
         p_swap: float,
         memory: int = 1,
         t_cut: float = 0.001,
         deadline: float | None = None,
-        route_links: List[Tuple[str, str]] | None = None,
+        route_links: list[tuple[str, str]] | None = None,
     ) -> None:
         """Packet Generation Attempt (PGA) simulation. A PGA tries to
         generate EPR pairs over a specified route within a defined time window,
@@ -114,7 +114,7 @@ class PGA:
         self.links = route_links
         self.n_swap = max(0, len(self.route) - 2)
         self.p_swap = float(p_swap)
-        self.t_cut = max(0, int(round(t_cut / self.slot_duration)))
+        self.t_cut = max(0, round(t_cut / self.slot_duration))
         self.memory = max(1, int(memory))
         self.link_p_gens = np.asarray(link_p_gens, dtype=float)
         self.link_qs = 1.0 - (1.0 - self.link_p_gens) ** self.memory
@@ -160,8 +160,7 @@ class PGA:
                 if j == sizes[i]:
                     return np.asarray(deliveries, dtype=np.int64)
                 cursors[i] = j
-                if s[j] > t:
-                    t = s[j]
+                t = max(t, s[j])
 
             stable = False
             while not stable:
@@ -202,12 +201,12 @@ class PGA:
             for link in self.links:
                 self.link_busy[link] = self.link_busy.get(link, 0.0) + busy
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         attempts_run = 0
         pairs_generated = 0
         current_time = self.start
         diff = self.end - self.start
-        t_budget = diff if diff > 0.0 else 0.0
+        t_budget = max(0.0, diff)
         status = "failed"
 
         if t_budget > EPS:
@@ -233,7 +232,7 @@ class PGA:
 
             current_time = self.start + attempts_run * self.slot_duration
             completion = (
-                current_time if current_time < self.end else self.end
+                min(self.end, current_time)
             )
             self._update_resources_and_links(completion, attempts_run)
         else:
@@ -260,24 +259,24 @@ class PGA:
 
 
 def simulate_dynamic(
-    app_specs: Dict[str, Dict[str, Any]],
-    durations: Dict[str, float],
-    pga_parameters: Dict[str, Dict[str, float]],
-    pga_rel_times: Dict[str, float],
-    pga_network_paths: Dict[str, List[List[str]]],
+    app_specs: dict[str, dict[str, Any]],
+    durations: dict[str, float],
+    pga_parameters: dict[str, dict[str, float]],
+    pga_rel_times: dict[str, float],
+    pga_network_paths: dict[str, list[list[str]]],
     rng: np.random.Generator,
     full_dynamic: bool = True,
     rerouting_mode: bool = False,
-    all_links: List[Tuple[str, str]] | None = None,
-    simple_paths: Dict[str, List[List[str]]] | None = None,
+    all_links: list[tuple[str, str]] | None = None,
+    simple_paths: dict[str, list[list[str]]] | None = None,
     static_routing_mode: bool = False,
     dynamic_mode: str = "wc",
     horizon_time: float | None = None,
     warmup_time: float = 0.0,
-    rng_arrivals: Dict[str, np.random.Generator] | None = None,
+    rng_arrivals: dict[str, np.random.Generator] | None = None,
     instance_arrival_rate: float = 10.0,
-    rates: Dict[Tuple[str, str], float] = None,
-    app_e2e_fidelities: Dict[str, float] | None = None,
+    rates: dict[tuple[str, str], float] | None = None,
+    app_e2e_fidelities: dict[str, float] | None = None,
 ):
     log = []
     defer_counts = {}
@@ -327,17 +326,17 @@ def simulate_dynamic(
     pga_best = {}
     rerouting_candidates = {}
     if full_dynamic and simple_paths is not None:
-        for app in app_specs:
+        for app, spec in app_specs.items():
             _t0 = time.perf_counter()
             routing_metadata[app] = compute_path_durations(
                 pga_parameters[app],
                 simple_paths=simple_paths,
-                src=app_specs[app]["src"],
-                dst=app_specs[app]["dst"],
+                src=spec["src"],
+                dst=spec["dst"],
                 rates=rates,
             )
             routing_decision_runtime += time.perf_counter() - _t0
-            min_fid = app_specs[app].get("min_fidelity", 0.0)
+            min_fid = spec.get("min_fidelity", 0.0)
             feasible_durs = [
                 dur
                 for fid, _, _, dur in routing_metadata[app]
@@ -386,7 +385,7 @@ def simulate_dynamic(
 
     def track_defer_wait(
         defer_until: float,
-        blocking_links: List[Tuple[str, str]],
+        blocking_links: list[tuple[str, str]],
     ) -> None:
         if cur_t < warmup_time or not blocking_links:
             return

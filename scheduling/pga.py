@@ -8,7 +8,8 @@ compute the duration of a Packet Generation Attempt (PGA) based on these
 probabilities.
 """
 
-from functools import lru_cache
+from functools import cache
+from itertools import pairwise
 from math import comb
 
 from scipy.stats import binom
@@ -57,7 +58,7 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
     return binom.sf(k - 1, float(n), p_e2e) >= p_packet
 
 
-@lru_cache(maxsize=None)
+@cache
 def expected_bsm_slots(n_links: int, p_link: float, window: int) -> float:
     """Expected number of slots until an end-to-end BSM is performed.
 
@@ -147,7 +148,7 @@ def naus_probability(k: int, window: int, n: int, p: float) -> float:
 _MAX_SLOTS = 10**12
 
 
-@lru_cache(maxsize=None)
+@cache
 def duration_pga(
     p_packet: float,
     epr_pairs: int,
@@ -182,7 +183,7 @@ def duration_pga(
         raise ValueError(
             "p_packet cannot be 1.0, as it would lead to infinite duration."
         )
-    window = int(round(t_cut / time_slot_duration))
+    window = round(t_cut / time_slot_duration)
     n_links = n_swap + 1
     p_link = 1.0 - (1.0 - p_gen) ** memory
     if p_link <= 0.0 or window < 1 or epr_pairs > window:
@@ -254,7 +255,7 @@ def compute_durations(
             n_swaps = 0
         effective_p_gen = min(
             rates[(min(u, v), max(u, v))]
-            for u, v in zip(route[:-1], route[1:], strict=False)
+            for u, v in pairwise(route)
         )
         pga_time = duration_pga(
             p_packet=p_packet,

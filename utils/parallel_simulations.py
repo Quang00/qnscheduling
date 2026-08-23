@@ -4,7 +4,8 @@ import os
 import shutil
 import signal
 import tempfile
-from typing import Any, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
 from tqdm.auto import tqdm
@@ -149,7 +150,7 @@ def run_ppacket_parallel_simulations(
     default_kwargs: dict,
     keep_seed_outputs: bool,
     inst_range_values: Sequence[int] | None = None,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     show_progress: bool = True,
     raw_csv_path: str | None = None,
 ) -> pd.DataFrame:
@@ -187,7 +188,7 @@ def run_ppacket_sweep_to_csv(
     simulation_kwargs: dict | None = None,
     keep_seed_outputs: bool = False,
     inst_range_values: Sequence[int] | None = None,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     show_progress: bool = True,
 ) -> tuple[pd.DataFrame, str]:
     run_dir, timestamp = prepare_run_dir(

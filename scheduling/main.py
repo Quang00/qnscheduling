@@ -145,7 +145,7 @@ def run_simulation(
         )
         nodes = qpus
     elif graph == "gml":
-        nodes, edges, distances, fidelities, rates, diameter = gml_data(
+        nodes, edges, _distances, fidelities, rates, diameter = gml_data(
             config, coherence=coherence
         )
     bounds, simple_paths = fidelity_bounds_and_paths(
@@ -263,7 +263,7 @@ def run_simulation(
     admitted_paths = {
         app: path_list for app, path_list in paths.items() if path_list
     }
-    admitted_specs = {app: app_specs[app] for app in admitted_paths.keys()}
+    admitted_specs = {app: app_specs[app] for app in admitted_paths}
     admitted_apps = len(admitted_specs)
 
     if admitted_apps == 0:

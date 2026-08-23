@@ -36,7 +36,7 @@ def test_fidelity_bounds_and_paths_basic_graph():
     assert bounds[("A", "D")][1] == pytest.approx(0.9, rel=1e-12)
 
     # only simple paths should be included
-    for _, plist in paths.items():
+    for plist in paths.values():
         for _, p in plist:
             assert len(p) == len(set(p))
 
@@ -49,7 +49,7 @@ def test_fidelity_bounds_and_paths_respects_K():
         ("B", "D"): 0.9,
     }
     end_nodes = ["A", "C", "D"]
-    bounds, paths = fidelity_bounds_and_paths(end_nodes, fidelities, K=2)
+    _bounds, paths = fidelity_bounds_and_paths(end_nodes, fidelities, K=2)
 
     # A -> D: only A-B-D (2 hops) fits; A-B-C-D (3 hops) should be excluded
     assert ("A", "D") in paths

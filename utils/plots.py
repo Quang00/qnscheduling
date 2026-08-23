@@ -1,7 +1,8 @@
 import os
 import sys
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -305,9 +306,8 @@ def render_plot(
     if group_column or overlay:
         ax.legend()
 
-    if spec.get("yscale"):
-        if summary_df["mean"].gt(0).any():
-            ax.set_yscale(spec["yscale"])
+    if spec.get("yscale") and summary_df["mean"].gt(0).any():
+        ax.set_yscale(spec["yscale"])
 
     ymin = spec.get("ymin")
     ymax = spec.get("ymax")
@@ -459,7 +459,7 @@ def plot_metrics_vs_load(
         if out_dir:
             run_dir = out_dir
         else:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
             run_dir = os.path.join("results", timestamp)
         os.makedirs(run_dir, exist_ok=True)
         if p_packet_values is None:
@@ -532,7 +532,7 @@ def plot_metrics_vs_load(
         individual_values=val_list if len(val_list) > 1 else None,
         create_individual=create_individual,
         overlay_multipath=overlay_multipath,
-        y_start_zero=True,
+        y_start_zero=False,
     )
 
     set_plot_theme(dpi)

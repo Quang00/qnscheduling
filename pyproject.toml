@@ -20,6 +20,12 @@ testpaths = ["tests"]
 [tool.setuptools]
 packages = ["scheduling", "utils"]
 
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+extend-select = ["E501"]
+
 [tool.coverage.run]
 omit = [
   "scheduling/__init__.py",

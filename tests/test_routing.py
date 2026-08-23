@@ -36,13 +36,13 @@ def def_req():
 
 @pytest.fixture
 def pga_params():
-    return dict(
-        p_packet=0.9,
-        memory=1000,
-        p_swap=0.6,
-        rates=defaultdict(lambda: 0.001),
-        time_slot_duration=1e-4
-    )
+    return {
+        "p_packet": 0.9,
+        "memory": 1000,
+        "p_swap": 0.6,
+        "rates": defaultdict(lambda: 0.001),
+        "time_slot_duration": 1e-4,
+    }
 
 
 @pytest.fixture
@@ -142,7 +142,11 @@ def test_find_feasible_path_min_fidelity_too_low(linear_abc):
     edges, fidelities, simple_paths = linear_abc
     app_requests = {
         "app": {
-            "src": "A", "dst": "B", "min_fidelity": 0.4, "epr": 1, "deadline_budget": 1
+            "src": "A",
+            "dst": "B",
+            "min_fidelity": 0.4,
+            "epr": 1,
+            "deadline_budget": 1,
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -283,7 +287,11 @@ def test_find_feasible_path_cap_modes_success(
     edges, fidelities, simple_paths = diamond_abcde
     app_requests = {
         "app": {
-            "src": "A", "dst": "E", "min_fidelity": 0.6, "epr": 1, "deadline_budget": 1
+            "src": "A",
+            "dst": "E",
+            "min_fidelity": 0.6,
+            "epr": 1,
+            "deadline_budget": 1,
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -306,7 +314,11 @@ def test_find_feasible_path_cap_modes_no_valid_path(routing_mode, pga_params):
     _, simple_paths = fidelity_bounds_and_paths(["A", "B", "C"], fidelities)
     app_requests = {
         "app": {
-            "src": "A", "dst": "C", "min_fidelity": 0.99, "epr": 1, "deadline_budget": 1
+            "src": "A",
+            "dst": "C",
+            "min_fidelity": 0.99,
+            "epr": 1,
+            "deadline_budget": 1,
         }
     }
     result, e2e_fids = find_feasible_path(
@@ -326,7 +338,11 @@ def test_find_feasible_path_highest(linear_abc):
     edges, fidelities, simple_paths = linear_abc
     app_requests = {
         "app": {
-            "src": "A", "dst": "C", "min_fidelity": 0.6, "epr": 1, "deadline_budget": 1
+            "src": "A",
+            "dst": "C",
+            "min_fidelity": 0.6,
+            "epr": 1,
+            "deadline_budget": 1,
         }
     }
     result, e2e_fids = find_feasible_path(

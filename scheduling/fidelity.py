@@ -1,10 +1,9 @@
 from collections import defaultdict
-from typing import Dict, List, Tuple
 
 
 def werner_adj_list(
-    fidelities: Dict[Tuple[str, str], float],
-) -> Dict[str, List[Tuple[str, float]]]:
+    fidelities: dict[tuple[str, str], float],
+) -> dict[str, list[tuple[str, float]]]:
     """Convert directed edge fidelities to an undirected adjacency list with
     Werner parameters as weights.
 
@@ -31,7 +30,7 @@ def werner_adj_list(
 
 def fidelity_bounds_and_paths(
     nodes: list[str], fidelities: dict[tuple[str, str], float], K: int = 8
-) -> Tuple[Dict, Dict]:
+) -> tuple[dict, dict]:
     """Compute E2E fidelity bounds and simple paths between end nodes based on
     the given edge fidelities. The function performs a DFS from each end node
     to find all simple paths up to K hops and calculates the corresponding E2E
@@ -91,6 +90,6 @@ def fidelity_bounds_and_paths(
                     (3.0 * best_min[destination] + 1.0) / 4.0,
                     (3.0 * best_max[destination] + 1.0) / 4.0,
                 )
-    for _, path in paths.items():
+    for path in paths.values():
         path.sort(key=lambda x: len(x[1]) - 1)
     return bounds, dict(paths)

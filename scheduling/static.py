@@ -12,7 +12,6 @@ if feasible.
 from fractions import Fraction
 from functools import reduce
 from math import floor, gcd, isfinite
-from typing import Dict, List, Set, Tuple
 
 EPS = 1e-12
 
@@ -72,12 +71,12 @@ def hyperperiod(periods: dict[str, float]) -> float:
 
 
 def edf_parallel_static(
-    pga_rel_times: Dict[str, float],
-    pga_periods: Dict[str, float],
-    durations: Dict[str, float],
-    parallel_apps: Dict[str, Set[str]],
+    pga_rel_times: dict[str, float],
+    pga_periods: dict[str, float],
+    durations: dict[str, float],
+    parallel_apps: dict[str, set[str]],
     horizon_cycles: int,
-) -> Tuple[bool, List[Tuple[str, float, float, float]] | str]:
+) -> tuple[bool, list[tuple[str, float, float, float]] | str]:
     """EDF scheduling with parallelization capabilities. The static schedule is
     constructed over a given number of hyperperiod cycles. It checks if the
     set of PGAs is feasible and returns the schedule if so.
@@ -140,18 +139,18 @@ def edf_parallel_static(
     for pga_name, k, rel, dl, pga_duration in instances:
         block_until = 0.0
         for c in conflicts[pga_name]:
-            if last_finish[c] > block_until:
-                block_until = last_finish[c]
-        if last_finish[pga_name] > block_until:
-            block_until = last_finish[pga_name]
+            block_until = max(block_until, last_finish[c])
+        block_until = max(block_until, last_finish[pga_name])
 
         start = max(rel, block_until)
         end = start + pga_duration
         if end > dl + EPS:
             return (
                 False,
-                "Infeasible schedule -> deadline miss: "
-                f"{pga_name}{k} end={end:.9f} > deadline={dl:.9f}",
+                (
+                    "Infeasible schedule -> deadline miss: "
+                    f"{pga_name}{k} end={end:.9f} > deadline={dl:.9f}"
+                ),
             )
         schedule.append((f"{pga_name}{k}", start, end, dl))
         last_finish[pga_name] = end

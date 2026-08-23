@@ -1,8 +1,10 @@
 import os
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Tuple
+from itertools import pairwise
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -14,15 +16,16 @@ from openpyxl.utils import get_column_letter
 # Parallelization
 # =============================================================================
 def parallelizable_tasks(
-    paths_for_each_apps: dict[str, List[str] | None],
+    paths_for_each_apps: dict[str, list[str] | None],
 ) -> dict[str, set[str]]:
     """Find parallelizable applications based on shared links of a
     quantum network.
 
     Args:
-        paths_for_each_apps (dict[str, List[str]]): A dictionary where keys are
-            application names and values are list of nodes describing the route
-            used to run the applications, e.g. on a linear chain Alice-Rob-Bob:
+        paths_for_each_apps (dict[str, list[str] | None]): A dictionary
+            where keys are application names and values are list of nodes
+            describing the route used to run the applications, e.g. on a
+            linear chain Alice-Rob-Bob:
 
                 {
                     'A': ['Alice', 'Rob'],
@@ -49,9 +52,7 @@ def parallelizable_tasks(
         G.add_node(app)
         if not v or len(v) < 2:
             continue
-        edges_on_path = {
-            tuple(sorted((u, v))) for u, v in zip(v[:-1], v[1:], strict=False)
-        }
+        edges_on_path = {tuple(sorted((u, v))) for u, v in pairwise(v)}
         for edge in edges_on_path:
             for other_app in conflicts[edge]:
                 G.add_edge(app, other_app)
@@ -70,7 +71,7 @@ def parallelizable_tasks(
 # =============================================================================
 def app_params_sim(
     paths: dict[str, list[str]],
-    app_specs: dict[str, dict[str, Any]],
+    app_specs: dict[str, dict[str, any]],
     p_packet: float,
     memory: int,
     p_swap: float,
@@ -96,7 +97,7 @@ def app_params_sim(
         parameters required by the simulator when instantiating PGAs.
     """
     sim_params = {}
-    for key in paths.keys():
+    for key in paths:
         spec = app_specs[key]
         sim_params[key] = {
             "p_packet": p_packet,
@@ -135,10 +136,10 @@ def build_default_sim_args(config: str, args: dict | None) -> dict:
 # Tracking
 # =============================================================================
 def compute_link_utilization(
-    link_busy: Dict[Tuple[str, str], float],
+    link_busy: dict[tuple[str, str], float],
     min_start: float,
     max_completion: float,
-) -> Dict[Tuple[str, str], Dict[str, float]]:
+) -> dict[tuple[str, str], dict[str, float]]:
     if not link_busy:
         return {}
 
@@ -167,16 +168,16 @@ def compute_link_utilization(
 
 def track_link_waiting(
     waiting_time: float,
-    wait_acc: Dict[Tuple[str, str], Dict[str, float]],
-    blocking_links: List[Tuple[str, str]] | None = None,
+    wait_acc: dict[tuple[str, str], dict[str, float]],
+    blocking_links: list[tuple[str, str]] | None = None,
 ) -> None:
     """Track waiting time statistics per link.
 
     Args:
         waiting_time (float): Wait incurred by a single deferral.
-        wait_acc (Dict[Tuple[str, str], Dict[str, float]]): Accumulator
+        wait_acc (dict[tuple[str, str], dict[str, float]]): Accumulator
         for waiting time statistics per link.
-        blocking_links (List[Tuple[str, str]] | None): The specific link(s)
+        blocking_links (list[tuple[str, str]] | None): The specific link(s)
         that caused the waiting (with maximum busy time). If provided, waiting
         time is distributed equally among these links.
 
@@ -211,20 +212,20 @@ def track_link_waiting(
 # =============================================================================
 def save_results(
     df: pd.DataFrame,
-    pga_names: List[str],
-    pga_release_times: Dict[str, float],
-    app_specs: Dict[str, Dict[str, Any]],
+    pga_names: list[str],
+    pga_release_times: dict[str, float],
+    app_specs: dict[str, dict[str, Any]],
     n_edges: int,
-    durations: Dict[str, float] | None = None,
-    pga_network_paths: Dict[str, List[str]] | None = None,
-    link_utilization: Dict[Tuple[str, str], Dict[str, float]] | None = None,
-    link_waiting: Dict[Tuple[str, str], Dict[str, float | int]] | None = None,
+    durations: dict[str, float] | None = None,
+    pga_network_paths: dict[str, list[str]] | None = None,
+    link_utilization: dict[tuple[str, str], dict[str, float]] | None = None,
+    link_waiting: dict[tuple[str, str], dict[str, float | int]] | None = None,
     admitted_apps: int | None = None,
     total_apps: int | None = None,
-    app_e2e_fidelities: Dict[str, float] | None = None,
+    app_e2e_fidelities: dict[str, float] | None = None,
     single_path_share: float = float("nan"),
     two_path_share: float = float("nan"),
-    app_request_rows: List[Dict[str, Any]] | None = None,
+    app_request_rows: list[dict[str, Any]] | None = None,
     avg_deg: float = float("nan"),
     output_dir: str = "results",
     save_csv: bool = True,
@@ -233,9 +234,9 @@ def save_results(
     routing_decision_runtime: float | None = None,
     warmup: float | None = None,
     end_time: float | None = None,
-    defer_counts: Dict[str, int] | None = None,
+    defer_counts: dict[str, int] | None = None,
     multi_path_apps: Iterable[str] | None = None,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Save the results of PGA scheduling and execution to a CSV file and print
     a summary of the results.
 
@@ -254,27 +255,27 @@ def save_results(
             - dst_node: Destination node of the PGA
             - instances: Number of instances for the PGA
             - epr_pairs: Number of EPR pairs for the PGA
-        pga_names (List): List of all PGA names that should be present in the
+        pga_names (list): List of all PGA names that should be present in the
             results.
-        pga_release_times (Dict): Dictionary mapping PGA names to their
+        pga_release_times (dict): Dictionary mapping PGA names to their
             relative release times, used to fill in missing PGAs.
-        app_specs (Dict): Metadata for each application including endpoints,
+        app_specs (dict): Metadata for each application including endpoints,
             instances, requested EPR pairs, and deadline budget.
         n_edges (int): Number of edges in the network graph.
-        durations (Dict | None): Optional mapping of deterministic PGA
+        durations (dict | None): Optional mapping of deterministic PGA
             durations per application.
-        pga_network_paths (Dict | None): Length of network paths per
+        pga_network_paths (dict | None): Length of network paths per
             application.
-        link_utilization (Dict): Dictionary mapping links to busy time and
+        link_utilization (dict): Dictionary mapping links to busy time and
             utilization metrics.
-        link_waiting (Dict | None): Dictionary mapping links to waiting
+        link_waiting (dict | None): Dictionary mapping links to waiting
             metrics (total waiting time and number of PGAs that waited).
         output_dir (str): Directory where the results CSV file will be saved.
         save_csv (bool): Whether to save results to CSV files.
         verbose (bool): Whether to print summary statistics to stdout.
 
     Returns:
-        Dict[str, float]: Dictionary containing summary metrics including
+        dict[str, float]: Dictionary containing summary metrics including
             admission_rate, makespan, throughput, completion ratios, and
             utilization statistics.
     """
@@ -310,14 +311,23 @@ def save_results(
 
     if not save_csv:
         _keep = [
-            "pga", "status", "waiting_time", "turnaround_time",
-            "burst_time", "arrival_time", "completion_time", "task",
+            "pga",
+            "status",
+            "waiting_time",
+            "turnaround_time",
+            "burst_time",
+            "arrival_time",
+            "completion_time",
+            "task",
             "multi_path",
         ]
         if has_per_row_routing:
             _keep += [
-                c for c in (
-                    "hops", "e2e_fidelity", "pga_duration",
+                c
+                for c in (
+                    "hops",
+                    "e2e_fidelity",
+                    "pga_duration",
                     "routing_efficiency",
                 )
                 if c in df.columns
@@ -357,7 +367,8 @@ def save_results(
 
     if has_per_row_routing:
         merge_cols = [
-            c for c in params.columns
+            c
+            for c in params.columns
             if c not in ("hops", "pga_duration", "e2e_fidelity")
         ]
         df = df.merge(params[merge_cols], on="task", how="left")
@@ -417,11 +428,9 @@ def save_results(
 
         if makespan and makespan > 0:
             lk_ut_df["utilization"] = lk_ut_df["busy_time"] / makespan
-        lk_ut_df = (
-            lk_ut_df
-            .sort_values("utilization", ascending=False)
-            .reset_index(drop=True)
-        )
+        lk_ut_df = lk_ut_df.sort_values(
+            "utilization", ascending=False
+        ).reset_index(drop=True)
 
         busy_time_sum = lk_ut_df["busy_time"].sum()
         avg_link_utilization = float((busy_time_sum / makespan) / n_edges)
@@ -621,20 +630,22 @@ def save_results(
             retry_count / tot_reqs if tot_reqs else float("nan")
         )
         avg_burst_time = (
-            sdf["burst_time"].mean()
-            if not sdf.empty
-            else float("nan")
+            sdf["burst_time"].mean() if not sdf.empty else float("nan")
         )
         total_burst_time = float(executed_burst.fillna(0).clip(lower=0).sum())
         avg_active_pgas = (
-            total_burst_time / makespan if makespan and makespan > 0
+            total_burst_time / makespan
+            if makespan and makespan > 0
             else float("nan")
         )
         fastest_path_rate = float("nan")
         if has_per_row_routing:
             cols = [
-                c for c in (
-                    "hops", "e2e_fidelity", "pga_duration",
+                c
+                for c in (
+                    "hops",
+                    "e2e_fidelity",
+                    "pga_duration",
                 )
                 if c in sdf.columns
             ]
@@ -643,18 +654,14 @@ def save_results(
             avg_e2e_fidelity = float(per_pga.get("e2e_fidelity", float("nan")))
             pga_d = float(per_pga.get("pga_duration", float("nan")))
             if "routing_efficiency" in sdf.columns:
-                eff = pd.to_numeric(
-                    sdf["routing_efficiency"], errors="coerce"
-                )
+                eff = pd.to_numeric(sdf["routing_efficiency"], errors="coerce")
                 chose_fastest = (eff >= 1.0 - 1e-9).astype(float)
                 chose_fastest[eff.isna()] = np.nan
                 fastest_path_rate = float(chose_fastest.mean())
         else:
             sparams = params[params["task"].isin(sspecs)]
             avg_hops = (
-                sparams["hops"].mean()
-                if not sparams.empty
-                else float("nan")
+                sparams["hops"].mean() if not sparams.empty else float("nan")
             )
             e2e_fidelity_values = [
                 v
@@ -667,8 +674,7 @@ def save_results(
                 else float("nan")
             )
         admitted_min_fidelities = [
-            sspecs[app].get("min_fidelity", float("nan"))
-            for app in sspecs.keys()
+            sspecs[app].get("min_fidelity", float("nan")) for app in sspecs
         ]
         avg_min_fidelity = (
             float(np.mean(admitted_min_fidelities))
@@ -695,14 +701,13 @@ def save_results(
 
         tasks_sorted = sorted(per_task.index, key=lambda x: (len(x), x))
         served_tasks = {
-            task for task in expected_tasks
+            task
+            for task in expected_tasks
             if int(released_per_task.get(task, 0))
             == int(sspecs[task]["instances"] if task in sspecs else 0)
         }
         served_count = len(served_tasks)
-        app_throughput = (
-            served_count / makespan if makespan else float("nan")
-        )
+        app_throughput = served_count / makespan if makespan else float("nan")
         served_agg = (
             sdf[sdf["task"].isin(served_tasks)]
             .groupby("task", observed=True)
@@ -722,7 +727,8 @@ def save_results(
         n_apps_in_window = int(sdf["task"].nunique())
         service_ratio = (
             served_count / n_apps_in_window
-            if n_apps_in_window > 0 else float("nan")
+            if n_apps_in_window > 0
+            else float("nan")
         )
         fairness = float("nan")
         completion_ratios = []
@@ -752,8 +758,7 @@ def save_results(
                 completed = int(row.get("completed", 0))
                 failed = int(row.get("failed", 0))
                 instances = (
-                    int(sspecs[task]["instances"])
-                    if task in sspecs else 0
+                    int(sspecs[task]["instances"]) if task in sspecs else 0
                 )
                 released = int(released_per_task.get(task, 0))
                 served = released == instances
@@ -882,11 +887,11 @@ def save_results(
 # =============================================================================
 def compute_edge_fidelities(
     G: nx.Graph,
-    distances: Dict[Tuple, float],
+    distances: dict[tuple, float],
     T_coh: float = 0.02,
     c_fiber: float = 2e5,
     F0: float = 0.95,
-) -> Dict[Tuple, float]:
+) -> dict[tuple, float]:
     fidelities = {}
 
     for u, v, data in G.edges(data=True):
@@ -901,10 +906,10 @@ def compute_edge_fidelities(
 
 def compute_edge_probs(
     G: nx.Graph,
-    distances: Dict[Tuple, float],
+    distances: dict[tuple, float],
     attenuation: float = 0.2,
     coupling_efficiency: float = 0.2,
-) -> Dict[Tuple, float]:
+) -> dict[tuple, float]:
     probs = {}
     L_attenuation = 10.0 / (attenuation * np.log(10.0))
 
@@ -920,7 +925,7 @@ def compute_edge_probs(
 def gml_data(
     gml_file: str,
     coherence: float = 0.020,
-) -> Tuple[list, list, dict[tuple, float], dict, float]:
+) -> tuple[list, list, dict[tuple, float], dict, float]:
     """Extracts nodes, edges, distances, fidelities, and diameter from a GML
     file.
 
@@ -964,7 +969,7 @@ def generate_n_apps(
     deadline_range: tuple[float, float],
     rng: np.random.Generator,
     manual_pairs: list[tuple[str, str]] | None = None,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Generates a specified number of applications with random parameters.
 
     Args:
@@ -981,7 +986,7 @@ def generate_n_apps(
         rng (np.random.Generator): Random number generator for reproducibility.
 
     Returns:
-        Dict[str, Dict[str, Any]]: Mapping of application name to its metadata,
+        dict[str, dict[str, Any]]: Mapping of application name to its metadata,
         including endpoints, number of instances, requested EPR pairs, and
         deadline budget multiplier.
     """
@@ -1036,7 +1041,7 @@ def prepare_run_dir(
     keep_seed_outputs: bool = True,
 ) -> tuple[str, str]:
     base_output = output_dir or "results"
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     run_dir = os.path.join(base_output, timestamp)
     os.makedirs(run_dir, exist_ok=True)
     if keep_seed_outputs:
@@ -1050,30 +1055,26 @@ def prepare_run_dir(
 # Retrievial
 # =============================================================================
 def fidelity_bounds(
-    bounds: Dict[Tuple[str, str], Tuple[float, float]], src: str, dst: str
-) -> Tuple[float, float]:
+    bounds: dict[tuple[str, str], tuple[float, float]], src: str, dst: str
+) -> tuple[float, float]:
     return bounds[(src, dst) if src < dst else (dst, src)]
 
 
 def all_simple_paths(
-    paths: Dict[Tuple[str, str], List[Tuple[float, Tuple[str, ...]]]],
+    paths: dict[tuple[str, str], list[tuple[float, tuple[str, ...]]]],
     src: str,
     dst: str,
-) -> List[Tuple[float, Tuple[str, ...]]]:
+) -> list[tuple[float, tuple[str, ...]]]:
     return paths.get((src, dst) if src < dst else (dst, src), [])
 
 
 def count_edge_disjoint_paths(
-    feasible_paths: List[Tuple[float, Tuple[str, ...]]],
+    feasible_paths: list[tuple[float, tuple[str, ...]]],
 ) -> int:
     if not feasible_paths:
         return 0
     src, dst = feasible_paths[0][1][0], feasible_paths[0][1][-1]
-    edges = (
-        (u, v)
-        for _, path in feasible_paths
-        for u, v in zip(path[:-1], path[1:], strict=False)
-    )
+    edges = ((u, v) for _, path in feasible_paths for u, v in pairwise(path))
     graph = nx.Graph(edges)
     n_disjoint = sum(1 for _ in nx.edge_disjoint_paths(graph, src, dst))
     return n_disjoint
