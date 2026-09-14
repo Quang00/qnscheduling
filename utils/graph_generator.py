@@ -153,8 +153,8 @@ def fat_tree(
 
 def dragonfly(
     a: int = 4,
-    h: int = 2,
-    p: int = 2,
+    h: int = 1,
+    p: int = 1,
     qpu_router_dist: float = 0.1,
     intra_group_dist: float = 0.3,
     global_dist: float = 0.6,
