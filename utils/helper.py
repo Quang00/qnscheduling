@@ -630,7 +630,9 @@ def save_results(
             retry_count / tot_reqs if tot_reqs else float("nan")
         )
         avg_burst_time = (
-            sdf["burst_time"].mean() if not sdf.empty else float("nan")
+            served_df["burst_time"].mean()
+            if not served_df.empty
+            else float("nan")
         )
         total_burst_time = float(executed_burst.fillna(0).clip(lower=0).sum())
         avg_active_pgas = (
