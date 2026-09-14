@@ -22,7 +22,7 @@ def main():
     simulations_per_point = 20
 
     base_kwargs = {
-        "epr_range": (1, 1),
+        "epr_range": (2, 2),
         "deadline_range": (deadline, deadline),
         "memory": 50,
         "p_swap": 0.5,

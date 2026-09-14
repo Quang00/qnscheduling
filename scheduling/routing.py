@@ -447,10 +447,12 @@ def rerouting(
     cur_t: float,
     app: str,
     resources: dict[tuple[str, str], float] | None = None,
+    rng: np.random.Generator | None = None,
 ) -> tuple[list[str], list[tuple[str, str]], float, float, float] | None:
     res = resources
     best = None
     best_score = None
+    tied = None
     deadline_eps = deadline + EPS
 
     for e2e_fid, path, links, pga_duration in precomputed.get(app, []):
@@ -466,9 +468,17 @@ def rerouting(
         if finish > deadline_eps:
             continue
         path_score = finish + sum_wait
-        if best_score is None or path_score < best_score:
+        if best_score is None or path_score < best_score - EPS:
             best_score = path_score
             best = (path, links, avail, pga_duration, e2e_fid)
+            tied = None
+        elif path_score <= best_score + EPS:
+            if tied is None:
+                tied = [best]
+            tied.append((path, links, avail, pga_duration, e2e_fid))
+
+    if tied is not None and rng is not None:
+        best = tied[int(rng.integers(len(tied)))]
 
     return best
 
@@ -537,6 +547,7 @@ def dynamic_routing(
     cur_t: float = 0.0,
     resources: dict[tuple[str, str], float] | None = None,
     mode: str = "wc",
+    rng: np.random.Generator | None = None,
 ) -> tuple[tuple | None, float | None, list[tuple[str, str]]]:
     non_work_conserving = mode in ("nwc", "fastest")
     fastest_only = mode == "fastest"
@@ -545,6 +556,7 @@ def dynamic_routing(
     next_avail_path_links = None
     best = None
     best_score = None
+    tied = None
     deadline_eps = deadline + EPS
     cur_t_eps = cur_t + EPS
 
@@ -579,9 +591,17 @@ def dynamic_routing(
             if not non_work_conserving:
                 continue
         path_score = finish + sum_wait
-        if best_score is None or path_score < best_score:
+        if best_score is None or path_score < best_score - EPS:
             best_score = path_score
             best = (path, links, avail, pga_duration, e2e_fid)
+            tied = None
+        elif path_score <= best_score + EPS:
+            if tied is None:
+                tied = [best]
+            tied.append((path, links, avail, pga_duration, e2e_fid))
+
+    if tied is not None and rng is not None:
+        best = tied[int(rng.integers(len(tied)))]
 
     if best is None:
         return (

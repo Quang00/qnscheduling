@@ -1,8 +1,7 @@
 import os
 import sys
-from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -101,6 +100,10 @@ def build_metric_specs(
         {
             "key": "avg_pga_duration",
             "ylabel": "Average PGA duration (s)",
+        },
+        {
+            "key": "avg_burst_time",
+            "ylabel": "Average burst time (s)",
         },
         {
             "key": "avg_defer_per_pga",
@@ -306,8 +309,9 @@ def render_plot(
     if group_column or overlay:
         ax.legend()
 
-    if spec.get("yscale") and summary_df["mean"].gt(0).any():
-        ax.set_yscale(spec["yscale"])
+    if spec.get("yscale"):
+        if summary_df["mean"].gt(0).any():
+            ax.set_yscale(spec["yscale"])
 
     ymin = spec.get("ymin")
     ymax = spec.get("ymax")
@@ -443,11 +447,11 @@ def plot_metrics_vs_load(
         ],
         multi=True,
         gp_labels={
-            "1": "Precomputed",
-            "2": "Proactive",
-            "3": "Hybrid",
-            "4": "Reactive (wc)",
-            "5": "Reactive (nwc)",
+            "1": "Pre-determined",
+            "2": "Fixed per application",
+            "3": "Hybrid adaptive NWC",
+            "4": "Adaptive WC",
+            "5": "Adaptive NWC",
         },
         overlay_multipath=True,
     )
@@ -459,7 +463,7 @@ def plot_metrics_vs_load(
         if out_dir:
             run_dir = out_dir
         else:
-            timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             run_dir = os.path.join("results", timestamp)
         os.makedirs(run_dir, exist_ok=True)
         if p_packet_values is None:
@@ -555,11 +559,11 @@ def main():
         path=paths,
         multi=True,
         gp_labels={
-            "1": "Precomputed",
-            "2": "Proactive",
-            "3": "Hybrid",
-            "4": "Reactive",
-            "5": "Reactive (nwc)",
+            "1": "Pre-determined",
+            "2": "Fixed per application",
+            "3": "Hybrid adaptive NWC",
+            "4": "Adaptive WC",
+            "5": "Adaptive NWC",
         },
         overlay_multipath=False,
         out_dir=out_dir,

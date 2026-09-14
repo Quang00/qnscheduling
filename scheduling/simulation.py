@@ -279,6 +279,7 @@ def simulate_dynamic(
     app_e2e_fidelities: dict[str, float] | None = None,
 ):
     log = []
+    rng_tiebreak = rng.spawn(1)[0]
     defer_counts = {}
     pga_release_times = {}
     pga_names = []
@@ -465,6 +466,7 @@ def simulate_dynamic(
                     cur_t,
                     resources,
                     mode=dynamic_mode,
+                    rng=rng_tiebreak,
                 )
                 routing_decision_runtime += time.perf_counter() - _t0
                 if routed is None:
@@ -537,6 +539,7 @@ def simulate_dynamic(
                         cur_t,
                         app,
                         resources,
+                        rng=rng_tiebreak,
                     )
                     routing_decision_runtime += time.perf_counter() - _t0
                     if alt_path is not None:
