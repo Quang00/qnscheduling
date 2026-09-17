@@ -619,6 +619,7 @@ def dynamic_routing(
 def static_routing(
     app_requests: dict[str, dict[str, Any]],
     simple_paths: dict[tuple[str, str], list[list[str]]],
+    rng: np.random.Generator | None = None,
 ) -> tuple[dict[str, list[list[str]]], dict[str, float]]:
     ret = {}
     e2e_fids = {}
@@ -636,13 +637,18 @@ def static_routing(
                 e2e_fids[app] = best_fid
             continue
         best_fid = float("-inf")
-        chosen_path = []
+        tied = []
         for path in all_simple_paths(simple_paths, src, dst):
             e2e_fid, path_nodes = path[0], path[1]
             path_nodes_list = list(path_nodes)
-            if e2e_fid > best_fid:
+            if e2e_fid > best_fid + EPS:
                 best_fid = e2e_fid
-                chosen_path = path_nodes_list
+                tied = [path_nodes_list]
+            elif e2e_fid >= best_fid - EPS:
+                tied.append(path_nodes_list)
+        chosen_path = tied[0] if tied else []
+        if rng is not None and len(tied) > 1:
+            chosen_path = tied[int(rng.integers(len(tied)))]
         min_fid = req.get("min_fidelity", 0.0)
         if not chosen_path:
             path_cache[(src, dst)] = ([], float("nan"))
