@@ -73,6 +73,7 @@ def run_simulation(
     dynamic_mode: str = "wc",
     windows: tuple[float, float] | None = None,
     end_nodes: list[str] | None = None,
+    fat_k: int = 4,
 ):
     """Run the quantum network scheduling simulation.
 
@@ -103,6 +104,7 @@ def run_simulation(
         windows (tuple[float, float] | None): Post-warm-up observation
             window as (min_time, max_time). In dynamic mode, max_time is used
             as the simulation horizon.
+        fat_k (int): Number of pods k of the fat tree (graph 'fat').
     Returns:
         tuple[bool, dict]:
             A tuple containing:
@@ -131,7 +133,7 @@ def run_simulation(
             return False, {}
     elif graph == "fat":
         nodes, edges, fidelities, rates, qpus, diameter = fat_tree(
-            coherence=coherence
+            k=fat_k, coherence=coherence
         )
         nodes = qpus
     elif graph == "clos":
