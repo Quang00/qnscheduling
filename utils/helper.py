@@ -615,10 +615,9 @@ def save_results(
         drop_ratio = drop_total / tot_reqs if tot_reqs else float("nan")
         failed_ratio = failed_total / tot_reqs if tot_reqs else float("nan")
         if defer_counts is not None:
+            window_pgas = set(sdf["pga"])
             defer_count = sum(
-                v
-                for k, v in defer_counts.items()
-                if re.sub(r"\d+$", "", k) in sspecs
+                v for k, v in defer_counts.items() if k in window_pgas
             )
         else:
             defer_count = int((sdf["status"] == "defer").sum())
