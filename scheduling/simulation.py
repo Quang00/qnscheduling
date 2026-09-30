@@ -269,6 +269,7 @@ def simulate_dynamic(
     deadline_budgets = {
         app: app_specs[app].get("deadline_budget", 0.0) for app in app_specs
     }
+    drain_time = horizon_time + max(deadline_budgets.values(), default=0.0)
     base_release = {app: pga_rel_times.get(app, 0.0) for app in app_specs}
     max_instances = {
         app: max(0, int(app_specs[app].get("instances", 0)))
@@ -334,7 +335,7 @@ def simulate_dynamic(
             mean_instance_interarrival
         )
 
-        if release >= horizon_time:
+        if release >= drain_time:
             return
 
         deadline = release + deadline_budget
@@ -348,7 +349,7 @@ def simulate_dynamic(
         defer_until: float,
         blocking_links: list[tuple[str, str]],
     ) -> None:
-        if cur_t < warmup_time or not blocking_links:
+        if not warmup_time <= cur_t < horizon_time or not blocking_links:
             return
         track_link_waiting(
             max(0.0, defer_until - cur_t),
@@ -364,7 +365,7 @@ def simulate_dynamic(
     while events_queue:
         cur_t = events_queue[0][0]
 
-        if cur_t >= horizon_time:
+        if cur_t >= drain_time:
             break
 
         while events_queue and events_queue[0][0] <= cur_t + EPS:
@@ -380,7 +381,7 @@ def simulate_dynamic(
             if event_type == "release":
                 enqueue_release(app)
 
-            if event_time >= horizon_time:
+            if event_time >= drain_time:
                 continue
 
             heapq.heappush(
@@ -594,7 +595,7 @@ def simulate_dynamic(
                 })
                 continue
 
-            recording = start_time >= warmup_time
+            recording = warmup_time <= start_time < horizon_time
             link_p_gens = [rates[lk] for lk in route_links]
             pga = PGA(
                 name=pga_name,
