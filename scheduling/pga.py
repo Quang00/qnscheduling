@@ -10,31 +10,38 @@ probabilities.
 
 from functools import cache
 from itertools import pairwise
-from math import comb
+from math import prod
 
 from scipy.stats import binom
 
 
 def probability_e2e(
-    n_swap: int, memory: int = 1, p_gen: float = 0.001, p_swap: float = 0.6
+    n_swap: int,
+    memory: int = 1,
+    p_gen: float | tuple[float, ...] = 0.001,
+    p_swap: float = 0.5,
 ) -> float:
     """Calculate the end-to-end probability of generating EPR pairs in a given
-    path.
+    path: every link succeeds in the same slot and every swap succeeds.
 
     Args:
         n_swap (int): Number of swaps performed.
         memory (int, optional): Number of independent link-generation trials
         per slot.
-        p_gen (float, optional): Probability of generating an EPR pair in a
-        single trial.
+        p_gen (float | tuple[float, ...], optional): Probability of generating
+        an EPR pair in a single trial, shared by every link, or one value per
+        link of the path.
         p_swap (float, optional): Probability of swapping an EPR pair in a
         single trial.
 
     Returns:
         float: End-to-end probability of generating EPR pairs.
     """
-    p_succ_one_link = 1 - (1 - p_gen) ** (memory)
-    p_succ_all_links = p_succ_one_link ** (n_swap + 1)
+    if isinstance(p_gen, tuple):
+        p_succ_all_links = prod(1 - (1 - p) ** memory for p in p_gen)
+    else:
+        p_succ_one_link = 1 - (1 - p_gen) ** (memory)
+        p_succ_all_links = p_succ_one_link ** (n_swap + 1)
     p_bsms = p_swap**n_swap
 
     return p_succ_all_links * p_bsms
@@ -56,31 +63,6 @@ def exceeds_p_packet(n: int, k: int, p_e2e: float, p_packet: float) -> bool:
         trials is greater than or equal to p_packet.
     """
     return binom.sf(k - 1, float(n), p_e2e) >= p_packet
-
-
-@cache
-def expected_bsm_slots(n_links: int, p_link: float, window: int) -> float:
-    """Expected number of slots until an end-to-end BSM is performed.
-
-    Args:
-        n_links (int): Number of links that must hold a live pair.
-        p_link (float): Per-slot success probability of a single link.
-        window (int): Coherence window in slots.
-
-    Returns:
-        float: Expected number of slots until the BSM fires.
-    """
-    r = 1.0 - p_link
-    e_max = sum(
-        (-1) ** (j + 1) * comb(n_links, j) / (1.0 - r**j)
-        for j in range(1, n_links + 1)
-    )
-    p_window = (
-        (1.0 - r**window) ** n_links - (r - r**window) ** n_links
-    ) / (1.0 - r**n_links)
-    if p_window <= 0.0:
-        return float("inf")
-    return e_max / p_window
 
 
 def _pmf(j: int, m: int, p: float) -> float:
@@ -154,8 +136,8 @@ def duration_pga(
     epr_pairs: int,
     n_swap: int,
     memory: int = 1,
-    p_swap: float = 0.6,
-    p_gen: float = 0.001,
+    p_swap: float = 0.5,
+    p_gen: float | tuple[float, ...] = 0.001,
     time_slot_duration: float = 1e-4,
     t_cut: float = 0.001,
 ) -> float:
@@ -169,12 +151,13 @@ def duration_pga(
         per slot.
         p_swap (float, optional): Probability of swapping an EPR pair in a
         single trial.
-        p_gen (float, optional): Probability of generating an EPR pair in a
-        single trial.
+        p_gen (float | tuple[float, ...], optional): Probability of
+        generating an EPR pair in a single trial, shared by every link, or
+        one value per link of the route.
         time_slot_duration (float, optional): Duration of a time slot in
         seconds.
         t_cut (float, optional): Cutoff time: how long a
-        generated pair is held before being discarded.
+        delivered end-to-end pair is held before being discarded.
 
     Returns:
         float: Duration of a PGA in seconds.
@@ -184,12 +167,10 @@ def duration_pga(
             "p_packet cannot be 1.0, as it would lead to infinite duration."
         )
     window = round(t_cut / time_slot_duration)
-    n_links = n_swap + 1
-    p_link = 1.0 - (1.0 - p_gen) ** memory
-    if p_link <= 0.0 or window < 1 or epr_pairs > window:
+    if window < 1 or epr_pairs > window:
         return float("inf")
 
-    p_delivery = p_swap**n_swap / expected_bsm_slots(n_links, p_link, window)
+    p_delivery = probability_e2e(n_swap, memory, p_gen, p_swap)
     if p_delivery <= 0.0:
         return float("inf")
 
@@ -235,15 +216,14 @@ def compute_durations(
         time_slot_duration (float): Duration of a time slot in
         seconds.
         rates (dict[tuple, float]): Per-link p_gen, keyed by sorted-tuple
-        edges. The effective p_gen for a route is the minimum across its
-        edges.
-        t_cut (float, optional): Cutoff time: how long a generated
-        pair is held before being discarded.
+        edges. Every link of a route contributes its own p_gen.
+        t_cut (float, optional): Cutoff time: how long a delivered
+        end-to-end pair is held before being discarded.
 
     Returns:
-        dict[str, float]: A dictionary mapping each application to its total
-        duration, which includes the time taken for probabilistic generation
-        of EPR pairs and the latency based on the distance of the path.
+        dict[str, float]: A dictionary mapping each application to the
+        duration of its PGA, the time reserved for probabilistic generation
+        of its EPR pairs. Signalling latency is not included.
     """
     durations = {}
     for app, route in paths.items():
@@ -253,17 +233,17 @@ def compute_durations(
         n_swaps = length_route - 2
         if length_route <= 2:
             n_swaps = 0
-        effective_p_gen = min(
+        link_p_gens = tuple(sorted(
             rates[(min(u, v), max(u, v))]
             for u, v in pairwise(route)
-        )
+        ))
         pga_time = duration_pga(
             p_packet=p_packet,
             epr_pairs=epr_pairs[app],
             n_swap=n_swaps,
             memory=memory,
             p_swap=p_swap,
-            p_gen=effective_p_gen,
+            p_gen=link_p_gens,
             time_slot_duration=time_slot_duration,
             t_cut=t_cut,
         )

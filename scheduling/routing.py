@@ -60,14 +60,14 @@ def _compute_delta_and_links(
         (min(u, v), max(u, v))
         for u, v in pairwise(path)
     ]
-    effective_p_gen = min(rates[lk] for lk in links)
+    link_p_gens = tuple(sorted(rates[lk] for lk in links))
     pga_duration = duration_pga(
         p_packet=p_packet,
         epr_pairs=req["epr"],
         n_swap=n_swaps,
         memory=memory,
         p_swap=p_swap,
-        p_gen=effective_p_gen,
+        p_gen=link_p_gens,
         time_slot_duration=time_slot_duration,
         t_cut=t_cut,
     )
@@ -513,8 +513,8 @@ def compute_path_durations(
             for u, v in pairwise(path)
         ]
         n_swap = max(0, len(path) - 2)
-        effective_p_gen = min(rates[lk] for lk in links)
-        key = (n_swap, effective_p_gen)
+        link_p_gens = tuple(sorted(rates[lk] for lk in links))
+        key = link_p_gens
         if key not in duration_cache:
             duration_cache[key] = duration_pga(
                 p_packet=pga_params["p_packet"],
@@ -522,7 +522,7 @@ def compute_path_durations(
                 n_swap=n_swap,
                 memory=pga_params["memory"],
                 p_swap=pga_params["p_swap"],
-                p_gen=effective_p_gen,
+                p_gen=link_p_gens,
                 time_slot_duration=pga_params["slot_duration"],
                 t_cut=pga_params.get("t_cut", 0.001),
             )

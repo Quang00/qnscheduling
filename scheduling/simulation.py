@@ -10,7 +10,6 @@ window, considering resource availability and link busy times.
 import heapq
 import re
 import time
-from bisect import bisect_left
 from typing import Any
 
 import numpy as np
@@ -62,15 +61,12 @@ class PGA:
         - In every time slot each link attempts to generate an EPR pair; with
           `memory` multiplexed trials per slot the per-slot success
           probability is ``1 - (1 - p_gen) ** memory``.
-        - A generated link pair stays live for the cutoff window (`t_mem`
-          slots) and is refreshed by later successes on the same link.
-        - The end-to-end BSM fires at the earliest slot where every link of
-          the route simultaneously holds a live pair; it consumes the pair of
-          every link (destructive, regardless of outcome) and delivers an
-          end-to-end pair with probability ``p_swap ** n_swap``.
-        - Delivered end-to-end pairs decohere after the same cutoff
-          window; the PGA completes once `epr_pairs` end-to-end pairs are
-          alive simultaneously.
+        - An end-to-end BSM is performed in a slot only if every link of the
+          route succeeds in that slot, and delivers an end-to-end pair with
+          probability ``p_swap ** n_swap``.
+        - A delivered end-to-end pair is stored for the cutoff window
+          `t_cut`; the PGA completes once `epr_pairs` end-to-end
+          pairs are alive simultaneously.
 
         Args:
             name (str): PGA identifier.
@@ -92,9 +88,9 @@ class PGA:
             p_swap (float): Probability of swapping an EPR pair.
             memory (int): Number of independent link-generation trials per
             slot (multiplexed memory modes).
-            t_cut (float): Cutoff time: how long a generated
+            t_cut (float): Cutoff time: how long a delivered end-to-end
             pair is held before being discarded. Converted internally to an
-            integer number of slots `t_mem`; a pair generated at slot ``s``
+            integer number of slots `t_mem`; a pair delivered at slot ``s``
             is live during ``[s, s + t_mem - 1]``.
             deadline (float, optional): Deadline time for the PGA. Defaults to
             None, which means no deadline.
@@ -131,59 +127,26 @@ class PGA:
         merged = np.concatenate(slots)
         return merged[merged < max_slots]
 
-    def _simulate_e2e_pairs(self, max_slots: int) -> np.ndarray:
+    def _simulate_e2e_pairs(
+        self, max_slots: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        empty = np.array([], dtype=np.int64)
         if self.t_cut <= 0 or max_slots <= 0:
-            return np.array([], dtype=np.int64)
+            return empty, empty
         if np.any(self.link_qs <= 0.0):
-            return np.array([], dtype=np.int64)
+            return empty, empty
 
-        t_mem = self.t_cut
-        link_slots = [
-            self._sample_success_slots(q, max_slots).tolist()
-            for q in self.link_qs
-        ]
-        if any(not s for s in link_slots):
-            return np.array([], dtype=np.int64)
-
-        sizes = [len(s) for s in link_slots]
-        cursors = [0] * len(link_slots)
+        joint = self._sample_success_slots(self.link_qs[0], max_slots)
+        for q in self.link_qs[1:]:
+            joint = np.intersect1d(
+                joint,
+                self._sample_success_slots(q, max_slots),
+                assume_unique=True,
+            )
         p_bsms = self.p_swap**self.n_swap
-        rng_random = self.rng.random
-        deliveries = []
-        alive_lo = 0
-        fresh_from = 0
-
-        while True:
-            t = -1
-            for i, s in enumerate(link_slots):
-                j = bisect_left(s, fresh_from, cursors[i])
-                if j == sizes[i]:
-                    return np.asarray(deliveries, dtype=np.int64)
-                cursors[i] = j
-                t = max(t, s[j])
-
-            stable = False
-            while not stable:
-                stable = True
-                floor = t - t_mem + 1
-                for i, s in enumerate(link_slots):
-                    j = cursors[i]
-                    if floor > s[j]:
-                        j = bisect_left(s, floor, j)
-                        if j == sizes[i]:
-                            return np.asarray(deliveries, dtype=np.int64)
-                        cursors[i] = j
-                    if s[j] > t:
-                        t = s[j]
-                        stable = False
-
-            fresh_from = t + 1
-            if p_bsms >= 1.0 or rng_random() < p_bsms:
-                deliveries.append(t)
-                while deliveries[alive_lo] <= t - t_mem:
-                    alive_lo += 1
-                if len(deliveries) - alive_lo >= self.epr_pairs:
-                    return np.asarray(deliveries, dtype=np.int64)
+        if p_bsms < 1.0:
+            joint = joint[self.rng.random(joint.size) < p_bsms]
+        return joint, joint + (self.t_cut - 1)
 
     def _update_resources_and_links(
         self,
@@ -211,14 +174,11 @@ class PGA:
 
         if t_budget > EPS:
             max_attempts = int((t_budget + EPS) // self.slot_duration)
-            deliveries = self._simulate_e2e_pairs(max_attempts)
+            deliveries, expiries = self._simulate_e2e_pairs(max_attempts)
             attempts_run = max_attempts
 
             if deliveries.size:
-                t_mem = self.t_cut
-                oldest_alive = np.searchsorted(
-                    deliveries, deliveries - (t_mem - 1)
-                )
+                oldest_alive = np.searchsorted(expiries, deliveries)
                 live_counts = (
                     np.arange(1, deliveries.size + 1) - oldest_alive
                 )
